@@ -8,7 +8,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@clerk/hono": "0.1.33",
     "@hono/node-server": "2.0.4",
     "@livekit/protocol": "1.50.4",
     "@receptionist/core": "workspace:*",

@@ -1,5 +1,7 @@
 # DeskRoute
 
+**Current development:** receptionist for USA customer handover using Supabase PostgreSQL, Supabase Auth, and LiveKit, with browser testing as the first milestone. Start with [SCOPE.md](SCOPE.md), [setup](docs/SETUP.md), and [decisions](docs/DECISIONS.md). Onboarding no longer requires a phone purchase. The upstream phone capabilities described below remain available for a later milestone.
+
 An AI receptionist for appointment-based local businesses. Customers call a real US phone number - DeskRoute answers, books appointments via Google Calendar, and escalates anything it can't handle to the business owner through an admin dashboard.
 
 Self-hosted and open source. One deployment runs one or more agents.
@@ -67,7 +69,7 @@ Self-hosted and open source. One deployment runs one or more agents.
 |---|---|
 | API server | Hono (Node.js, ESM) |
 | Database | Postgres 17 + Drizzle ORM |
-| Auth | Clerk |
+| Auth | Supabase Auth (Google sign-in) |
 | Voice pipeline | LiveKit Agents SDK |
 | STT | AssemblyAI universal-3-5-pro (LiveKit Inference) |
 | LLM | LiveKit Inference by default; OpenRouter via `LLM_PROVIDER` |
@@ -92,7 +94,7 @@ Self-hosted and open source. One deployment runs one or more agents.
 
 - Node.js 22+
 - [LiveKit Cloud](https://cloud.livekit.io) project with a US phone number purchased and a SIP dispatch rule configured
-- [Clerk](https://clerk.com) application with Google OAuth enabled
+- [Supabase](https://supabase.com) project with Google sign-in enabled; follow [setup](docs/SETUP.md)
 - [Cloudflare R2](https://developers.cloudflare.com/r2/) bucket, only if you want call recordings
 - [OpenRouter](https://openrouter.ai) API key, only when `LLM_PROVIDER=openrouter`
 - [Docker](https://www.docker.com) for the development and test databases
@@ -118,7 +120,11 @@ DATABASE_URL=                  # postgresql://deskroute:deskroute@localhost:5432
 LIVEKIT_URL=                   # wss://your-project.livekit.cloud
 LIVEKIT_API_KEY=
 LIVEKIT_API_SECRET=
-CLERK_SECRET_KEY=
+SUPABASE_URL=
+SUPABASE_PUBLISHABLE_KEY=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+TOKEN_ENCRYPTION_KEY=
 
 # Recording storage. Set all four, or none to run without recording.
 R2_ACCOUNT_ID=
@@ -131,7 +137,6 @@ R2_BUCKET_NAME=
 
 ```env
 PORT=8080
-CLERK_PUBLISHABLE_KEY=
 DASHBOARD_ORIGINS=             # comma-separated; defaults to http://localhost:5173
                                # any localhost port is accepted when a localhost origin is listed
 ```
@@ -148,9 +153,10 @@ OPENROUTER_BASE_URL=           # https://openrouter.ai/api/v1
 
 **`packages/core/.env`** holds `DATABASE_URL` alone, for `drizzle-kit`.
 
-**`apps/web/.env`**
+**`apps/web/.env.local`**
 ```env
-VITE_CLERK_PUBLISHABLE_KEY=
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
 VITE_API_URL=http://localhost:8080/api
 ```
 
@@ -202,7 +208,7 @@ Public:
 | POST | `/api/onboarding` | Create agent + purchase phone number |
 | GET | `/api/onboarding/phone/search?areaCode=415` | Search available numbers (`areaCode` optional) |
 
-Admin - `Authorization: Bearer <clerk_jwt>` required:
+Admin - `Authorization: Bearer <supabase_access_token>` required:
 
 | Method | Path | Description |
 |---|---|---|

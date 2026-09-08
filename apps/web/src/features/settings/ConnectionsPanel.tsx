@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useUser } from '@clerk/react'
+import { useAuth } from '@/features/auth/useAuth'
+import { signInWithGoogle } from '@/lib/supabase'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Calendar, Phone } from 'lucide-react'
 import { toast } from 'sonner'
@@ -69,7 +70,7 @@ function ConnectionRow({
 
 export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
   const qc = useQueryClient()
-  const { user } = useUser()
+  const { user } = useAuth()
   const [open, setOpen] = useState<Open>(null)
   const [choice, setChoice] = useState<string | null>(null)
   const [granting, setGranting] = useState(false)
@@ -114,33 +115,11 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
     onError: () => toast.error('Could not disconnect. Try again.'),
   })
 
-  /** Both calls return an account whose `externalVerificationRedirectURL` is the
-   *  consent screen; navigating there is this function's job. */
   async function grantAccess() {
     if (!user) return
     setGranting(true)
-    try {
-      const redirectUrl = `${window.location.origin}/sso-callback?returnTo=/settings?tab=connections`
-      const scopes = ['https://www.googleapis.com/auth/calendar']
-      const google = user.externalAccounts.find((a) => a.provider === 'google')
-      const account = google
-        ? await google.reauthorize({ additionalScopes: scopes, redirectUrl })
-        : await user.createExternalAccount({
-            strategy: 'oauth_google',
-            redirectUrl,
-            additionalScopes: scopes,
-          })
-      const next = account.verification?.externalVerificationRedirectURL
-      if (!next) {
-        toast.error('Google did not return a consent link. Try again.')
-        setGranting(false)
-        return
-      }
-      window.location.href = next.href
-    } catch {
-      toast.error('Could not open Google. Try again.')
-      setGranting(false)
-    }
+    try { await signInWithGoogle(user.id) }
+    catch { toast.error('Could not open Google. Try again.'); setGranting(false) }
   }
 
   const calendars = data?.calendars ?? []
@@ -191,7 +170,7 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
               title="Your agent answers this number"
               description="Every call to this number reaches your agent."
             >
-              <Switch checked disabled aria-label="Your agent answers this number" />
+              <Switch checked={!!phone} disabled aria-label="Your agent answers this number" />
             </SubRow>
             <SubRow
               title="Transfer to a human"

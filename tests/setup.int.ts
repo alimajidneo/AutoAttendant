@@ -7,7 +7,12 @@ import { db } from "@receptionist/core/db/client.js";
  * asserts the chain against a genuinely empty database and this would poison it.
  */
 
+const target = new URL(process.env.DATABASE_URL!);
+if (!["localhost", "127.0.0.1", "[::1]"].includes(target.hostname) || target.pathname !== "/deskroute_test") {
+  throw new Error("Integration tests require the local deskroute_test database; refusing destructive cleanup");
+}
 const TABLES = [
+  "google_credentials",
   "appointments",
   "knowledge_items",
   "escalations",

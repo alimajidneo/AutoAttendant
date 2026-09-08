@@ -8,6 +8,20 @@
       "when": 1788604005850,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788850683574,
+      "tag": "0001_supabase_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788850841874,
+      "tag": "0002_backend_table_rls",
+      "breakpoints": true
     }
   ]
 }

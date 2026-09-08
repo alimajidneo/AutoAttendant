@@ -60,7 +60,7 @@ export async function makeAgent(overrides: Partial<typeof agents.$inferInsert> =
       greeting: AGENT_PROFILE.greeting,
       farewell: AGENT_PROFILE.farewell,
       fallback: AGENT_PROFILE.fallback,
-      clerkUserId: `user_${uniq()}`,
+      authUserId: `user_${uniq()}`,
       ...overrides,
     })
     .returning();

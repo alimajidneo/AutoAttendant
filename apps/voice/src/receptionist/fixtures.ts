@@ -27,7 +27,7 @@ export function makeAgentConfig(overrides: Partial<AgentConfig> = {}): AgentConf
     recordCalls: true,
     checklistDismissed: DEFAULT_AGENT_SETUP.checklistDismissed,
     hoursSeen: DEFAULT_AGENT_SETUP.hoursSeen,
-    clerkUserId: "user_test",
+    authUserId: "user_test",
     calendarProvider: null,
     calendarExternalId: null,
     calendarPayload: null,

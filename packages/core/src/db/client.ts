@@ -1,14 +1,15 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { env } from "../env.js";
+import { databaseConnection } from "./connection.js";
 
 /**
  * keepAlive plus a bounded idle timeout, never a short one: holding sockets
  * without TCP probes lets the network reap them and `pg` hands out a dead client.
  */
 const pool = new Pool({
-  connectionString: env.DATABASE_URL,
-  max: 10,
+  ...databaseConnection(env.DATABASE_URL),
+  max: env.DATABASE_POOL_MAX,
   connectionTimeoutMillis: 10_000,
   idleTimeoutMillis: 30_000,
   keepAlive: true,

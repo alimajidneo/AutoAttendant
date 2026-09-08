@@ -1,0 +1,384 @@
+# DeskRoute setup — USA customer handover
+
+These instructions are for your checkout at `/home/ali/NewProjects/AutoAttendant/deskroute-app`. The `AutoAttendant` folder is the workspace; **`deskroute-app` inside it is the application root**.
+
+Current decision: use **Supabase PostgreSQL + Supabase Auth + LiveKit**. Google sign-in supports customer administrators; no account, business, calendar, timezone, or phone number is hard-coded to the developer. No Clerk account is needed.
+
+Current implementation: phone-free onboarding, Supabase Google sign-in, API owner verification, and encrypted Google Calendar token renewal are implemented. **Database migrations have not been applied; real sign-in and booking have not been verified.** The deployment owner controls migrations, cloud settings, and startup. Supabase Data API can stay disabled.
+
+## Saved credential verification — 2026-09-08
+
+- Database URLs match across core migrations, API, and voice. LiveKit URL/key/secret match across API and voice. Secret values were not printed.
+- Filled blank local defaults: API `PORT=8080`, dashboard origin `http://localhost:5173`, and voice `LLM_PROVIDER=livekit`.
+- LiveKit credentials verified through a read-only room-list request; no room, worker session, or phone number was created.
+- Supabase database login verified using the application's shared TLS configuration: client-to-pooler connection encrypted with certificate/hostname validation. PostgreSQL 17.6; zero public application tables. No migrations applied.
+- The pooler's downstream database session reports `pg_stat_ssl.ssl=false`; this is distinct from the verified TLS socket between this app and the pooler. Do not describe it as end-to-end TLS through the pooler.
+- Runtime and Drizzle migrations now share verified remote TLS configuration. Supabase's public CA is bundled with the backend; `DATABASE_POOL_MAX` defaults to 3 per process and accepts 1–20.
+- Supabase Auth code is implemented. Credentials, callback configuration, schema application, and live acceptance still need completing.
+
+## Provider setup completed — 2026-09-08
+
+Configured in the visible browser with the user's authorization:
+
+| Setting | Verified value/status |
+| --- | --- |
+| Google Cloud project | DeskRoute Dev (`deskroute-dev`), organization `neodym.ai` |
+| OAuth app | DeskRoute; External audience; Testing status |
+| Support/developer contact | ali@neodym.ai |
+| Test user | ali@neodym.ai |
+| OAuth client | DeskRoute Web; Web application |
+| JavaScript origin | `http://localhost:5173` |
+| Google redirect | `https://kpwrmksedtcncrnltdro.supabase.co/auth/v1/callback` |
+| Google Calendar API | Enabled |
+| Declared identity scopes | `openid`, `userinfo.email`, `userinfo.profile` |
+| Declared Calendar scopes | `calendar.events`, `calendar.calendarlist.readonly`, `calendar.freebusy` (under `https://www.googleapis.com/auth/`) |
+| Supabase project | deskroute-dev (`kpwrmksedtcncrnltdro`) |
+| Supabase Google provider | Enabled; actual Google credentials saved directly in provider settings |
+| Supabase Site URL | `http://localhost:5173` |
+
+The Google client secret is stored in Supabase, not this document. No billing activation or paid trial was performed. Google billing was previously verified disabled for this project.
+
+The broad `calendar` scope was not saved: automatic approval review rejected its calendar-sharing/deletion access. The narrower scope set above was accepted and saved. The app's current calendar consent code still requests the old broad scope; update it to match this set during the Supabase Auth implementation. Scope declaration alone does not authorize access to anyone's calendar.
+
+Remaining: implement and verify the application auth callback, JWT ownership checks, Google refresh-token storage/renewal, and booking behavior. Production domain, public privacy information, Google publication/verification, and hosting remain handover requirements. Existing setup steps below are reference instructions; do not create duplicate OAuth clients or projects.
+
+## Delivery requirements
+
+Build the same application for testing and customer operation. Initial testing uses free allowances where available; handover requires verified hosting, actual provider costs, and a working US telephone route. A local browser demo is an intermediate check, not the delivery target.
+
+Customer onboarding must collect business identity, an IANA timezone with daylight-saving behavior, working hours, services, calendar authorization, and telephone routing through supported settings. Customers must not edit source code, replace authentication providers, or manually migrate their data to use the product. Keep each customer's data and credentials isolated.
+
+Supabase Auth replaces the inherited Clerk integration. Verify sign-in and Calendar access before customer onboarding. Normal deployment configuration and versioned database upgrades remain necessary engineering work; the handover must not depend on a later architecture replacement. The delivery owner runs and verifies these steps.
+
+This guide contains no invented credentials or proposed environment variables. Real secrets must come from the selected provider and remain in local/server configuration. Blank template entries mean setup is incomplete; they are not working defaults.
+
+
+### Latest code verification
+
+Supabase Auth implementation checks passed: 159 backend unit tests, 49 frontend checks, typecheck, lint, and production build. The local browser displays a clear setup message while the publishable key is missing. Real Google sign-in, database migrations, Calendar booking, and live voice have not been verified. No cloud settings or migrations were changed during this implementation step.
+
+## 1. Find and edit the environment files
+
+Files starting with a dot are hidden by many file browsers. In the Ubuntu Files app, press **Ctrl+H** to show them. In an editor, use **Open File** and paste the full path below.
+
+The `.env.example` files are templates. The `.env` files hold your actual local settings. I created the four local files from the templates on 2026-09-08, preserving any existing files. You can edit them directly now. Templates now use Supabase Auth. Existing local files preserve saved database and LiveKit credentials.
+
+| Purpose | Template | File to edit |
+| --- | --- | --- |
+| Database migrations | [core template](/home/ali/NewProjects/AutoAttendant/deskroute-app/packages/core/.env.example) | [core .env](/home/ali/NewProjects/AutoAttendant/deskroute-app/packages/core/.env) |
+| Backend API | [API template](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/api/.env.example) | [API .env](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/api/.env) |
+| Website | [web template](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/web/.env.example) | [web .env.local](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/web/.env.local) |
+| Voice worker | [voice template](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/voice/.env.example) | [voice .env](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/voice/.env) |
+
+If you prefer the terminal, first run:
+
+```sh
+cd /home/ali/NewProjects/AutoAttendant/deskroute-app
+pwd
+ls -la packages/core/.env*
+nano packages/core/.env
+```
+
+`pwd` should end in `/AutoAttendant/deskroute-app`. In nano, save with **Ctrl+O**, press **Enter**, and exit with **Ctrl+X**. Do not include a trailing backtick in a filename; backticks in documentation only format code.
+
+Use one `NAME=value` entry per line. Fill the existing entry with the actual provider value rather than adding duplicate entries. Keep secrets in these local files; they are ignored by Git. Do not put server secrets into the website's `VITE_*` variables. Restart a running process after changing its environment file.
+
+## 2. Create Supabase and save the database connection
+
+### Create the project
+
+1. Open [Supabase Dashboard](https://supabase.com/dashboard) in your browser and sign up or sign in.
+2. Create an organization if asked. Choose the **Free** plan.
+3. Choose **New project** and select that organization.
+4. Name the project `deskroute-dev`.
+5. Generate a strong database password and save it privately. This is the database password, separate from your Supabase login password.
+6. Choose a nearby available region. You can share the region name if you want help choosing; no paid region/network add-on is needed for this setup.
+7. Create the project and wait for provisioning to finish.
+
+### Copy the right connection string
+
+1. Inside the project, click **Connect**.
+2. Find the PostgreSQL connection string/URI controls. If using the **ORM** tab, select **Drizzle**. Copy the **connection string**, not the ORM configuration snippet; this repo already configures Drizzle.
+3. For this local setup, select **Session pooler** on port **5432**. This works on IPv4 without buying an IPv4 add-on. A direct connection is also suitable if your network supports IPv6.
+4. Copy the entire URI shown by your dashboard. Keep its exact hostname and username; do not construct them from the project display name.
+5. Replace `[YOUR-PASSWORD]` with your database password. If the dashboard offers password insertion, use it. Otherwise URL-encode reserved characters in the password only: for example `@` becomes `%40`, `#` becomes `%23`, and `/` becomes `%2F`. Do not use an online password encoder.
+
+In the environment file, set `DATABASE_URL` to the complete connection string copied from your project. Keep the value on one line and wrap it in double quotes. No sample hostname or password should be used.
+
+Put your actual `DATABASE_URL` line in all three files:
+
+- [packages/core/.env](/home/ali/NewProjects/AutoAttendant/deskroute-app/packages/core/.env)
+- [apps/api/.env](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/api/.env)
+- [apps/voice/.env](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/voice/.env)
+
+Do not use the HTTPS project URL or a Supabase API key as `DATABASE_URL`. This application connects from its backend through PostgreSQL. [Official connection methods](https://supabase.com/docs/guides/database/connecting-to-postgres).
+
+### Keep the Data API disabled
+
+**Completed:** you confirmed that the Data API is disabled. Keep it disabled: DeskRoute accesses application data through its own backend and Drizzle. Supabase Auth uses a separate authentication API and can still be used. The [Supabase API security guide](https://supabase.com/docs/guides/api/securing-your-api) explains the Data API controls.
+
+**Checkpoint:** the project exists and the database URI is saved locally in the three files. You can tell me “Supabase is ready” and share the project name or dashboard link. Do not send the URI or password.
+
+**Connection verified:** database credentials, client-to-pooler TLS, PostgreSQL version, and a small runtime pool are configured. Applying the application schema remains pending. If a certificate error occurs, do not disable certificate verification. The migration command is documented in section 6 for use after that work.
+
+## 3. Configure Supabase Auth for Google login
+
+Use the same Supabase project as the database. We need customer administrator login, session handling, logout, verified backend requests, and customer ownership checks. Callers do not need accounts. Additional staff roles and login methods should be added only when required by the customer workflow.
+
+### 3A. Choose the account and project owner first
+
+Use a Google account controlled by the business operating this service. Your sign-in email, the Google Cloud organization, and the customer's calendar are separate things.
+
+| Situation | Account/organization to use |
+| --- | --- |
+| You will host and operate the service for customers | Your own business account and organization. Customers later connect their own calendars through the app. |
+| You are delivering a system the customer will own and operate | The customer's organization, with your individual account invited to work on the project. |
+| You are doing independent development and have no managed organization | An account you control, with **No organization** if offered. |
+| The only organization shown belongs to an unrelated employer | Do not put this project there. Switch to the intended business account. |
+
+To avoid an ownership transfer later, choose the intended production owner before creating its project. If the customer will own everything but has not supplied organization access, their administrator needs to provide that access first. Independent development may continue separately; do not assume its account will become customer production automatically.
+
+### 3B. Create the Google Cloud project: each field
+
+1. Open [Google Cloud Console](https://console.cloud.google.com/).
+2. Check the profile icon at the top right. Switch accounts if necessary.
+3. Open the project selector near the top left, then **New project**. Alternatively use [Manage resources](https://console.cloud.google.com/cloud-resource-manager) → **Create project**.
+4. Fill the form using the table below.
+
+| Field | Meaning | Action |
+| --- | --- | --- |
+| **Project name** | Readable label | Enter `DeskRoute` for this product project. |
+| **Project ID** | Permanent unique identifier | Keep Google's generated ID. It is not a password. |
+| **Organization** | Managed business controlling the project | Select the intended business from 3A; select **No organization** only for a standalone project. |
+| **Parent resource / Location / Parent organization** | Organization or folder immediately containing the project | Select the same organization as the parent, unless its administrator requires a particular folder. With **No organization**, retain the standalone/no-parent selection. |
+| **Billing account**, if shown | Account charged for billable resources | Do not add billing for this OAuth/Calendar-only setup. If enforced by an organization, ask its administrator about that policy. |
+
+5. Click **Create**, wait, then select the new project in the project selector.
+
+**Organization and Parent are not two companies you must create.** The parent is a location in the selected organization's hierarchy. It is unrelated to the customer's US state or your computer's location. [Google project creation](https://docs.cloud.google.com/resource-manager/docs/creating-managing-projects).
+
+If **No organization** is missing, do not invent an organization name or buy Workspace just to fill the field. Check which account is signed in. If the correct managed organization is required but unavailable or creation is denied, ask its administrator for project-creation access in the intended organization/folder. The relevant permission is `resourcemanager.projects.create`.
+
+**Cost:** standard Calendar API use is available at no additional cost. This setup does not deploy Google hosting or compute. A Cloud free-trial signup is separate from creating this OAuth configuration. If the console insists on payment details, check the page and organization policy before continuing. [Calendar usage and costs](https://developers.google.com/workspace/calendar/api/guides/quota).
+
+**Checkpoint:** the project selector shows `DeskRoute`, under the intended owner. No compute, storage, or hosting resources have been created.
+
+### 3C. Configure the consent screen
+
+This is the screen customers see when granting access. Use real business contact details; do not publish invented website or policy links.
+
+1. With the project selected, search the console for **Google Auth Platform**. Older navigation calls this **APIs & Services → OAuth consent screen**.
+2. Open **Overview** and choose **Get started** if shown. If already configured, edit the **Branding**, **Audience**, and **Contact Information** sections instead.
+3. For **App name**, enter `DeskRoute` (or your actual customer-facing product name).
+4. For **User support email**, select a monitored email belonging to the service operator.
+5. For **Audience**, choose **External** for a product that customers outside the project's organization will use. Choose **Internal** only for a deployment intentionally restricted to users in that Google organization. Having a work email does not itself mean Internal is appropriate.
+6. Enter a monitored developer contact email. Review the policy acknowledgement and save/create the configuration.
+7. In **Audience**, keep the app in **Testing** during development. Under **Test users**, choose **Add users**, enter the exact Google account you will use to test login/calendar access, and save.
+8. In **Data Access**, choose **Add or remove scopes**. Select the basic identity scopes: `openid`, `https://www.googleapis.com/auth/userinfo.email`, and `https://www.googleapis.com/auth/userinfo.profile`. Save/update the selection.
+
+Branding fields required for publication must contain real deployed URLs and verified domains. Complete production publication and any required verification before customer handover. [Google consent setup](https://developers.google.com/workspace/guides/configure-oauth-consent).
+
+**Checkpoint:** consent configuration exists, your test account is listed, and the audience will permit the intended customer population when published.
+
+### 3D. Obtain the Supabase callback
+
+1. Keep Google Cloud open in one tab. Open [Supabase Dashboard](https://supabase.com/dashboard) in another.
+2. Select the Supabase project already holding your database.
+3. Open **Authentication**, then **Sign In / Providers** (sometimes labeled **Providers**).
+4. Open **Google** and locate the displayed callback/redirect URL.
+5. Copy that exact URL for Google's next step. Do not substitute localhost, a database URI, or the Supabase dashboard address.
+6. Keep this provider page open; you will return with the Google client credentials.
+
+### 3E. Create the Google OAuth client
+
+1. Return to the correct Google Cloud project.
+2. Open **Google Auth Platform → Clients → Create client**. Older navigation: **APIs & Services → Credentials → Create credentials → OAuth client ID**.
+3. Choose **Web application** for application type.
+4. Name the client `DeskRoute Web`.
+5. Under **Authorized JavaScript origins**, click **Add URI** and enter `http://localhost:5173` for local development.
+6. Under **Authorized redirect URIs**, click **Add URI** and paste the exact Supabase callback from 3D.
+7. Click **Create**.
+8. Copy the resulting **Client ID** and **Client secret** directly into the matching fields on Supabase's Google provider page. If the secret is shown only once, save it privately before closing the dialog.
+9. Enable the Google provider and click **Save** in Supabase.
+
+The Google client ID/secret belong in Supabase's Google provider settings. They are not Supabase API keys and do not belong in the website's environment file. [Supabase Google provider setup](https://supabase.com/docs/guides/auth/social-login/auth-google).
+
+**Checkpoint:** Google provider settings are saved with the credentials from `DeskRoute Web`; its Google redirect exactly matches the Supabase callback.
+
+### 3F. Configure the application return address
+
+1. In Supabase, open **Authentication → URL Configuration**.
+2. Set **Site URL** to `http://localhost:5173` for local development and save.
+3. Leave new application callback allowlist entries until the actual callback route is implemented and verified. No guessed route should be added.
+
+There are two redirects: Google returns to Supabase; Supabase returns to DeskRoute. The first is configured now. The application callback is `/auth/callback`. In Supabase → Authentication → URL Configuration → Redirect URLs, add `http://localhost:5173/auth/callback` and save. Keep Site URL as `http://localhost:5173`.
+
+For customer deployment, use the real HTTPS application origin and verified callback in Google/Supabase, complete production OAuth readiness, and remove development-only URLs from production configuration. This is environment configuration using the same architecture, not a customer-required provider or data migration.
+
+### Prepare the app configuration
+
+Find your **Project URL** and **Publishable key** in the Supabase project's Connect/API-key settings. The URL starts with `https://`; a current publishable key starts with `sb_publishable_`. Neither is the PostgreSQL connection string. Do not use a secret key or `service_role` key in the browser.
+
+**Fill the supported environment variables** (do not paste secrets into chat):
+
+1. Open Supabase → your DeskRoute project → Settings → API Keys. Copy the **publishable key** (or legacy `anon` key if using that section). Do not use `service_role` or a secret key in the browser.
+2. Put it in `SUPABASE_PUBLISHABLE_KEY` in `apps/api/.env` and `apps/voice/.env`, and in `VITE_SUPABASE_PUBLISHABLE_KEY` in `apps/web/.env.local`.
+3. Set `SUPABASE_URL` in both server files and `VITE_SUPABASE_URL` in the web file to the project's HTTPS URL. These real project URLs are already filled in your local files.
+4. In Google Cloud → Google Auth Platform → Clients, open the same Web client configured in Supabase. Copy its client ID and client secret into `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in **both** server files. The client ID is already filled locally. These values let the worker renew Calendar access after the dashboard closes; basic sign-in does not require the server's Google settings.
+5. `TOKEN_ENCRYPTION_KEY` must be the same 64-character hexadecimal key in both server files. A random key has been generated in your local files without displaying it. For a new deployment, generate one with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` and save it in the deployment's secret manager. Preserve this key in backups; replacing it makes existing Calendar credentials unreadable.
+6. Keep `PORT=8080`, `DASHBOARD_ORIGINS=http://localhost:5173`, and `VITE_API_URL=http://localhost:8080/api` for local use.
+7. In Supabase → Authentication → URL Configuration, add exactly `http://localhost:5173/auth/callback` to Redirect URLs. The Google client keeps the **Supabase** `/auth/v1/callback` URL; these are two different steps in the redirect.
+8. Restart the API, worker, and web server after changing environment files.
+
+For customer deployment, use customer-approved project credentials and HTTPS origins. Keep all server secrets out of `VITE_*`, Git, and screenshots. No Clerk configuration is needed.
+
+**Checkpoint:** after the migration and startup below, Google sign-in returns to DeskRoute onboarding. Calendar permissions are requested later under Settings → Connections; Google login alone does not connect Calendar.
+
+## 4. Create LiveKit and save the voice credentials
+
+The API currently requires LiveKit credentials even before the voice worker starts.
+
+1. Open [LiveKit Cloud](https://cloud.livekit.io/) and create an account.
+2. Create a project named `deskroute-dev` on the free **Build** plan.
+3. Open project settings and find **API keys**. Create a key if none is available.
+4. Save the **API key**, **API secret**, and project **WebSocket URL**. The URL begins with `wss://`.
+5. Open the project usage/billing screen and check the available inference credits before running voice tests. Stay on the free plan for initial testing.
+
+Fill these same three entries in both the [API file](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/api/.env) and [voice file](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/voice/.env):
+
+Set `LIVEKIT_URL` to the actual WebSocket URL, `LIVEKIT_API_KEY` to the actual API key, and `LIVEKIT_API_SECRET` to its matching secret. Copy these from your project; do not invent values.
+
+In the voice file, also set:
+
+```dotenv
+LLM_PROVIDER=livekit
+```
+
+For initial voice testing, set these values in `apps/voice/.env`:
+
+```env
+LLM_PROVIDER=livekit
+LLM_MODEL=openai/gpt-4.1-mini
+SUMMARY_LLM_MODEL=openai/gpt-4.1-mini
+```
+
+LiveKit lists GPT-4.1 mini in its [supported inference models](https://docs.livekit.io/agents/models/inference/). `livekit` is the provider, not a model ID. Both model values are required: the first handles conversations, the second summarizes completed calls. These settings use LiveKit Inference and its usage credits; no separate OpenAI key is required. Model availability is documented; a successful live conversation still needs verification.
+
+Leave every `R2_*` and `OPENROUTER_*` entry blank. R2 is optional recording storage; OpenRouter is an alternative model provider. Neither is needed for our first setup. Do not purchase a phone number or create a SIP trunk.
+
+The agent is already implemented in this repository. The [LiveKit voice quickstart](https://docs.livekit.io/agents/start/voice-ai/) is background reference, not a request to create another starter app. Free allowances do not mean unlimited inference; check [LiveKit pricing](https://livekit.com/pricing) and your actual dashboard allowance.
+
+**Checkpoint:** API and voice have matching LiveKit credentials. The worker is still off; no voice usage has been started by these file edits.
+
+## 5. Check the local tools
+
+Open a terminal and run:
+
+```sh
+cd /home/ali/NewProjects/AutoAttendant/deskroute-app
+node --version
+pnpm --version
+```
+
+This checkout was verified with Node **22.23.1** and pnpm **10.34.5**. Dependencies are already installed in this workspace. If either command is missing, report the command and error rather than reinstalling the project.
+
+On a fresh checkout, install with `pnpm install --frozen-lockfile`. The initial installation here skipped lifecycle scripts; native voice assets must still be checked before voice startup.
+
+These checks do not call paid providers or require a connected database:
+
+```sh
+pnpm test
+pnpm test:web
+pnpm typecheck
+pnpm lint
+pnpm build
+```
+
+Expected: commands finish successfully. Last baseline: 138 unit/agent tests, 47 frontend contract tests, typecheck, lint, and build passed. A successful build does not prove that cloud credentials or booking work.
+
+## 6. Database verification and first app startup
+
+**You control this step.** The database connection and TLS were verified; no application migrations have been applied. Check that `packages/core/.env` points to the intended project, then run the command below. It creates the application tables, updates the owner column for Supabase Auth, adds encrypted Calendar credentials, and enables RLS with no browser table policies. Existing Clerk owner IDs would need a verified mapping if upgrading an already-used upstream installation; this development project was empty when checked. No manual table design or pasted SQL is needed.
+
+The repository's migration command, run from the application root, is:
+
+```sh
+pnpm db:migrate
+```
+
+It reads `packages/core/.env` and modifies that database. It has not been run against your project. Do not run `pnpm test:int` against this development project; the existing integration fixtures delete table contents and need a separate disposable database.
+
+After filling the environment files and applying migrations, open two terminals.
+
+Terminal 1 — backend:
+
+```sh
+cd /home/ali/NewProjects/AutoAttendant/deskroute-app
+pnpm dev:api
+```
+
+Terminal 2 — website:
+
+```sh
+cd /home/ali/NewProjects/AutoAttendant/deskroute-app
+pnpm dev:web
+```
+
+Open [the local app](http://localhost:5173) in your normal browser. Use `localhost` consistently with the origin setting above.
+
+1. Sign in with your Google test account through Supabase Auth.
+2. Enter your assistant's initial business/profile details and timezone.
+3. Select **Finish setup**. There should be no phone selection step.
+4. Open settings and save a small change.
+5. Reload the page, restart the API, and verify that change remains saved.
+
+That is the first account-backed milestone. Keep the voice worker off until the calendar and model checks below are ready. Avoid `pnpm dev` at this stage because it starts API, web, and voice together.
+
+## 7. Google Calendar and voice — next milestone
+
+Basic login does not automatically grant calendar access. Use a separate calendar such as `DeskRoute Test`, so test appointments are easy to identify.
+
+Use the same Google Cloud project and OAuth client configured in section 3:
+
+1. Under **APIs & Services → Library**, enable **Google Calendar API**.
+2. The Google OAuth consent configuration now declares `https://www.googleapis.com/auth/calendar.events`, `https://www.googleapis.com/auth/calendar.calendarlist.readonly`, and `https://www.googleapis.com/auth/calendar.freebusy`. These support event management, calendar listing, and availability without permission to share or delete entire calendars. The app consent request must use this same set; keep your account in the test-user list during development.
+3. Keep the OAuth client credentials in Supabase's Google provider settings. The redirect URI remains the Supabase callback from section 3.
+4. In Google Calendar, use **Other calendars → + → Create new calendar** to create `DeskRoute Test`.
+5. Use Settings → Connections → Google Calendar → Connect. Choose the same Google account used for DeskRoute, approve all requested Calendar permissions, then select the test calendar and click Use this calendar. A previous basic login alone is insufficient; additional consent is required.
+
+**Implementation still required:** request Google offline access, securely store the provider refresh token on the backend, refresh Google access tokens, and handle revoked permissions/reconnection. Supabase session tokens and Google Calendar tokens serve different purposes. The [Supabase Google token guide](https://supabase.com/docs/guides/auth/social-login/auth-google#saving-google-tokens) describes retrieving provider tokens and requesting offline access. No manual token copying into environment files is required from you.
+
+Calendar access must work after the owner closes the dashboard. We will verify token refresh and calendar listing before attempting a booking.
+
+Before starting voice, I still need to verify the inference model IDs, native dependencies, model downloads, and calendar failure/cancellation fixes from the plan. The worker's asset download script does not load `.env` itself, so the explicit local command is:
+
+```sh
+pnpm -F voice exec tsx --env-file=.env src/worker.ts download-files
+```
+
+After those checks, start the worker in a third terminal from the application root:
+
+```sh
+pnpm dev:voice
+```
+
+Use the dashboard browser test, allow microphone access, and make a short test conversation. Stop the worker with **Ctrl+C** when finished. A browser test creates no call recording/log entry, but booking tools write real appointments and calendar events. Verify both records before calling the milestone complete.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| `packages/core/.env.example` not found | Run `pwd`; enter the nested `deskroute-app` directory. Use Ctrl+H for hidden files. |
+| `Invalid environment variables` | Fill the variable named in the error in the correct process's file, then restart. Blank required values cannot start the service. |
+| `DATABASE_URL` seems correct but login fails | Use the database password, URL-encode reserved password characters, and preserve the pooler's exact username. |
+| Database network unreachable | Check project provisioning/paused state; use session pooler 5432 on IPv4. |
+| SSL/certificate error | Preserve the error text with credentials removed; TLS verification still needs to be completed. Do not turn verification off. |
+| Missing Supabase configuration | Fill the publishable key and URL in the files listed above, then restart. |
+| Supabase login returns to the wrong page | Check Site URL and the exact local callback allowlist in Authentication → URL Configuration. |
+| API requests return 404 | Website `VITE_API_URL` must be `http://localhost:8080/api`. |
+| Browser CORS error | Open `http://localhost:5173`, match `DASHBOARD_ORIGINS`, and restart the API. |
+| Google redirect mismatch | Copy Supabase's exact `/auth/v1/callback` URL into the Google OAuth client; the local app callback is a separate redirect setting. |
+| No calendars or denied access | Check Google Calendar API, test-user membership, calendar scope, and reauthorization. |
+| Worker rejects model configuration | `LLM_MODEL` and `SUMMARY_LLM_MODEL` need verified IDs before startup. |
+
+When reporting an error, send its text with credentials removed and say which command or screen produced it. For current development, finish Supabase section 2 first. Customer handover additionally requires verified Supabase Auth, calendar token renewal, US inbound calling and transfers, customer isolation, deployment/restart checks, recovery procedures, and an accurate operating-cost record. These checks are not yet complete.

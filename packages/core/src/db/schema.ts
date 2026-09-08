@@ -82,14 +82,14 @@ export const agents = pgTable("agents", {
   checklistDismissed: boolean("checklist_dismissed").notNull().default(false),
   /** Hours are valid from creation, so this cannot tick itself off from the data. */
   hoursSeen: boolean("hours_seen").notNull().default(false),
-  clerkUserId: text("clerk_user_id").unique(),
+  authUserId: text("auth_user_id").unique(),
   /** Generic, so a vendor name never sits in a column. */
   calendarProvider: text("calendar_provider").$type<CalendarProvider>(),
   calendarExternalId: text("calendar_external_id"),
   calendarPayload: jsonb("calendar_payload").$type<CalendarPayload>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 /** Its own table, so a number changes without writing to the agent row. */
 export const phoneNumbers = pgTable(
@@ -108,7 +108,7 @@ export const phoneNumbers = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("phone_numbers_agent_idx").on(table.agentId)]
-);
+).enableRLS();
 
 /** Somebody who phoned. */
 export const callers = pgTable(
@@ -128,7 +128,7 @@ export const callers = pgTable(
     unique("callers_agent_phone_unique").on(table.agentId, table.phoneNumber),
     index("callers_agent_last_seen_idx").on(table.agentId, table.lastSeenAt),
   ]
-);
+).enableRLS();
 
 export const calls = pgTable(
   "calls",
@@ -153,7 +153,7 @@ export const calls = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("calls_agent_started_at_idx").on(table.agentId, table.startedAt)]
-);
+).enableRLS();
 
 export const escalations = pgTable(
   "escalations",
@@ -184,7 +184,7 @@ export const escalations = pgTable(
       .on(table.callId, sql`lower(${table.question})`)
       .where(sql`${table.callId} IS NOT NULL`),
   ]
-);
+).enableRLS();
 
 export const knowledgeItems = pgTable(
   "knowledge_items",
@@ -202,7 +202,7 @@ export const knowledgeItems = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("knowledge_items_agent_created_at_idx").on(table.agentId, table.createdAt)]
-);
+).enableRLS();
 
 /** A table, so a booking points at a permanent id that survives a rename. */
 export const services = pgTable(
@@ -229,7 +229,7 @@ export const services = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("services_agent_position_idx").on(table.agentId, table.position)]
-);
+).enableRLS();
 
 export const appointments = pgTable(
   "appointments",
@@ -253,4 +253,11 @@ export const appointments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("appointments_agent_start_time_idx").on(table.agentId, table.startTime)]
-);
+).enableRLS();
+
+export const googleCredentials = pgTable("google_credentials", {
+  authUserId: text("auth_user_id").primaryKey(),
+  googleSubject: text("google_subject").notNull(),
+  encryptedRefreshToken: text("encrypted_refresh_token").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}).enableRLS();

@@ -14,13 +14,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { IndustryPicker } from './IndustryPicker'
-import { NumberSearch } from './NumberSearch'
 
 /** Every zone the platform knows. The backend validates against the same list. */
 const TIMEZONES: string[] = Intl.supportedValuesOf('timeZone')
 
-/** A name, a number and a timezone answer a call. Services, hours and the
- *  calendar book on it, and live on Home's setup checklist. */
+/** Start with browser voice; phone provisioning is a separate setup step. */
 export default function OnboardingPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -30,10 +28,9 @@ export default function OnboardingPage() {
   const [timezone, setTimezone] = useState(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone,
   )
-  const [phoneNumber, setPhoneNumber] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const ready = name.trim().length > 0 && industry.trim().length > 0 && !!phoneNumber
+  const ready = name.trim().length > 0 && industry.trim().length > 0
 
   async function finish() {
     if (!ready || submitting) return
@@ -43,7 +40,6 @@ export default function OnboardingPage() {
         name: name.trim(),
         industry: industry.trim(),
         timezone,
-        phoneNumber,
         agentProfile: {
           name: 'Your agent',
           greeting: `Thanks for calling ${name.trim()}. How can I help?`,
@@ -73,8 +69,7 @@ export default function OnboardingPage() {
             Set up your receptionist
           </h1>
           <p className="mt-1 text-md text-muted-foreground">
-            Two things, and your number starts being answered. Everything else can wait
-            until you have heard it work.
+            Set up your assistant, then try a conversation in your browser.
           </p>
         </div>
 
@@ -128,21 +123,12 @@ export default function OnboardingPage() {
           </div>
         </section>
 
-        <div className="h-px bg-border" />
-
-        <section className="flex flex-col gap-4">
-          <h2 className="text-base font-semibold tracking-tight text-foreground">
-            Your number
-          </h2>
-          <NumberSearch selected={phoneNumber} onSelect={setPhoneNumber} />
-        </section>
-
         <div className="flex items-center gap-3 pb-6">
           <Button size="lg" disabled={!ready || submitting} onClick={finish}>
             {submitting ? 'Setting up…' : 'Finish setup'}
           </Button>
           <span className="text-muted-foreground">
-            Nothing is bought until you press this.
+            No phone number is purchased. Voice tests use your LiveKit credits.
           </span>
         </div>
       </div>

@@ -58,7 +58,7 @@ Two run in production, plus the static dashboard.
 
 ## Environment
 
-Each package declares what it reads, and every schema reads `process.env` and nothing else. `packages/core` owns `DATABASE_URL`, `LIVEKIT_*`, `CLERK_SECRET_KEY` and `R2_*`. `apps/api` adds `PORT`, `DASHBOARD_ORIGINS` and `CLERK_PUBLISHABLE_KEY`. `apps/voice` adds `LLM_*` and `OPENROUTER_*`.
+Each package declares what it reads, and every schema reads `process.env` and nothing else. `packages/core` owns `DATABASE_URL`, `LIVEKIT_*`, `SUPABASE_*`, `GOOGLE_CLIENT_*`, `TOKEN_ENCRYPTION_KEY` and `R2_*`. `apps/api` adds `PORT`, `DASHBOARD_ORIGINS`. `apps/voice` adds `LLM_*` and `OPENROUTER_*`.
 
 `parseEnv` in `packages/core/src/env.ts` drops blank values before parsing, so `FOO=` falls through to `.optional()` and `.default()` rather than failing. It throws rather than exiting, because a module-level exit kills anything importing it transitively, the test runner included.
 
@@ -150,11 +150,15 @@ The LiveKit Phone Numbers API is not in `livekit-server-sdk` for Node; `provider
 
 ## Auth
 
-Every `/api/admin/*` route passes `clerkAuth` then `requireAgent`, which resolves the agent from the verified Clerk user id and puts `agentId` on the Hono context.
+Every `/api/admin/*` route passes `authenticate` then `requireAgent`, which resolves the agent from the Supabase-verified user id and puts `agentId` on the Hono context.
 
 "Onboarded" is derived from the agent row through `GET /api/onboarding/session`, which sits outside `requireAgent` because that middleware 404s exactly when the answer is no. It is deliberately not a flag on the identity: being onboarded is a fact about the business, and holding it in two places lets them disagree.
 
-Clerk's redirect environment variables are unused; `signInUrl`, `signUpUrl` and `afterSignOutUrl` are props on `<ClerkProvider>` in `main.tsx`. The Google Calendar redirect carries `?returnTo=/appointments`, which `SSOCallback` passes to `signInForceRedirectUrl`.
+Google sign-in uses Supabase PKCE with `/auth/callback`. The API verifies bearer tokens using Supabase `getUser`, then resolves `agents.auth_user_id`; browser-supplied owner ids are never trusted. Profile metadata is presentation only.
+
+Calendar consent is a separate action with events, calendar-list-readonly, and freebusy scopes. The callback sends Google's refresh token to the authenticated API. The server verifies Google identity and granted scopes, then encrypts the token with AES-256-GCM bound to the owner id. The API and worker renew access directly with Google. Provider tokens are excluded from persistent browser storage. Keep the encryption key with deployment secrets and include it in recovery procedures.
+
+All application tables use RLS without client policies: direct browser table access is denied. Backend PostgreSQL connections use the server role; repositories enforce business ownership. Supabase Data API can stay disabled.
 
 ## Dashboard
 

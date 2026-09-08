@@ -1,7 +1,8 @@
 {
   "name": "deskroute",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "private": true,
+  "packageManager": "pnpm@10.34.5",
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {

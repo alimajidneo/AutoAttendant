@@ -1,22 +1,31 @@
-import { useAuth } from '@clerk/react'
-import { useLayoutEffect } from 'react'
+import { useEffect, useState } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { useQueryClient } from '@tanstack/react-query'
 import { setTokenGetter } from '@/lib/apiClient'
+import { supabase } from '@/lib/supabase'
+import { AuthContext } from './useAuth'
 
-/**
- * Wires Clerk's `getToken` into the API client. `useLayoutEffect` runs before
- * children paint, so the first request already carries a token.
- */
+async function getToken(options?: { skipCache?: boolean }) {
+  if (!supabase) return null
+  const { data, error } = options?.skipCache
+    ? await supabase.auth.refreshSession() : await supabase.auth.getSession()
+  if (error) return null
+  return data.session?.access_token ?? null
+}
+setTokenGetter(getToken)
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { getToken, isLoaded } = useAuth()
-
-  useLayoutEffect(() => {
-    if (isLoaded) {
-      setTokenGetter(getToken)
-    }
-    return () => setTokenGetter(null)
-  }, [getToken, isLoaded])
-
-  if (!isLoaded) return null
-
-  return <>{children}</>
+  const [state, setState] = useState<{ session: Session | null; isLoaded: boolean }>({ session: null, isLoaded: false })
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!supabase) return
+    let previousUser: string | undefined
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (previousUser !== session?.user.id) queryClient.clear()
+      previousUser = session?.user.id
+      setState({ session, isLoaded: true })
+    })
+    return () => subscription.unsubscribe()
+  }, [queryClient])
+  return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>
 }

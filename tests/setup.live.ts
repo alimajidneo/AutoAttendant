@@ -9,7 +9,7 @@ initializeLogger({ pretty: false, level: "warn" });
 
 /** Placeholder values from `vitest.config.ts`. Their presence means a leak. */
 const PLACEHOLDERS: Record<string, string> = {
-  CLERK_SECRET_KEY: "sk_test_dummy",
+  SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
   LIVEKIT_API_KEY: "test-key",
   DATABASE_URL: "postgresql://deskroute:deskroute@localhost:5433/deskroute_test",
 };
@@ -26,7 +26,7 @@ if (leaked.length > 0) {
   );
 }
 
-const REQUIRED = ["DATABASE_URL", "CLERK_SECRET_KEY"] as const;
+const REQUIRED = ["DATABASE_URL", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "TOKEN_ENCRYPTION_KEY"] as const;
 const missing = REQUIRED.filter((key) => !process.env[key]);
 
 if (missing.length > 0) {

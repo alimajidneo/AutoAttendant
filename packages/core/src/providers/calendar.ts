@@ -76,10 +76,14 @@ export async function fetchBusyRanges(
   }
 
   const data = (await res.json()) as {
-    calendars: Record<string, { busy: { start: string; end: string }[] }>;
+    calendars?: Record<string, { busy?: { start: string; end: string }[]; errors?: unknown[] }>;
   };
 
-  return (data.calendars[calendarId]?.busy ?? []).map((b) => ({
+  const calendar = data.calendars?.[calendarId];
+  if (!calendar || calendar.errors?.length || !Array.isArray(calendar.busy)) {
+    throw new Error("[calendar] availability could not be verified");
+  }
+  return calendar.busy.map((b) => ({
     start: new Date(b.start),
     end: new Date(b.end),
   }));

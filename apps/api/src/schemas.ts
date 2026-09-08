@@ -117,16 +117,15 @@ export const updateSettingsSchema = z.object({
   agent: agentProfileSchema.partial().optional(),
 });
 
-/** What it takes to answer a phone. Services and description belong to the
- *  setup checklist, and are accepted here for an import that sends them. */
+/** Phone provisioning is optional so browser testing can start without a purchase. */
 export const onboardingCreateSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1),
   industry: z.string(),
   description: z.string().default(""),
   services: z.array(serviceDraftSchema).default([]),
   timezone: ianaTimezone.default("UTC"),
   agentProfile: agentProfileSchema.optional(),
-  phoneNumber: z.string().min(1),
+  phoneNumber: z.string().min(1).optional(),
 });
 
 export const escalationResolveSchema = z.object({

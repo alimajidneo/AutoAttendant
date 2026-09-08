@@ -64,14 +64,14 @@ async function resolveContext(): Promise<{ ctx: LiveContext | null; reason?: str
       businessHours: agents.businessHours,
       minNoticeMinutes: agents.minNoticeMinutes,
       maxAdvanceDays: agents.maxAdvanceDays,
-      clerkUserId: agents.clerkUserId,
+      authUserId: agents.authUserId,
       calendarExternalId: agents.calendarExternalId,
     })
     .from(agents)
     .where(
       override
         ? eq(agents.id, override)
-        : and(isNotNull(agents.calendarExternalId), isNotNull(agents.clerkUserId))
+        : and(isNotNull(agents.calendarExternalId), isNotNull(agents.authUserId))
     )
     .limit(1);
 
@@ -84,11 +84,11 @@ async function resolveContext(): Promise<{ ctx: LiveContext | null; reason?: str
         : "no agent has a connected calendar — connect one in Settings → Business first",
     };
   }
-  if (!agent.calendarExternalId || !agent.clerkUserId) {
+  if (!agent.calendarExternalId || !agent.authUserId) {
     return { ctx: null, reason: `agent ${agent.id} has no connected calendar` };
   }
 
-  const token = await getGoogleOAuthToken(agent.clerkUserId);
+  const token = await getGoogleOAuthToken(agent.authUserId);
   if (!token) {
     return {
       ctx: null,

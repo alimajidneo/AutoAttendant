@@ -1,29 +1,32 @@
 import { useMemo, useState } from 'react'
-import { useUser } from '@clerk/react'
+import { useAuth } from '@/features/auth/useAuth'
+import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Section, Row } from './SettingsList'
 import { SaveBar } from './SaveBar'
 
 export function AccountPanel() {
-  const { user } = useUser()
-  const email = user?.primaryEmailAddress?.emailAddress ?? ''
+  const { user } = useAuth()
+  const email = user?.email ?? ''
 
-  const [firstName, setFirstName] = useState(user?.firstName ?? '')
-  const [lastName, setLastName] = useState(user?.lastName ?? '')
+  const [firstName, setFirstName] = useState(user?.user_metadata.first_name ?? '')
+  const [lastName, setLastName] = useState(user?.user_metadata.last_name ?? '')
   const [saving, setSaving] = useState(false)
 
   const changes = useMemo(() => {
     const out: string[] = []
-    if (firstName !== (user?.firstName ?? '')) out.push('first name')
-    if (lastName !== (user?.lastName ?? '')) out.push('last name')
+    if (firstName !== (user?.user_metadata.first_name ?? '')) out.push('first name')
+    if (lastName !== (user?.user_metadata.last_name ?? '')) out.push('last name')
     return out
   }, [firstName, lastName, user])
 
   async function saveProfile() {
+    if (!supabase) return
     setSaving(true)
     try {
-      await user?.update({ firstName, lastName })
+      const { error } = await supabase.auth.updateUser({ data: { first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}`.trim() } })
+      if (error) throw error
       toast.success('Profile saved')
     } catch (err: unknown) {
       const message =
@@ -39,16 +42,16 @@ export function AccountPanel() {
     <div>
       <Section title="Profile">
         <li className="flex items-center gap-3.5 p-4">
-          {user?.imageUrl && (
+          {user?.user_metadata.avatar_url && (
             <img
-              src={user.imageUrl}
+              src={user.user_metadata.avatar_url}
               alt=""
               className="size-10 rounded-full border border-border object-cover"
             />
           )}
           <div className="min-w-0">
             <p className="font-medium text-foreground">
-              {user?.firstName} {user?.lastName}
+              {user?.user_metadata.first_name} {user?.user_metadata.last_name}
             </p>
             <p className="truncate text-muted-foreground">{email}</p>
           </div>
@@ -91,8 +94,8 @@ export function AccountPanel() {
         saving={saving}
         onSave={saveProfile}
         onDiscard={() => {
-          setFirstName(user?.firstName ?? '')
-          setLastName(user?.lastName ?? '')
+          setFirstName(user?.user_metadata.first_name ?? '')
+          setLastName(user?.user_metadata.last_name ?? '')
         }}
       />
     </div>

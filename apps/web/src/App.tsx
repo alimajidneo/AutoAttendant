@@ -1,8 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth } from '@clerk/react'
+import { useAuth } from '@/features/auth/useAuth'
 import { ErrorBoundary } from 'react-error-boundary'
-import { AuthProvider } from '@/features/auth/AuthProvider'
 import { AgentGate } from '@/features/auth/AgentGate'
 import AppLayout from '@/layout/AppLayout'
 import { RouteSkeleton } from '@/layout/RouteSkeleton'
@@ -40,7 +39,7 @@ export default function App() {
           }
         />
         <Route
-          path="/sso-callback"
+          path="/auth/callback"
           element={
             <Suspense fallback={<RouteSkeleton />}>
               <SSOCallback />
@@ -51,9 +50,7 @@ export default function App() {
         <Route
           element={
             <ProtectedRoute>
-              <AuthProvider>
-                <AgentGate />
-              </AuthProvider>
+              <AgentGate />
             </ProtectedRoute>
           }
         >

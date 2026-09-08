@@ -1,21 +1,20 @@
-import { clerkMiddleware, getAuth } from "@clerk/hono";
 import { createMiddleware } from "hono/factory";
-import { resolveAgentByClerkUserId } from "@receptionist/core/repositories/agents.js";
+import { supabase } from "@receptionist/core/providers/supabase.js";
+import { resolveAgentByAuthUserId } from "@receptionist/core/repositories/agents.js";
 import type { AppEnv } from "../types.js";
 
-// Verifies the Clerk JWT on every request — reads CLERK_SECRET_KEY from env automatically
-export const clerkAuth = clerkMiddleware();
+export const authenticate = createMiddleware<AppEnv>(async (c, next) => {
+  const authorization = c.req.header("Authorization");
+  if (!authorization?.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
+  const { data, error } = await supabase.auth.getUser(authorization.slice(7));
+  if (error || !data.user || data.user.is_anonymous) return c.json({ error: "Unauthorized" }, 401);
+  c.set("authUser", data.user);
+  await next();
+});
 
-// Resolves the agent from the verified Clerk userId and injects agentId into context
 export const requireAgent = createMiddleware<AppEnv>(async (c, next) => {
-  const auth = getAuth(c);
-  if (!auth?.userId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-  const agent = await resolveAgentByClerkUserId(auth.userId);
-  if (!agent) {
-    return c.json({ error: "Agent not found" }, 404);
-  }
+  const agent = await resolveAgentByAuthUserId(c.get("authUser").id);
+  if (!agent) return c.json({ error: "Agent not found" }, 404);
   c.set("agentId", agent.id);
   await next();
 });

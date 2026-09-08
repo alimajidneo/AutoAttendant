@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { useUser, useClerk } from '@clerk/react'
+import { useAuth } from '@/features/auth/useAuth'
 import { useQuery } from '@tanstack/react-query'
 import {
   Home,
@@ -57,8 +57,7 @@ export default function AppLayout() {
     queryKey: keys.escalations('pending'),
     queryFn: () => fetchers.escalations('pending'),
   })
-  const { user } = useUser()
-  const { signOut } = useClerk()
+  const { user, signOut } = useAuth()
 
   // What makes dismissing the checklist safe: this entry stands exactly while
   // something is outstanding.
@@ -69,8 +68,8 @@ export default function AppLayout() {
   const setupLeft = settings ? setupItems(settings).filter((i) => !i.done).length : 0
 
   const pendingCount = pendingEscalations?.length ?? 0
-  const firstName = user?.firstName || 'User'
-  const avatarUrl = user?.imageUrl
+  const firstName = user?.user_metadata.first_name || user?.user_metadata.full_name || user?.email || 'Account'
+  const avatarUrl = user?.user_metadata.avatar_url
 
   return (
     <SidebarProvider>

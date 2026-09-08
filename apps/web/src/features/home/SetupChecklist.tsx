@@ -17,8 +17,7 @@ export function SetupChecklist({ items }: { items: SetupItem[] }) {
           Three things before your agent can book
         </h2>
         <p className="mt-0.5 max-w-[62ch] text-muted-foreground">
-          It is already answering the phone. These are what it needs to put someone in your
-          diary rather than take a message.
+          Configure these before asking your assistant to book a meeting in a browser test.
         </p>
       </div>
 
@@ -93,7 +92,7 @@ export function SetupBanner({
   return (
     <div className="mb-6 flex items-center justify-between gap-5 rounded-xl bg-card p-3.5 pl-4 shadow-control">
       <p className="min-w-0">
-        Your agent is answering, but it cannot book yet —{' '}
+        Your assistant needs more setup before booking —{' '}
         <span className="text-muted-foreground">still needs {list}.</span>
       </p>
       <div className="flex shrink-0 items-center gap-2">

@@ -1,9 +1,10 @@
 import { Hono } from "hono";
-import { clerkMiddleware, getAuth } from "@clerk/hono";
+import { authenticate } from "../../middleware/auth.js";
+import type { AppEnv } from "../../types.js";
 import {
   createAgent,
   addPhoneNumber,
-  resolveAgentByClerkUserId,
+  resolveAgentByAuthUserId,
 } from "@receptionist/core/repositories/agents.js";
 import { replaceServices } from "@receptionist/core/repositories/services.js";
 import {
@@ -14,17 +15,17 @@ import {
 } from "@receptionist/core/providers/telephony.js";
 import { onboardingCreateSchema } from "../../schemas.js";
 
-export const onboarding = new Hono()
-  .use("*", clerkMiddleware())
+export const onboarding = new Hono<AppEnv>()
+  .use("*", authenticate)
   /** Outside requireAgent, which 404s exactly when the answer is no. */
   .get("/session", async (c) => {
-    const auth = getAuth(c);
-    if (!auth?.userId) return c.json({ error: "Unauthorized" }, 401);
-    return c.json({ onboarded: !!(await resolveAgentByClerkUserId(auth.userId)) });
+    const auth = c.get("authUser");
+    if (!auth?.id) return c.json({ error: "Unauthorized" }, 401);
+    return c.json({ onboarded: !!(await resolveAgentByAuthUserId(auth.id)) });
   })
   .get("/phone/search", async (c) => {
-    const auth = getAuth(c);
-    if (!auth?.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = c.get("authUser");
+    if (!auth?.id) return c.json({ error: "Unauthorized" }, 401);
     try {
       return c.json(await searchPhoneNumbers(c.req.query("areaCode")));
     } catch (err) {
@@ -33,22 +34,22 @@ export const onboarding = new Hono()
     }
   })
   .post("/", async (c) => {
-    const auth = getAuth(c);
-    if (!auth?.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = c.get("authUser");
+    if (!auth?.id) return c.json({ error: "Unauthorized" }, 401);
 
     const parsed = onboardingCreateSchema.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
     const { phoneNumber, services, name, agentProfile, ...agentData } = parsed.data;
 
     // Checked before the purchase, so a double submit cannot cost a number.
-    if (await resolveAgentByClerkUserId(auth.userId)) {
+    if (await resolveAgentByAuthUserId(auth.id)) {
       return c.json({ message: "This account already has a business set up." }, 409);
     }
 
-    const purchased = await purchasePhoneNumber(phoneNumber);
+    const purchased = phoneNumber ? await purchasePhoneNumber(phoneNumber) : null;
     try {
       const agent = await createAgent({
-        clerkUserId: auth.userId,
+        authUserId: auth.id,
         businessName: name,
         personaName: agentProfile?.name,
         greeting: agentProfile?.greeting,
@@ -56,16 +57,20 @@ export const onboarding = new Hono()
         fallback: agentProfile?.fallback,
         ...agentData,
       });
-      await addPhoneNumber({
-        agentId: agent.id,
-        e164: purchased.e164_format,
-        provider: "livekit",
-      });
+      if (purchased) {
+        await addPhoneNumber({
+          agentId: agent.id,
+          e164: purchased.e164_format,
+          provider: "livekit",
+        });
+      }
       if (services.length > 0) await replaceServices(agent.id, services);
     } catch (dbErr) {
-      await releasePhoneNumber(purchased.e164_format).catch((e: unknown) =>
-        console.error("[onboarding] rollback release failed:", e)
-      );
+      if (purchased) {
+        await releasePhoneNumber(purchased.e164_format).catch((e: unknown) =>
+          console.error("[onboarding] rollback release failed:", e)
+        );
+      }
       throw dbErr;
     }
 

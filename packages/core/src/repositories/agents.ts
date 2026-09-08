@@ -20,7 +20,7 @@ const agentFields = {
   recordCalls: agents.recordCalls,
   checklistDismissed: agents.checklistDismissed,
   hoursSeen: agents.hoursSeen,
-  clerkUserId: agents.clerkUserId,
+  authUserId: agents.authUserId,
   calendarProvider: agents.calendarProvider,
   calendarExternalId: agents.calendarExternalId,
   calendarPayload: agents.calendarPayload,
@@ -29,13 +29,13 @@ const agentFields = {
 /** The agent as the worker and the dashboard both read it. */
 export type AgentConfig = { [K in keyof typeof agentFields]: AgentRow[K] };
 
-export async function resolveAgentByClerkUserId(
-  clerkUserId: string
+export async function resolveAgentByAuthUserId(
+  authUserId: string
 ): Promise<AgentConfig | null> {
   const rows = await db
     .select(agentFields)
     .from(agents)
-    .where(eq(agents.clerkUserId, clerkUserId))
+    .where(eq(agents.authUserId, authUserId))
     .limit(1);
   return rows[0] ?? null;
 }
@@ -84,7 +84,7 @@ export async function createAgent(input: {
   businessName: string;
   industry: string;
   timezone: string;
-  clerkUserId: string;
+  authUserId: string;
   description?: string;
   personaName?: string;
   greeting?: string;

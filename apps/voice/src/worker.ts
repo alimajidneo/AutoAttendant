@@ -88,8 +88,8 @@ export default defineAgent({
     // Fire Google OAuth token fetch in background (no await — resolves while greeting plays).
     //    Token is cached at module level with a 50-minute TTL so repeat calls skip the network.
     const tokenPromise: Promise<string | null> =
-      agent.calendarExternalId && agent.clerkUserId
-        ? getGoogleOAuthToken(agent.clerkUserId)
+      agent.calendarExternalId && agent.authUserId
+        ? getGoogleOAuthToken(agent.authUserId)
         : Promise.resolve(null);
 
     // Generate callId locally — zero DB roundtrip needed

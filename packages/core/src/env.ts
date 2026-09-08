@@ -7,10 +7,15 @@ import { z } from "zod";
 const coreEnvSchema = z
   .object({
     DATABASE_URL: z.string().min(1),
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(20).default(3),
     LIVEKIT_URL: z.string().min(1),
     LIVEKIT_API_KEY: z.string().min(1),
     LIVEKIT_API_SECRET: z.string().min(1),
-    CLERK_SECRET_KEY: z.string().min(1),
+    SUPABASE_URL: z.string().url(),
+    SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
+    GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+    GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+    TOKEN_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
     /** All four or none. A partial set reads as configured and fails per call. */
     R2_ACCOUNT_ID: z.string().min(1).optional(),
     R2_ACCESS_KEY_ID: z.string().min(1).optional(),

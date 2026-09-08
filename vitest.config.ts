@@ -10,7 +10,8 @@ const testEnv = {
   LIVEKIT_URL: "wss://test.livekit.cloud",
   LIVEKIT_API_KEY: "test-key",
   LIVEKIT_API_SECRET: "test-secret",
-  CLERK_SECRET_KEY: "sk_test_dummy",
+  SUPABASE_URL: "https://test.supabase.co",
+  SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
   LLM_MODEL: "anthropic/claude-haiku-4.5",
   OPENROUTER_API_KEY: "test-key",
   OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
@@ -52,7 +53,7 @@ export default defineConfig({
       {
         test: {
           // Not `base`: injecting testEnv would point live tests at the Docker
-          // database and a dummy Clerk key. setup.live.ts loads the real values.
+          // database and a dummy Supabase key. setup.live.ts loads the real values.
           globals: true,
           environment: "node" as const,
           name: "live",
