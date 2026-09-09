@@ -43,6 +43,7 @@ export const settings = new Hono<AppEnv>()
         greeting: agent.greeting,
         farewell: agent.farewell,
         fallback: agent.fallback,
+        bookingQuestions: agent.bookingQuestions,
       },
       setup: {
         checklistDismissed: agent.checklistDismissed,
@@ -77,6 +78,7 @@ export const settings = new Hono<AppEnv>()
       if (a.greeting !== undefined) patch.greeting = a.greeting;
       if (a.farewell !== undefined) patch.farewell = a.farewell;
       if (a.fallback !== undefined) patch.fallback = a.fallback;
+      if (a.bookingQuestions !== undefined) patch.bookingQuestions = a.bookingQuestions;
     }
 
     if (body.setup) {

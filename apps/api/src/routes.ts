@@ -13,6 +13,7 @@ import { settings } from "./modules/settings/route.js";
 import { calendar } from "./modules/calendar/route.js";
 import { telephony } from "./modules/telephony/route.js";
 import { agent } from "./modules/agent/route.js";
+import { calendarOAuthCallback } from "./modules/calendar/oauth-callback.js";
 
 const admin = new Hono<AppEnv>()
   .use("*", authenticate, requireAgent)
@@ -29,6 +30,7 @@ const admin = new Hono<AppEnv>()
 
 export const routes = new Hono()
   .route("/health", health)
+  .route("/calendar/oauth", calendarOAuthCallback)
   .route("/onboarding", onboarding)
   .route("/admin", admin);
 

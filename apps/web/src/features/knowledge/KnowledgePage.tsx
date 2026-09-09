@@ -1,10 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Trash2 } from 'lucide-react'
+import { Plus, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { KnowledgeItem } from '@receptionist/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { PageContainer } from '@/layout/PageContainer'
@@ -19,6 +28,9 @@ export default function KnowledgePage() {
   const zone = useAgentZone()
   const [search, setSearch] = useState('')
   const [pendingDelete, setPendingDelete] = useState<KnowledgeItem | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState('')
 
   const { data, isLoading } = useQuery({ queryKey: keys.knowledge, queryFn: fetchers.knowledge })
 
@@ -29,6 +41,18 @@ export default function KnowledgePage() {
       toast.success('Answer deleted')
     },
     onError: () => toast.error('Could not delete that answer. Try again.'),
+  })
+
+  const add = useMutation({
+    mutationFn: () => apiClient.post('/admin/knowledge', { question, answer }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: keys.knowledge })
+      setQuestion('')
+      setAnswer('')
+      setAdding(false)
+      toast.success('FAQ added')
+    },
+    onError: () => toast.error('Could not add that FAQ. Try again.'),
   })
 
   const items = useMemo(() => {
@@ -45,7 +69,12 @@ export default function KnowledgePage() {
     <PageContainer className="flex flex-1 flex-col">
       <PageHeader
         title="Knowledge"
-        description="What your agent can answer on its own."
+        description="FAQs and answers your agent can use during calls."
+        actions={
+          <Button onClick={() => setAdding(true)}>
+            <Plus /> Add FAQ
+          </Button>
+        }
       />
 
       {!isLoading && (data?.length ?? 0) > 0 && (
@@ -74,8 +103,8 @@ export default function KnowledgePage() {
         </div>
       ) : (data?.length ?? 0) === 0 ? (
         <p className="py-2 text-muted-foreground">
-          Nothing in the knowledge base yet. Answer a question in Escalations and it is
-          saved here.
+          Nothing in the knowledge base yet. Add an FAQ, or answer a caller question in
+          Escalations to save it here.
         </p>
       ) : items.length === 0 ? (
         <p className="py-2 text-muted-foreground">Nothing matches that.</p>
@@ -127,6 +156,47 @@ export default function KnowledgePage() {
           await del.mutateAsync(pendingDelete.id)
         }}
       />
+
+      <Dialog open={adding} onOpenChange={setAdding}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add an FAQ</DialogTitle>
+            <DialogDescription>
+              Write the answer exactly as the receptionist should understand it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <label className="block" htmlFor="faq-question">
+              <span className="mb-1.5 block font-semibold text-foreground">Question</span>
+              <Input
+                id="faq-question"
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder="Do you offer parking?"
+              />
+            </label>
+            <label className="block" htmlFor="faq-answer">
+              <span className="mb-1.5 block font-semibold text-foreground">Answer</span>
+              <Textarea
+                id="faq-answer"
+                value={answer}
+                onChange={(event) => setAnswer(event.target.value)}
+                placeholder="Yes, free parking is available behind the building."
+                className="min-h-[7lh] resize-y"
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdding(false)}>Cancel</Button>
+            <Button
+              onClick={() => add.mutate()}
+              disabled={!question.trim() || !answer.trim() || add.isPending}
+            >
+              {add.isPending ? 'Adding' : 'Add FAQ'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   )
 }

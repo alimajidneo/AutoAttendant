@@ -22,6 +22,27 @@
       "when": 1788850841874,
       "tag": "0002_backend_table_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788863625584,
+      "tag": "0003_amusing_blue_blade",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788926857490,
+      "tag": "0004_salty_hammerhead",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788929666309,
+      "tag": "0005_third_morgan_stark",
+      "breakpoints": true
     }
   ]
 }

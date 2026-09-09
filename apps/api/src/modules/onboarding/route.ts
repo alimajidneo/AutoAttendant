@@ -55,6 +55,7 @@ export const onboarding = new Hono<AppEnv>()
         greeting: agentProfile?.greeting,
         farewell: agentProfile?.farewell,
         fallback: agentProfile?.fallback,
+        bookingQuestions: agentProfile?.bookingQuestions,
         ...agentData,
       });
       if (purchased) {

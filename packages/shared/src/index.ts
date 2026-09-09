@@ -83,7 +83,11 @@ export type AgentProfile = {
   greeting: string;
   farewell: string;
   fallback: string;
+  /** Questions the receptionist must answer before it commits a booking. */
+  bookingQuestions: string[];
 };
+
+export type BookingDetail = { question: string; answer: string };
 
 /**
  * Plays before the owner's greeting and is not editable. California AB 2905 and
@@ -121,14 +125,45 @@ export type CalendarPayload = {
   summary: string;
   /** The calendar's timezone as the provider reports it, for display only. */
   timeZone?: string;
+  /** Calendars that block availability. The booking calendar is always included. */
+  conflictCalendars?: CalendarReference[];
+  /** Connection containing the calendar that receives new appointments. */
+  bookingConnectionId?: string;
+};
+
+export type CalendarReference = {
+  connectionId?: string;
+  id: string;
+  summary: string;
+  timeZone?: string;
 };
 
 /** One of the calendars a connected account can offer, for the picker. */
 export interface CalendarOption {
+  connectionId: string;
+  accountEmail: string;
   id: string;
   summary: string;
   timeZone?: string;
   primary: boolean;
+  writable: boolean;
+}
+
+export interface CalendarConnectionSummary {
+  id: string;
+  accountEmail: string;
+  accountName: string | null;
+  reconnectRequired: boolean;
+}
+
+/** A Google Calendar event rendered in the owner's calendar view. */
+export interface CalendarAgendaEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  calendarId: string;
 }
 
 /** A line of the conversation, as plain text. Carries no timing: chat message
@@ -189,6 +224,8 @@ export interface AppointmentItem {
   endTime: string | null;
   status: AppointmentStatus;
   externalEventId: string | null;
+  bookingDetails: BookingDetail[];
+  externalCalendarId?: string | null;
   createdAt: string;
 }
 

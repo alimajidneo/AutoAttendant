@@ -4,6 +4,7 @@ import { resolveAgentByAuthUserId } from "@receptionist/core/repositories/agents
 import type { AppEnv } from "../types.js";
 
 export const authenticate = createMiddleware<AppEnv>(async (c, next) => {
+  c.header("Cache-Control", "private, no-store");
   const authorization = c.req.header("Authorization");
   if (!authorization?.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
   const { data, error } = await supabase.auth.getUser(authorization.slice(7));

@@ -5,6 +5,15 @@ import type { EscalationRow } from "./escalations.js";
 
 export type KnowledgeItemRow = typeof knowledgeItems.$inferSelect;
 
+export async function createKnowledge(input: {
+  agentId: string;
+  question: string;
+  answer: string;
+}): Promise<KnowledgeItemRow> {
+  const rows = await db.insert(knowledgeItems).values(input).returning();
+  return rows[0]!;
+}
+
 /** Seeding helper for the integration tests. Production goes through resolveEscalationWithKnowledge. */
 export async function createKnowledgeFromEscalation(
   escalation: EscalationRow,

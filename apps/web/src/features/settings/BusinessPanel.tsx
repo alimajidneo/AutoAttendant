@@ -200,7 +200,7 @@ export function BusinessPanel({ settings }: { settings: AppSettings }) {
         </Row>
         <Row
           title="Timezone"
-          description="Your agent quotes every time in this zone."
+          description="Detected from your browser during setup. Your agent quotes every caller in this business timezone."
           htmlFor="timezone"
         >
           <Select

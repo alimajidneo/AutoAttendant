@@ -512,12 +512,12 @@ describe("law 4: chroma is proportional to lightness", () => {
 describe("type and geometry", () => {
   const theme = /@theme\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
 
-  it("puts nothing below the 14px floor", () => {
+  it("puts nothing below the 15px floor", () => {
     const sizes = [...theme.matchAll(/--text-(?!.*line-height)[a-z0-9]+:\s*(\d+)px/g)].map(
       (m) => +m[1]!,
     );
     expect(sizes.length).toBeGreaterThan(0);
-    for (const s of sizes) expect(s).toBeGreaterThanOrEqual(14);
+    for (const s of sizes) expect(s).toBeGreaterThanOrEqual(15);
   });
 
   it("holds the floor in components too, where arbitrary sizes escape it", () => {

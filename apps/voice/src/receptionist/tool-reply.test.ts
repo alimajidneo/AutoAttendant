@@ -31,8 +31,8 @@ function scriptedLLM() {
     { input: USER_ASKS, toolCalls: [
         {
           name: "checkAvailability",
-          // nullable, not optional — the schema requires all three keys.
-          args: { service: "Haircut", preferredDate: null, partOfDay: "afternoon" },
+          // Nullable, not optional — an exact time must never disappear between speech and the tool.
+          args: { service: "Haircut", preferredDate: null, preferredTime: null, partOfDay: "afternoon" },
         },
       ] },
     // Turn 2: keyed on the tool's output, the model writes the answer.

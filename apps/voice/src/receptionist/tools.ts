@@ -1,6 +1,7 @@
 import { llm } from "@livekit/agents";
 import { z } from "zod";
 import type { AgentDeps } from "./deps.js";
+import { getCalendarConnectionToken } from "@receptionist/core/providers/googleAuth.js";
 import { createEscalation } from "@receptionist/core/repositories/escalations.js";
 import { setCallerName } from "@receptionist/core/repositories/callers.js";
 import {
@@ -16,11 +17,13 @@ import {
   findService,
   generateCandidateSlots,
   isOpenOn,
+  rankSlotsForPreferredTime,
 } from "@receptionist/core/domain/scheduling.js";
 import {
   createAppointment,
   getUpcomingByPhone,
   cancelAppointmentById,
+  getAppointmentById,
 } from "@receptionist/core/repositories/appointments.js";
 
 /** How many times the agent reads out at once. More than three is unfollowable. */
@@ -28,10 +31,17 @@ const MAX_SLOTS_OFFERED = 3;
 
 /** How far ahead to search when the caller did not name a day. */
 const DEFAULT_SEARCH_DAYS = 14;
+const GENERAL_APPOINTMENT_MINUTES = 30;
 
 export function createAgentTools(deps: AgentDeps) {
   const agentId = deps.agent.id;
   const timeZone = deps.agent.timezone;
+  const intakeQuestions = deps.agent.bookingQuestions;
+
+  async function calendarAccess() {
+    try { return await deps.getCalendarAccess(); }
+    catch { return null; }
+  }
 
   /**
    * A name given now beats one already stored, because people correct themselves.
@@ -123,25 +133,33 @@ export function createAgentTools(deps: AgentDeps) {
 
     checkAvailability: llm.tool({
       description:
-        "Find real, bookable times for one service. " +
+        "Find real, bookable times for a declared service or a general appointment. " +
         "You must call this before saying any time out loud — you have no way to know what is free otherwise, and a time you invent is a customer turning up to a closed door. " +
+        "If the caller names an exact time, always pass it as preferredTime. General appointments that are not on the service list use 30 minutes. " +
         "Returns up to three slots, each with an id. Read the times to the caller in plain words and keep the ids to yourself.",
       parameters: z.object({
         service: z
           .string()
-          .describe("The service the caller wants, as they said it."),
+          .describe("The declared service or general appointment purpose, as the caller said it."),
         preferredDate: z
           .string()
           .nullable()
           .describe(
             "The date the caller asked for, as YYYY-MM-DD. Null if they did not name one.",
           ),
+        preferredTime: z
+          .string()
+          .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+          .nullable()
+          .describe(
+            "Required. The exact local time the caller asked for, as HH:mm; for example 11 AM is 11:00. Null only when they did not name a time.",
+          ),
         partOfDay: z
           .enum(["morning", "afternoon", "evening"])
           .nullable()
-          .describe("Only if the caller asked for one. Null otherwise."),
+          .describe("Only if the caller asked for a broad window and did not name an exact time. Null otherwise."),
       }),
-      execute: async ({ service, preferredDate, partOfDay }) => {
+      execute: async ({ service, preferredDate, preferredTime, partOfDay }) => {
         const calendarId = deps.calendarExternalId;
         if (!calendarId) {
           return {
@@ -150,19 +168,20 @@ export function createAgentTools(deps: AgentDeps) {
           };
         }
 
-        const matched = findService(deps.services, service);
-        if (!matched) {
-          // Never guess a service: the wrong one means the wrong length, and
-          // therefore a slot the business cannot honour.
-          return {
-            error: `"${service}" is not on the service list. Ask the caller which service they mean, from: ${deps.services
-              .map((s) => s.name)
-              .join(", ")}.`,
-          };
-        }
+        const listed = findService(deps.services, service);
+        const generalName = service.trim().slice(0, 120) || "Appointment";
+        const matched = listed ?? {
+          id: "general-appointment",
+          name: generalName,
+          price: "",
+          durationMinutes: GENERAL_APPOINTMENT_MINUTES,
+          bufferBeforeMinutes: 0,
+          bufferAfterMinutes: 0,
+          requiredResources: [],
+        };
 
-        const token = await deps.getGoogleToken();
-        if (!token) {
+        const access = await calendarAccess();
+        if (!access) {
           return {
             error:
               "Calendar authentication unavailable. Create an escalation.",
@@ -191,7 +210,7 @@ export function createAgentTools(deps: AgentDeps) {
           now,
           fromDate: preferredDate ?? undefined,
           days: preferredDate && !closedNote ? 0 : DEFAULT_SEARCH_DAYS,
-          partOfDay,
+          partOfDay: preferredTime ? null : partOfDay,
         });
 
         if (candidates.length === 0) {
@@ -207,12 +226,10 @@ export function createAgentTools(deps: AgentDeps) {
 
         let free = candidates;
         try {
-          const busy = await fetchBusyRanges(
-            token,
-            calendarId,
-            candidates[0]!.blockStart.toISOString(),
-            candidates.at(-1)!.blockEnd.toISOString(),
-          );
+          const busy = (await Promise.all(access.conflicts.map(group => fetchBusyRanges(
+            group.token, group.calendarIds,
+            candidates[0]!.blockStart.toISOString(), candidates.at(-1)!.blockEnd.toISOString(),
+          )))).flat();
           free = filterByBusy(candidates, busy);
         } catch (err) {
           console.error("[agent] freeBusy lookup failed:", err);
@@ -228,9 +245,18 @@ export function createAgentTools(deps: AgentDeps) {
           };
         }
 
-        const offered = free.slice(0, MAX_SLOTS_OFFERED).map((slot) => {
+        const offered = rankSlotsForPreferredTime(
+          free,
+          preferredDate,
+          preferredTime,
+          timeZone,
+        ).slice(0, MAX_SLOTS_OFFERED).map((slot) => {
           const slotId = `slot_${deps.slots.nextId++}`;
-          deps.slots.held.set(slotId, { slot, service: matched });
+          deps.slots.held.set(slotId, {
+            slot,
+            service: matched,
+            serviceId: listed?.id ?? null,
+          });
           return { slotId, time: describeSlot(slot, timeZone) };
         });
 
@@ -247,6 +273,9 @@ export function createAgentTools(deps: AgentDeps) {
         "Confirm a booking for a slot that checkAvailability already offered. " +
         "Before calling this you need two things: the caller has chosen one of the times you read out, and you know their name. " +
         "If you do not have a name yet, ask for it now — 'Can I take your name?' — because the booking goes in the diary under it. " +
+        (intakeQuestions.length
+          ? `Also ask every configured appointment question, in this order: ${intakeQuestions.map((question, index) => `${index + 1}. ${question}`).join(" ")} `
+          : "There are no additional appointment questions. ") +
         "Never invent a slotId, and never call this for a time you did not offer.",
       parameters: z.object({
         slotId: z
@@ -260,8 +289,14 @@ export function createAgentTools(deps: AgentDeps) {
           .describe(
             "The name to put in the diary. Ask the caller for it before booking if you do not already know it. Pass null only if they were asked and declined to give one.",
           ),
+        bookingAnswers: z
+          .array(z.string().trim().min(1).max(500))
+          .max(10)
+          .describe(
+            "The caller's answers to the configured appointment questions, in the same order. Pass an empty array when no questions are configured.",
+          ),
       }),
-      execute: async ({ slotId, callerName }) => {
+      execute: async ({ slotId, callerName, bookingAnswers }) => {
         const held = deps.slots.held.get(slotId);
         if (!held) {
           // The model made one up, or referred to an offer from before a
@@ -272,8 +307,18 @@ export function createAgentTools(deps: AgentDeps) {
           };
         }
 
-        const { slot, service } = held;
-        const token = await deps.getGoogleToken();
+        const { slot, service, serviceId } = held;
+        if (bookingAnswers.length !== intakeQuestions.length) {
+          return {
+            error: "Collect every configured appointment detail before booking.",
+            questions: intakeQuestions,
+          };
+        }
+        const bookingDetails = intakeQuestions.map((question, index) => ({
+          question,
+          answer: bookingAnswers[index]!,
+        }));
+        const access = await calendarAccess();
         const bookedName = await resolveCallerName(callerName);
 
         const appointmentBase = {
@@ -281,13 +326,14 @@ export function createAgentTools(deps: AgentDeps) {
           callerId: deps.caller?.id ?? null,
           callerPhone: deps.callerPhone,
           callerName: bookedName,
-          serviceId: service.id,
+          serviceId,
           serviceName: service.name,
           startTime: slot.start,
           endTime: slot.end,
+          bookingDetails,
         };
 
-        if (!token || !deps.calendarExternalId) {
+        if (!access || !deps.calendarExternalId) {
           await createAppointment({
             ...appointmentBase,
             status: "requested",
@@ -303,12 +349,9 @@ export function createAgentTools(deps: AgentDeps) {
         try {
           // The slot was computed while the caller was deciding, so it is
           // re-checked immediately before the write.
-          const busy = await fetchBusyRanges(
-            token,
-            deps.calendarExternalId,
-            slot.blockStart.toISOString(),
-            slot.blockEnd.toISOString(),
-          );
+          const busy = (await Promise.all(access.conflicts.map(group => fetchBusyRanges(
+            group.token, group.calendarIds, slot.blockStart.toISOString(), slot.blockEnd.toISOString(),
+          )))).flat();
           if (filterByBusy([slot], busy).length === 0) {
             deps.slots.held.delete(slotId);
             return {
@@ -323,8 +366,8 @@ export function createAgentTools(deps: AgentDeps) {
               : "";
 
           const eventId = await createCalendarEvent(
-            token,
-            deps.calendarExternalId,
+            access.booking.token,
+            access.booking.calendarId,
             {
               // The title leads with the appointment window: the event spans the
               // padded block and Google renders it in the viewer's timezone.
@@ -336,7 +379,10 @@ export function createAgentTools(deps: AgentDeps) {
               startIso: slot.blockStart.toISOString(),
               endIso: slot.blockEnd.toISOString(),
               timezone: timeZone,
-              description: `Booked by the AI receptionist${padded}`,
+              description: [
+                `Booked by the AI receptionist${padded}`,
+                ...bookingDetails.map(({ question, answer }) => `${question}\n${answer}`),
+              ].join("\n\n"),
             },
           );
 
@@ -344,6 +390,8 @@ export function createAgentTools(deps: AgentDeps) {
             ...appointmentBase,
             status: "confirmed",
             externalEventId: eventId,
+            externalCalendarId: access.booking.calendarId,
+            externalCalendarConnectionId: access.booking.connectionId,
           });
           deps.callState.wasBooked = true;
           deps.slots.held.delete(slotId);
@@ -411,26 +459,32 @@ export function createAgentTools(deps: AgentDeps) {
           .describe("The ID of the appointment to cancel."),
       }),
       execute: async ({ appointmentId }) => {
-        const cancelled = await cancelAppointmentById(
-          appointmentId,
-          agentId,
-        );
-        if (!cancelled) return { error: "Appointment not found." };
+        const appointment = await getAppointmentById(appointmentId, agentId);
+        if (!appointment || !deps.callerPhone || appointment.callerPhone !== deps.callerPhone) {
+          return { error: "Appointment not found for this caller. Offer to take a message for the team." };
+        }
+        if (appointment.status === "cancelled") {
+          return { cancelled: true, appointmentId };
+        }
 
-        if (cancelled.externalEventId && deps.calendarExternalId) {
-          const token = await deps.getGoogleToken();
-          if (token) {
-            try {
-              await deleteCalendarEvent(
-                token,
-                deps.calendarExternalId,
-                cancelled.externalEventId,
-              );
-            } catch (err) {
-              console.error("[agent] deleteCalendarEvent failed:", err);
-            }
+        if (appointment.externalEventId) {
+          const calendarId = appointment.externalCalendarId ?? deps.calendarExternalId;
+          const token = appointment.externalCalendarConnectionId
+            ? await getCalendarConnectionToken(agentId, appointment.externalCalendarConnectionId)
+            : (await calendarAccess())?.booking.token;
+          if (!calendarId || !token) {
+            return { error: "The calendar could not be reached, so the appointment was not cancelled." };
+          }
+          try {
+            await deleteCalendarEvent(token, calendarId, appointment.externalEventId);
+          } catch (err) {
+            console.error("[agent] deleteCalendarEvent failed:", err);
+            return { error: "The calendar could not be updated, so the appointment was not cancelled." };
           }
         }
+
+        const cancelled = await cancelAppointmentById(appointmentId, agentId);
+        if (!cancelled) return { error: "Appointment not found." };
 
         return { cancelled: true, appointmentId };
       },

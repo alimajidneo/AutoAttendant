@@ -237,6 +237,28 @@ export function filterByBusy(slots: Slot[], busy: BusyRange[]): Slot[] {
   );
 }
 
+/** Put the time the caller named first, followed by the nearest alternatives. */
+export function rankSlotsForPreferredTime(
+  slots: Slot[],
+  preferredDate: string | null,
+  preferredTime: string | null,
+  timeZone: string,
+): Slot[] {
+  if (!preferredTime || slots.length === 0) return slots;
+
+  const exactDate = slots.find((slot) => {
+    const parts = zonedParts(slot.start, timeZone);
+    const localTime = `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+    return localTime === preferredTime;
+  })?.dateIso;
+  const date = preferredDate ?? exactDate ?? slots[0]!.dateIso;
+  const target = zonedWallClockToUtc(date, preferredTime, timeZone).getTime();
+  return [...slots].sort((a, b) => {
+    const distance = Math.abs(a.start.getTime() - target) - Math.abs(b.start.getTime() - target);
+    return distance || a.start.getTime() - b.start.getTime();
+  });
+}
+
 /** "Wed Aug 19, 2:00 PM" — how the agent says it out loud. */
 export function describeSlot(slot: Slot, timeZone: string): string {
   return new Intl.DateTimeFormat("en-US", {

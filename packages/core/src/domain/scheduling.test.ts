@@ -10,6 +10,7 @@ import {
   generateCandidateSlots,
   intervalsForDate,
   localDateIso,
+  rankSlotsForPreferredTime,
   weekdayOf,
   zonedWallClockToUtc,
   type Slot,
@@ -328,6 +329,24 @@ describe("generateCandidateSlots", () => {
     // Asked about Sunday; Monday is the answer.
     const slots = generate({ fromDate: "2026-08-23", days: 2 });
     expect(slots[0]!.dateIso).toBe("2026-08-24");
+  });
+});
+
+describe("rankSlotsForPreferredTime", () => {
+  it("uses the next available day when today's requested time has passed", () => {
+    const slots = generateCandidateSlots({
+      hours: hours(),
+      policy: policy(),
+      service: service(),
+      timeZone: NY,
+      now: new Date("2026-08-19T20:00:00Z"),
+      days: 1,
+    });
+
+    const ranked = rankSlotsForPreferredTime(slots, null, "11:00", NY);
+
+    expect(ranked[0]?.dateIso).toBe("2026-08-20");
+    expect(at(ranked[0]!.start)).toBe("11:00");
   });
 });
 

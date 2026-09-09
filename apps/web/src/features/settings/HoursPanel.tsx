@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -95,6 +95,7 @@ export function HoursPanel({ settings }: { settings: AppSettings }) {
 
   const [hours, setHours] = useState<BusinessHours>(server.businessHours)
   const [policy, setPolicy] = useState<BookingPolicy>(server.bookingPolicy)
+  const reviewRecorded = useRef(settings.setup.hoursSeen)
   /* `index: null` is a date being added, which joins the list only on save. */
   const {
     draft,
@@ -136,6 +137,7 @@ export function HoursPanel({ settings }: { settings: AppSettings }) {
     mutationFn: () =>
       apiClient.patch('/admin/settings', {
         business: { businessHours: hours, bookingPolicy: policy },
+        setup: { hoursSeen: true },
       }),
     onSuccess: async () => {
       expectReseed()
@@ -144,6 +146,14 @@ export function HoursPanel({ settings }: { settings: AppSettings }) {
     },
     onError: () => toast.error('Could not save. Check the times and try again.'),
   })
+
+  useEffect(() => {
+    if (reviewRecorded.current) return
+    reviewRecorded.current = true
+    void apiClient.patch('/admin/settings', { setup: { hoursSeen: true } })
+      .then(() => qc.invalidateQueries({ queryKey: keys.settings }))
+      .catch(() => { reviewRecorded.current = false })
+  }, [qc])
 
   function setDay(day: Weekday, intervals: TimeInterval[]) {
     setHours((h) => ({ ...h, weekly: { ...h.weekly, [day]: intervals } }))

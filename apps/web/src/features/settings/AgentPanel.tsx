@@ -13,7 +13,7 @@ import { SaveBar } from './SaveBar'
 import { useServerSeed } from './useServerSeed'
 
 interface Phrase {
-  field: keyof AgentProfile
+  field: Exclude<keyof AgentProfile, 'bookingQuestions'>
   title: string
   description: string
 }
@@ -36,6 +36,9 @@ const PHRASES: Phrase[] = [
   },
 ]
 
+const cleanQuestions = (questions: string[]) =>
+  questions.map((question) => question.trim()).filter(Boolean)
+
 export function AgentPanel({ settings }: { settings: AppSettings }) {
   const qc = useQueryClient()
   const [form, setForm] = useState<AgentProfile>(settings.agent)
@@ -46,6 +49,9 @@ export function AgentPanel({ settings }: { settings: AppSettings }) {
     if (form.name !== settings.agent.name) out.push('agent name')
     const phrases = PHRASES.filter((p) => form[p.field] !== settings.agent[p.field]).length
     if (phrases > 0) out.push(`${phrases} ${phrases === 1 ? 'phrase' : 'phrases'}`)
+    if (JSON.stringify(cleanQuestions(form.bookingQuestions)) !== JSON.stringify(settings.agent.bookingQuestions)) {
+      out.push('appointment questions')
+    }
     return out
   }, [form, settings.agent])
 
@@ -57,7 +63,9 @@ export function AgentPanel({ settings }: { settings: AppSettings }) {
   })
 
   const save = useMutation({
-    mutationFn: () => apiClient.patch('/admin/settings', { agent: form }),
+    mutationFn: () => apiClient.patch('/admin/settings', {
+      agent: { ...form, bookingQuestions: cleanQuestions(form.bookingQuestions) },
+    }),
     onSuccess: async () => {
       expectReseed()
       await qc.invalidateQueries({ queryKey: keys.settings })
@@ -149,6 +157,29 @@ export function AgentPanel({ settings }: { settings: AppSettings }) {
             />
           </Row>
         ))}
+      </Section>
+
+      <Section
+        title="Appointment intake"
+        lede="Add the details your receptionist must collect before confirming a booking. Name and caller ID are already handled."
+      >
+        <Row
+          title="Questions to ask"
+          description="One question per line, up to 10. Leave this empty when a name and phone number are enough."
+          htmlFor="agent-booking-questions"
+          stacked
+        >
+          <Textarea
+            id="agent-booking-questions"
+            value={form.bookingQuestions.join('\n')}
+            onChange={(event) => setForm((current) => ({
+              ...current,
+              bookingQuestions: event.target.value.split('\n').slice(0, 10),
+            }))}
+            placeholder={'What is the best email address for the confirmation?\nWhat would you like to discuss?'}
+            className="min-h-[6lh] resize-y"
+          />
+        </Row>
       </Section>
 
       <SaveBar

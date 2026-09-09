@@ -4,14 +4,15 @@ import { useAuth } from '@/features/auth/useAuth'
 import { useQuery } from '@tanstack/react-query'
 import {
   Home,
+  PhoneCall,
   AlertCircle,
   Calendar,
   BookOpen,
   Settings as SettingsIcon,
   CircleCheck,
   LogOut,
-  Code,
 } from 'lucide-react'
+import { AudioWaveform } from 'lucide-react'
 import { keys, fetchers } from '@/lib/queries'
 import {
   Sidebar,
@@ -31,6 +32,8 @@ import {
 } from '@/components/ui/sidebar'
 import { RouteSkeleton } from './RouteSkeleton'
 import { setupItems } from '@/features/home/setup-items'
+import { TopBar } from './TopBar'
+import { userAvatarUrl } from '@/lib/user-profile'
 
 interface NavItem {
   to: string
@@ -40,9 +43,10 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/',              label: 'Home',         icon: Home,        end: true },
-  { to: '/escalations',   label: 'Escalations',  icon: AlertCircle },
+  { to: '/',              label: 'Dashboard',    icon: Home,        end: true },
+  { to: '/calls',         label: 'Calls',         icon: PhoneCall },
   { to: '/appointments',  label: 'Appointments', icon: Calendar },
+  { to: '/escalations',   label: 'Questions',     icon: AlertCircle },
   { to: '/knowledge',     label: 'Knowledge',    icon: BookOpen },
 ]
 
@@ -69,7 +73,7 @@ export default function AppLayout() {
 
   const pendingCount = pendingEscalations?.length ?? 0
   const firstName = user?.user_metadata.first_name || user?.user_metadata.full_name || user?.email || 'Account'
-  const avatarUrl = user?.user_metadata.avatar_url
+  const avatarUrl = userAvatarUrl(user)
 
   return (
     <SidebarProvider>
@@ -77,10 +81,11 @@ export default function AppLayout() {
         <SidebarHeader>
           {/* One row. The label hides when collapsed and nothing moves, and h-8
               puts the trigger on the same centreline as the nav icons. */}
-          <div className="flex h-8 items-center gap-2">
-            <span className="truncate text-base font-semibold tracking-tight text-foreground group-data-[collapsible=icon]:hidden">
-              DeskRoute
+          <div className="flex h-9 items-center gap-2">
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-white/15 text-white ring-1 ring-white/20">
+              <AudioWaveform className="size-4" />
             </span>
+            <span className="truncate text-base font-bold tracking-tight text-white group-data-[collapsible=icon]:hidden">DeskRoute</span>
             <SidebarTrigger className="ml-auto shrink-0 group-data-[collapsible=icon]:ml-0" />
           </div>
         </SidebarHeader>
@@ -123,12 +128,12 @@ export default function AppLayout() {
                 <SidebarMenuButton
                   render={<Link to="/" />}
                   tooltip="Finish setup"
-                  className="text-sm text-accent-ink"
+                  className="text-sm text-sidebar-foreground"
                 >
                   <CircleCheck className="size-4" />
                   <span>Finish setup</span>
                 </SidebarMenuButton>
-                <SidebarMenuBadge className="text-sm font-semibold text-accent-ink">
+                <SidebarMenuBadge className="text-sm font-semibold text-sidebar-foreground">
                   {setupLeft}
                 </SidebarMenuBadge>
               </SidebarMenuItem>
@@ -142,26 +147,6 @@ export default function AppLayout() {
               >
                 <SettingsIcon className="size-4" />
                 <span>Settings</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* AGPL section 13: a network-interactive UI offers its users the
-                source of the version they are talking to. */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                render={
-                  <a
-                    href="https://github.com/PrabhatMattoo/DeskRoute"
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Source code"
-                  />
-                }
-                tooltip="Source code"
-                className="text-sm"
-              >
-                <Code className="size-4" />
-                <span>Source</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
 
@@ -197,8 +182,9 @@ export default function AppLayout() {
         </SidebarFooter>
       </Sidebar>
 
-      <SidebarInset className="stage-float my-2.5 mr-3">
+      <SidebarInset className="stage-float my-2.5 mr-3 overflow-hidden">
         <div className="flex flex-col flex-1 overflow-auto">
+          <TopBar pendingCount={pendingCount} />
           <Suspense fallback={<RouteSkeleton />}>
             <Outlet />
           </Suspense>

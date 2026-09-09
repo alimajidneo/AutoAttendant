@@ -3,7 +3,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import type { BookingPolicy, BusinessHours } from "@receptionist/shared";
 import { closeDb, db } from "../src/db/client.js";
 import { agents } from "../src/db/schema.js";
-import { getGoogleOAuthToken } from "../src/providers/googleAuth.js";
+import { getAgentCalendarAccess } from "../src/providers/googleAuth.js";
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -66,6 +66,7 @@ async function resolveContext(): Promise<{ ctx: LiveContext | null; reason?: str
       maxAdvanceDays: agents.maxAdvanceDays,
       authUserId: agents.authUserId,
       calendarExternalId: agents.calendarExternalId,
+      calendarPayload: agents.calendarPayload,
     })
     .from(agents)
     .where(
@@ -88,8 +89,8 @@ async function resolveContext(): Promise<{ ctx: LiveContext | null; reason?: str
     return { ctx: null, reason: `agent ${agent.id} has no connected calendar` };
   }
 
-  const token = await getGoogleOAuthToken(agent.authUserId);
-  if (!token) {
+  const access = await getAgentCalendarAccess(agent.id, agent.calendarExternalId, agent.calendarPayload);
+  if (!access) {
     return {
       ctx: null,
       reason: `no Google token for agent ${agent.id} — reconnect the calendar`,
@@ -101,7 +102,7 @@ async function resolveContext(): Promise<{ ctx: LiveContext | null; reason?: str
       agentId: agent.id,
       businessName: agent.businessName,
       calendarId: agent.calendarExternalId,
-      token,
+      token: access.booking.token,
       timeZone: agent.timezone,
       hours: agent.businessHours,
       policy: { minNoticeMinutes: agent.minNoticeMinutes, maxAdvanceDays: agent.maxAdvanceDays },

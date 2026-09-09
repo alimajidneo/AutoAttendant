@@ -14,6 +14,7 @@ const agentFields = {
   greeting: agents.greeting,
   farewell: agents.farewell,
   fallback: agents.fallback,
+  bookingQuestions: agents.bookingQuestions,
   businessHours: agents.businessHours,
   minNoticeMinutes: agents.minNoticeMinutes,
   maxAdvanceDays: agents.maxAdvanceDays,
@@ -90,6 +91,7 @@ export async function createAgent(input: {
   greeting?: string;
   farewell?: string;
   fallback?: string;
+  bookingQuestions?: string[];
   businessHours?: import("@receptionist/shared").BusinessHours;
   minNoticeMinutes?: number;
   maxAdvanceDays?: number;
@@ -103,6 +105,7 @@ export async function updateAgent(
   patch: Partial<Pick<AgentRow,
     | "businessName" | "personaName" | "industry" | "description"
     | "greeting" | "farewell" | "fallback"
+    | "bookingQuestions"
     | "businessHours" | "minNoticeMinutes" | "maxAdvanceDays"
     | "recordCalls" | "checklistDismissed" | "hoursSeen" | "timezone"
     | "calendarProvider" | "calendarExternalId" | "calendarPayload"

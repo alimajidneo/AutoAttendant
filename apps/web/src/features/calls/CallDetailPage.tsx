@@ -50,7 +50,7 @@ export default function CallDetailPage() {
   return (
     <PageContainer>
       <Link
-        to="/"
+        to="/calls"
         className="mb-5 inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
       >
         <ChevronLeft className="size-4" />
@@ -63,7 +63,7 @@ export default function CallDetailPage() {
         actions={<StatusBadge value={call.outcome} config={callOutcomeConfig} />}
       />
 
-      <dl className="mb-7 grid grid-cols-3 gap-x-6 gap-y-4 rounded-xl bg-card p-4 shadow-control">
+      <dl className="mb-5 grid gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:grid-cols-3" data-ground="card">
         <Fact label="Caller ID">
           {call.callerPhone ? formatPhone(call.callerPhone) : 'No caller ID'}
         </Fact>
@@ -71,10 +71,14 @@ export default function CallDetailPage() {
         <Fact label="Length">{length ?? 'Still running'}</Fact>
       </dl>
 
-      <AudioPlayer callId={id} hasRecording={!!call.recordingKey} />
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm" data-ground="card">
+        <h2 className="mb-3 text-base font-semibold text-foreground">Recording</h2>
+        <AudioPlayer callId={id} hasRecording={!!call.recordingKey} />
+      </div>
 
-      <h2 className="mt-8 mb-2 font-medium text-foreground">Transcript</h2>
-      <div className="border-t border-border">
+      <section className="mt-5 overflow-hidden rounded-2xl border border-border bg-card shadow-sm" data-ground="card">
+      <h2 className="border-b border-border px-5 py-4 text-base font-semibold text-foreground">Transcript</h2>
+      <div className="divide-y divide-border px-5">
         {call.transcript?.length ? (
           call.transcript.map((entry, i) => (
             <div key={i} className="grid grid-cols-[64px_1fr] gap-4 py-2.5">
@@ -96,6 +100,7 @@ export default function CallDetailPage() {
           <p className="py-3 text-muted-foreground">No transcript was captured for this call.</p>
         )}
       </div>
+      </section>
     </PageContainer>
   )
 }

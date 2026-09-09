@@ -92,6 +92,12 @@ const agentProfileSchema = z.object({
   greeting: z.string(),
   farewell: z.string(),
   fallback: z.string(),
+  bookingQuestions: z.array(z.string().trim().min(1).max(160)).max(10).default([]),
+});
+
+export const knowledgeCreateSchema = z.object({
+  question: z.string().trim().min(1, "Enter a question").max(300),
+  answer: z.string().trim().min(1, "Enter an answer").max(3000),
 });
 
 export const updateSettingsSchema = z.object({
@@ -137,7 +143,6 @@ export const phoneProvisionSchema = z.object({
 });
 
 export const calendarSelectSchema = z.object({
-  calendarId: z.string().min(1, "calendarId is required"),
-  summary: z.string().min(1),
-  timeZone: z.string().optional(),
+  booking: z.object({ connectionId: z.string().uuid(), calendarId: z.string().min(1) }),
+  conflicts: z.array(z.object({ connectionId: z.string().uuid(), calendarId: z.string().min(1) })).max(50),
 });

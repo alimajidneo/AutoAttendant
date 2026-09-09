@@ -14,6 +14,8 @@ import { keys, fetchers } from '@/lib/queries'
 import { useAgentZone } from '@/hooks/useAgentZone'
 import { formatCaller, formatTime } from '@/lib/formatters'
 import { groupByDay } from '@/lib/group-by-day'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { escalationStatusConfig } from '@/lib/status-config'
 
 type Filter = 'all' | EscalationStatus
 
@@ -57,12 +59,7 @@ function columns(zone: string | undefined): Column<EscalationItem>[] {
       header: 'Status',
       width: '86px',
       align: 'end',
-      cell: (e) =>
-        e.status === 'pending' ? (
-          <span className="font-medium text-accent-ink">Waiting</span>
-        ) : (
-          <span className="text-muted-foreground">Answered</span>
-        ),
+      cell: (e) => <StatusBadge value={e.status} config={escalationStatusConfig} />,
     },
   ]
 }
@@ -100,7 +97,7 @@ export default function EscalationsPage() {
   return (
     <PageContainer className="flex flex-1 flex-col">
       <PageHeader
-        title="Escalations"
+        title="Questions"
         description="Questions your agent could not answer. Answer one and it never has to ask you again."
         actions={
           waiting > 0 ? (
@@ -132,6 +129,7 @@ export default function EscalationsPage() {
         </div>
       )}
 
+      <div className="overflow-hidden rounded-2xl border border-border bg-card p-3 shadow-sm" data-ground="card">
       {isLoading ? (
         <div className="flex flex-col gap-2">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -153,6 +151,7 @@ export default function EscalationsPage() {
           rowLabel={(e) => e.question}
         />
       )}
+      </div>
     </PageContainer>
   )
 }

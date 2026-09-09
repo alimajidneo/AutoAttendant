@@ -8,6 +8,7 @@ import type {
   AppointmentItem,
   EscalationStatus,
   CalendarOption,
+  CalendarConnectionSummary,
 } from '@receptionist/shared'
 import type { Period } from './types'
 import type { AppSettings } from './settings-types'
@@ -58,6 +59,6 @@ export const fetchers = {
 
   calendarList: () =>
     apiClient
-      .get<{ connected: boolean; calendars: CalendarOption[] }>('/admin/calendar/list')
+      .get<{ connected: boolean; connections: CalendarConnectionSummary[]; calendars: CalendarOption[] }>('/admin/calendar/list')
       .then((r) => r.data),
 }

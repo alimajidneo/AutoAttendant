@@ -1,5 +1,5 @@
-import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { CalendarCheck, CircleHelp, PhoneCall, PhoneMissed } from 'lucide-react'
 import type { DashboardMetrics } from '@receptionist/shared'
 import { FilterPills } from '@/components/ui/filter-pills'
 import type { Period } from '@/lib/types'
@@ -11,26 +11,14 @@ const PERIODS = [
 ] as const satisfies readonly { id: Period; label: string }[]
 
 const PERIOD_LABEL: Record<Period, string> = {
-  today: 'Today',
-  '7d': 'Last 7 days',
-  '30d': 'Last 30 days',
+  today: 'today',
+  '7d': 'in the last 7 days',
+  '30d': 'in the last 30 days',
 }
 
-/** Numbers are ink; the sentence around them is not. */
-function N({ children }: { children: React.ReactNode }) {
-  return <span className="font-medium text-foreground">{children}</span>
-}
-
-const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
-
-/**
- * A handover in sentences, which a wall of tiles cannot do. Two lines because
- * the period pills scope the first and not the second.
- */
 export function CallStats({
   period,
   metrics,
-  agentName,
 }: {
   period: Period
   metrics: DashboardMetrics
@@ -44,56 +32,39 @@ export function CallStats({
     setParams(p, { replace: true })
   }
 
-  const { totalCalls, afterHoursCalls, confirmedBookings, pendingEscalations } = metrics
-  const who = agentName.trim() || 'Your agent'
+  const cards = [
+    { label: 'Total calls', value: metrics.totalCalls, note: PERIOD_LABEL[period], icon: PhoneCall, tone: 'text-accent-ink bg-primary-subtle' },
+    { label: 'Appointments', value: metrics.confirmedBookings, note: 'confirmed bookings', icon: CalendarCheck, tone: 'text-status-confirmed bg-success-subtle' },
+    { label: 'Missed calls', value: metrics.abandonedCalls, note: 'callers who hung up', icon: PhoneMissed, tone: 'text-destructive bg-destructive-subtle' },
+    { label: 'Questions', value: metrics.pendingEscalations, note: 'waiting for you', icon: CircleHelp, tone: 'text-warning bg-warning-subtle' },
+  ]
 
   return (
-    <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
-      <div className="flex min-w-0 flex-col gap-1 text-md text-muted-foreground">
-        <p className="tabular-nums">
-          {PERIOD_LABEL[period]} — {who}{' '}
-          {totalCalls === 0 ? (
-            <>answered no calls yet.</>
-          ) : (
-            <>
-              answered <N>{totalCalls}</N> {plural(totalCalls, 'call', 'calls')}
-              {afterHoursCalls > 0 && (
-                <>
-                  , <N>{afterHoursCalls}</N> of them after you closed
-                </>
-              )}
-              {confirmedBookings > 0 && (
-                <>
-                  , and booked <N>{confirmedBookings}</N>
-                </>
-              )}
-              .
-            </>
-          )}
-        </p>
-
-        {pendingEscalations > 0 && (
-          <Link
-            to="/escalations/queue"
-            className="group flex w-fit items-center gap-1.5 tabular-nums text-accent-ink hover:underline"
-          >
-            <span>
-              <span className="font-medium">{pendingEscalations}</span>{' '}
-              {plural(pendingEscalations, 'question is', 'questions are')} waiting for your
-              answer.
-            </span>
-            <ArrowRight className="size-4 shrink-0" />
-          </Link>
-        )}
+    <section aria-labelledby="performance-heading">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 id="performance-heading" className="text-lg font-semibold tracking-tight">Performance</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">A live summary of your receptionist.</p>
+        </div>
+        <FilterPills options={PERIODS} value={period} onChange={setPeriod} label="Time period" />
       </div>
-
-      <FilterPills
-        options={PERIODS}
-        value={period}
-        onChange={setPeriod}
-        label="Time period"
-        className="shrink-0"
-      />
-    </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map(({ label, value, note, icon: Icon, tone }) => (
+          <article key={label} className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm" data-ground="card">
+            <span className={`absolute inset-x-0 top-0 h-0.5 ${tone.split(' ')[1]}`} />
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-medium text-muted-foreground">{label}</p>
+                <p className="mt-3 text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
+              </div>
+              <span className={`grid size-10 place-items-center rounded-xl ${tone}`}>
+                <Icon className="size-5" />
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">{note}</p>
+          </article>
+        ))}
+      </div>
+    </section>
   )
 }

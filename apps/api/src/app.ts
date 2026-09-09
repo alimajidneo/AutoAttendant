@@ -37,6 +37,7 @@ export function createApp({ allowedOrigins }: AppOptions) {
       origin: (origin) => (isAllowedOrigin(origin, allowedOrigins) ? origin : null),
       allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       allowHeaders: ["Authorization", "Content-Type"],
+      credentials: true,
       maxAge: 86_400,
     })
   );
@@ -44,9 +45,8 @@ export function createApp({ allowedOrigins }: AppOptions) {
   app.route("/api", routes);
 
   app.onError((err, c) => {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[server] unhandled error:", err);
-    return c.json({ error: message }, 500);
+    console.error("[server] request failed", { method: c.req.method, path: c.req.path, errorType: err.name });
+    return c.json({ error: "The request could not be completed. Please try again." }, 500);
   });
 
   return app;

@@ -8,8 +8,7 @@ interface StatusBadgeProps<T extends string> {
 }
 
 /**
- * A tone is type and weight rather than a fill, so status reads inline with the
- * row it belongs to. An unmapped value renders nothing.
+ * Compact colour-coded pills make outcomes scannable in dense lists.
  */
 export function StatusBadge<T extends string>({
   value,
@@ -23,7 +22,7 @@ export function StatusBadge<T extends string>({
   return (
     <span
       className={cn(
-        'inline-flex items-center text-sm',
+        'inline-flex items-center rounded-full px-2 py-0.5 text-sm',
         toneToClasses(tone),
         className,
       )}

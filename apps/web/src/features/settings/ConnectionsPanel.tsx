@@ -1,8 +1,6 @@
-import { useState } from 'react'
-import { useAuth } from '@/features/auth/useAuth'
-import { signInWithGoogle } from '@/lib/supabase'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Calendar, Phone } from 'lucide-react'
+import { Calendar, Phone, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CalendarOption } from '@receptionist/shared'
 import { Button } from '@/components/ui/button'
@@ -13,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingIndicator } from '@/components/ui/loading-indicator'
 import { Switch } from '@/components/ui/switch'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
@@ -70,19 +68,41 @@ function ConnectionRow({
 
 export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
   const qc = useQueryClient()
-  const { user } = useAuth()
   const [open, setOpen] = useState<Open>(null)
+  const initialBookingKey = settings.business.calendarPayload?.bookingConnectionId && settings.business.calendarExternalId
+    ? `${settings.business.calendarPayload.bookingConnectionId}\u0000${settings.business.calendarExternalId}` : null
   const [choice, setChoice] = useState<string | null>(null)
+  const savedConflictChoices = settings.business.calendarPayload?.conflictCalendars?.flatMap(calendar =>
+    calendar.connectionId ? [`${calendar.connectionId}\u0000${calendar.id}`] : []) ?? []
+  const [conflictDraft, setConflictChoices] = useState<string[] | null>(null)
+  const conflictChoices = conflictDraft ?? savedConflictChoices
   const [granting, setGranting] = useState(false)
-  const [confirmDisconnect, setConfirmDisconnect] = useState(false)
+  const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const result = params.get('calendar')
+    if (!result && params.get('manageCalendars') !== '1') return
+    setOpen('calendar')
+    if (result === 'connected') toast.success('Account connected. Select its calendars below and save to include their events.')
+    else if (result) toast.error(params.get('message') ?? 'Google account could not be connected')
+    params.delete('manageCalendars')
+    params.delete('calendar')
+    params.delete('message')
+    window.history.replaceState(null, '', `${window.location.pathname}?${params}`)
+    void qc.invalidateQueries({ queryKey: keys.calendarList })
+  }, [qc])
 
   const phone = settings.business.phoneNumber
   const calendarId = settings.business.calendarExternalId
   const calendarName = settings.business.calendarPayload?.summary
+  const conflictCalendarCount = calendarId
+    ? Math.max(1, settings.business.calendarPayload?.conflictCalendars?.length ?? 0)
+    : 0
 
   /* Only reaches Google while the drawer is open. A connected agent reads the
      calendar's name from what is stored. */
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: keys.calendarList,
     queryFn: fetchers.calendarList,
     enabled: open === 'calendar',
@@ -92,38 +112,58 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
   const selectCalendar = useMutation({
     mutationFn: (calendar: CalendarOption) =>
       apiClient.patch('/admin/calendar', {
-        calendarId: calendar.id,
-        summary: calendar.summary,
-        timeZone: calendar.timeZone,
+        booking: { connectionId: calendar.connectionId, calendarId: calendar.id },
+        conflicts: [...new Set([...conflictChoices, `${calendar.connectionId}\u0000${calendar.id}`])]
+          .map(value => {
+            const [connectionId, calendarId] = value.split('\u0000')
+            return { connectionId, calendarId }
+          }),
       }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: keys.settings })
+      await qc.invalidateQueries({ queryKey: keys.appointments })
       setChoice(null)
-      toast.success('Calendar connected. Your agent can book appointments.')
+      setConflictChoices(null)
+      toast.success('Calendar settings saved')
     },
     onError: () => toast.error('Could not save that calendar. Try again.'),
   })
 
   const disconnect = useMutation({
-    mutationFn: () => apiClient.delete('/admin/calendar'),
+    mutationFn: (connectionId: string) => apiClient.delete(`/admin/calendar/${connectionId}`),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: keys.settings })
       await qc.invalidateQueries({ queryKey: keys.calendarList })
-      setOpen(null)
-      toast.success('Calendar disconnected')
+      await qc.invalidateQueries({ queryKey: keys.appointments })
+      setChoice(null)
+      setConflictChoices(null)
+      setConfirmDisconnect(null)
+      toast.success('Google account disconnected')
     },
     onError: () => toast.error('Could not disconnect. Try again.'),
   })
 
   async function grantAccess() {
-    if (!user) return
     setGranting(true)
-    try { await signInWithGoogle(user.id) }
+    try {
+      const { data } = await apiClient.get<{ url: string }>('/admin/calendar/oauth/start', { withCredentials: true })
+      window.location.assign(data.url)
+    }
     catch { toast.error('Could not open Google. Try again.'); setGranting(false) }
   }
 
   const calendars = data?.calendars ?? []
-  const selected = calendars.find((c) => c.id === choice)
+  const connections = data?.connections ?? []
+  const activeBookingKey = choice ?? initialBookingKey
+  const calendarKey = (calendar: Pick<CalendarOption, 'connectionId' | 'id'>) => `${calendar.connectionId}\u0000${calendar.id}`
+  const selected = calendars.find(calendar => calendarKey(calendar) === activeBookingKey)
+
+  function toggleConflictCalendar(id: string, checked: boolean) {
+    if (id === activeBookingKey && !checked) return
+    setConflictChoices((current) => checked
+      ? [...new Set([...(current ?? savedConflictChoices), id])]
+      : (current ?? savedConflictChoices).filter((calendarId) => calendarId !== id))
+  }
 
   return (
     <div>
@@ -148,7 +188,7 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
           title="Google Calendar"
           description={
             calendarId
-              ? 'Where your agent checks free time and writes appointments.'
+              ? `${conflictCalendarCount} checked for conflicts; appointments go to ${calendarName ?? 'the booking calendar'}.`
               : 'Connect one so your agent can check times and book.'
           }
           connected={!!calendarId}
@@ -209,7 +249,12 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
 
           <div className="flex flex-col gap-3">
             {isLoading ? (
-              <Skeleton className="h-8 w-full" />
+              <LoadingIndicator compact label="Loading Google calendars" />
+            ) : isError ? (
+              <div className="space-y-3">
+                <p role="alert" className="text-destructive">Could not load your Google accounts. Try again.</p>
+                <Button variant="outline" onClick={() => void refetch()}>Retry</Button>
+              </div>
             ) : !data?.connected ? (
               <>
                 <p className="text-muted-foreground">
@@ -221,63 +266,104 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
                   {granting ? 'Opening Google' : 'Connect Google Calendar'}
                 </Button>
               </>
-            ) : calendars.length === 0 ? (
-              <>
-                <p className="text-muted-foreground">
-                  This Google account has no calendar you can add events to. Create one in Google
-                  Calendar, then check again.
-                </p>
-                <Button
-                  variant="outline"
-                  className="self-start"
-                  onClick={() => qc.invalidateQueries({ queryKey: keys.calendarList })}
-                >
-                  Check again
-                </Button>
-              </>
             ) : (
               <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">Connected Google accounts</p>
+                      <p className="text-sm text-muted-foreground">Connecting an account does not select all its calendars. Choose which ones appear on your appointments page below.</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={grantAccess} disabled={granting}>
+                      <Plus className="size-4" /> {granting ? 'Opening Google' : 'Connect account'}
+                    </Button>
+                  </div>
+                  <div className="space-y-1 rounded-xl border border-border p-2">
+                    {connections.map(connection => (
+                      <div key={connection.id} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-foreground">{connection.accountEmail}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {connection.reconnectRequired ? 'Permission expired — reconnect this account'
+                              : `${new Set([...savedConflictChoices, ...(initialBookingKey ? [initialBookingKey] : [])].filter(key => key.startsWith(`${connection.id}\u0000`))).size} calendars included on your appointments page`}
+                          </p>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => setConfirmDisconnect(connection.id)} aria-label={`Disconnect ${connection.accountEmail}`}>
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {calendars.length === 0 ? (
+                  <p className="rounded-lg bg-sunk-1 p-3 text-sm text-muted-foreground">Reconnect the account or create a Google Calendar, then check again.</p>
+                ) : <>
                 <SubRow
-                  title="Calendar"
+                  title="Booking calendar"
                   description="Where your agent writes appointments."
                 >
-                  <Select value={choice ?? calendarId ?? ''} onValueChange={(v) => setChoice(v ?? null)}>
+                  <Select value={activeBookingKey ?? ''} onValueChange={(v) => setChoice(v ?? null)}>
                     <SelectTrigger className="w-field-md">
                       {/* Base UI renders the value rather than the label without
                           this. A calendar id is not a name. */}
                       <SelectValue placeholder="Pick a calendar">
                         {(value) =>
-                          calendars.find((c) => c.id === value)?.summary ?? 'Pick a calendar'
+                          calendars.find(c => calendarKey(c) === value)?.summary ?? 'Pick a calendar'
                         }
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {calendars.map((cal) => (
-                        <SelectItem key={cal.id} value={cal.id}>
-                          {cal.summary}
+                      {calendars.filter((calendar) => calendar.writable).map((cal) => (
+                        <SelectItem key={calendarKey(cal)} value={calendarKey(cal)}>
+                          {cal.summary} · {cal.accountEmail}
                           {cal.primary ? ' (main)' : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </SubRow>
+                <div className="border-t border-border/60 py-3">
+                  <div className="mb-2">
+                    <p className="font-medium text-foreground">Calendars that block free time</p>
+                    <p className="text-sm text-muted-foreground">Selected calendars appear on your appointments page and are checked before offering a time. Turn on calendars from your second account, then save below.</p>
+                  </div>
+                  <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
+                    {calendars.map((calendar) => {
+                      const id = calendarKey(calendar)
+                      const checked = conflictChoices.includes(id) || id === activeBookingKey
+                      return (
+                        <label htmlFor={`conflict-calendar-${encodeURIComponent(id)}`} key={id} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-hover">
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium text-foreground">{calendar.summary}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {id === activeBookingKey ? 'Booking destination' : `${calendar.accountEmail} · ${calendar.writable ? 'Can read and edit' : 'Availability only'}`}
+                            </span>
+                          </span>
+                          <Switch
+                            id={`conflict-calendar-${encodeURIComponent(id)}`}
+                            checked={checked}
+                            disabled={id === activeBookingKey}
+                            onCheckedChange={(value) => toggleConflictCalendar(id, value)}
+                            aria-label={`Include ${calendar.summary} from ${calendar.accountEmail}`}
+                          />
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
                 <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setConfirmDisconnect(true)}
-                    disabled={!calendarId || disconnect.isPending}
-                  >
-                    Disconnect
+                  <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: keys.calendarList })}>
+                    Check again
                   </Button>
                   <Button
                     size="sm"
                     onClick={() => selected && selectCalendar.mutate(selected)}
-                    disabled={!selected || selected.id === calendarId || selectCalendar.isPending}
+                    disabled={!selected || selectCalendar.isPending}
                   >
-                    {selectCalendar.isPending ? 'Saving' : 'Use this calendar'}
+                    {selectCalendar.isPending ? 'Saving' : 'Save calendar settings'}
                   </Button>
                 </div>
+                </>}
               </>
             )}
           </div>
@@ -285,14 +371,14 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
       </Sheet>
 
       <ConfirmDialog
-        open={confirmDisconnect}
-        onOpenChange={setConfirmDisconnect}
-        title="Disconnect this calendar?"
-        description="Your agent stops checking times and booking. Existing appointments stay in the calendar."
+        open={!!confirmDisconnect}
+        onOpenChange={(open) => !open && setConfirmDisconnect(null)}
+        title="Disconnect this Google account?"
+        description="Its calendars stop blocking availability. If it holds the booking calendar, choose another booking calendar afterward. Existing appointments stay in Google Calendar."
         confirmLabel="Disconnect"
         variant="destructive"
         onConfirm={async () => {
-          await disconnect.mutateAsync()
+          if (confirmDisconnect) await disconnect.mutateAsync(confirmDisconnect)
         }}
       />
     </div>

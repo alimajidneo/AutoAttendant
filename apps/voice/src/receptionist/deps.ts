@@ -3,14 +3,15 @@ import type { Slot } from "@receptionist/core/domain/scheduling.js";
 import type { AgentConfig } from "@receptionist/core/repositories/agents.js";
 import type { CallerRow } from "@receptionist/core/repositories/callers.js";
 import type { KnowledgeEntry } from "./prompt.js";
+import type { CalendarAccess } from "@receptionist/core/providers/googleAuth.js";
 
 export type CallState = {
   wasBooked: boolean;
   wasEscalated: boolean;
 };
 
-/** A slot the agent offered, with the service it was computed for. */
-export type HeldSlot = { slot: Slot; service: Service };
+/** A slot the agent offered, with the duration it was computed for. */
+export type HeldSlot = { slot: Slot; service: Service; serviceId: string | null };
 
 /**
  * Opaque handles, so the model never sees or invents a timestamp and nothing is
@@ -34,12 +35,14 @@ export type AgentDeps = {
    * this, rather than the insert moving onto the path to first audio. Never rejects.
    */
   callRowReady: Promise<boolean>;
-  getGoogleToken: () => Promise<string | null>;
+  getCalendarAccess: () => Promise<CalendarAccess | null>;
   /**
    * The connected calendar's id in its provider's system, or null when no
    * calendar has been chosen. The provider is on `agent.calendarProvider`.
    */
   calendarExternalId: string | null;
+  /** Every calendar that can make a proposed time unavailable. */
+  conflictCalendarIds: string[];
   /**
    * The agent's whole knowledge base, inlined into the system prompt at call
    * start. Replaces the searchKnowledge tool — see PLAN.md 1.5.

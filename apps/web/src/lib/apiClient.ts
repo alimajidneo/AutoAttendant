@@ -11,7 +11,7 @@ export function setTokenGetter(getter: TokenGetter | null) {
 }
 
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '/api' : 'http://localhost:8080/api'),
 })
 
 apiClient.interceptors.request.use(async (config) => {
@@ -40,4 +40,3 @@ apiClient.interceptors.response.use(
     return Promise.reject(error)
   }
 )
-

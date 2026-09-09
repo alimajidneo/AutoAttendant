@@ -11,6 +11,7 @@ import { NotFound } from '@/layout/NotFound'
 const SignIn = lazy(() => import('@/features/public/SignInPage'))
 const SSOCallback = lazy(() => import('@/features/public/SSOCallbackPage'))
 const Home = lazy(() => import('@/features/home/HomePage'))
+const Calls = lazy(() => import('@/features/calls/CallsPage'))
 const CallDetail = lazy(() => import('@/features/calls/CallDetailPage'))
 const Escalations = lazy(() => import('@/features/escalations/EscalationsPage'))
 const Queue = lazy(() => import('@/features/escalations/QueuePage'))
@@ -65,6 +66,7 @@ export default function App() {
 
           <Route element={<AppLayout />}>
             <Route path="/" element={<Home />} />
+            <Route path="/calls" element={<Calls />} />
             <Route path="/calls/:id" element={<CallDetail />} />
             <Route path="/escalations" element={<Escalations />} />
             <Route path="/escalations/queue" element={<Queue />} />

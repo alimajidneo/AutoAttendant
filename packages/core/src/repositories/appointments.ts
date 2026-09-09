@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, gt, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNotNull, lte, ne } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { appointments } from "../db/schema.js";
+import type { BookingDetail } from "@receptionist/shared";
 
 export type AppointmentRow = typeof appointments.$inferSelect;
 
@@ -17,6 +18,9 @@ type CreateAppointmentInput = {
   endTime: Date;
   status: "requested" | "confirmed" | "cancelled";
   externalEventId?: string;
+  externalCalendarId?: string;
+  externalCalendarConnectionId?: string;
+  bookingDetails?: BookingDetail[];
 };
 
 export async function createAppointment(input: CreateAppointmentInput): Promise<AppointmentRow> {
@@ -33,9 +37,41 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
       endTime: input.endTime,
       status: input.status,
       externalEventId: input.externalEventId ?? null,
+      externalCalendarId: input.externalCalendarId ?? null,
+      externalCalendarConnectionId: input.externalCalendarConnectionId ?? null,
+      bookingDetails: input.bookingDetails ?? [],
     })
     .returning();
   return rows[0];
+}
+
+export async function getAppointmentById(
+  appointmentId: string,
+  agentId: string,
+): Promise<AppointmentRow | null> {
+  const rows = await db
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.agentId, agentId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function listConfirmedAppointmentsForSync(agentId: string): Promise<AppointmentRow[]> {
+  return db
+    .select()
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.agentId, agentId),
+        eq(appointments.status, "confirmed"),
+        isNotNull(appointments.externalEventId),
+        isNotNull(appointments.externalCalendarId),
+        gt(appointments.endTime, new Date()),
+      ),
+    )
+    .orderBy(asc(appointments.startTime))
+    .limit(100);
 }
 
 export async function listAppointments(agentId: string) {
@@ -49,6 +85,8 @@ export async function listAppointments(agentId: string) {
       endTime: appointments.endTime,
       status: appointments.status,
       externalEventId: appointments.externalEventId,
+      externalCalendarId: appointments.externalCalendarId,
+      bookingDetails: appointments.bookingDetails,
       createdAt: appointments.createdAt,
     })
     .from(appointments)
@@ -92,4 +130,12 @@ export async function cancelAppointmentById(
     .where(and(eq(appointments.id, appointmentId), eq(appointments.agentId, agentId)))
     .returning();
   return rows[0] ?? null;
+}
+
+export async function deletePastAppointment(agentId: string, appointmentId: string): Promise<boolean> {
+  const rows = await db.delete(appointments).where(and(
+    eq(appointments.agentId, agentId), eq(appointments.id, appointmentId),
+    lte(appointments.endTime, new Date()),
+  )).returning({ id: appointments.id });
+  return rows.length > 0;
 }

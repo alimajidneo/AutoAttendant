@@ -64,7 +64,7 @@ function columns(zone: string | undefined): Column<CallListItem>[] {
   ]
 }
 
-export function CallsTable() {
+export function CallsTable({ compact = false }: { compact?: boolean }) {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const zone = useAgentZone()
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useCallsQuery()
@@ -82,7 +82,10 @@ export function CallsTable() {
     return () => obs.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  const calls = useMemo(() => data?.pages.flat() ?? [], [data])
+  const calls = useMemo(() => {
+    const all = data?.pages.flat() ?? []
+    return compact ? all.slice(0, 5) : all
+  }, [compact, data])
   const groups = useMemo(() => groupByDay(calls, zone, (c) => c.startedAt), [calls, zone])
 
   if (isLoading) {
@@ -112,7 +115,7 @@ export function CallsTable() {
         href={(c) => `/calls/${c.id}`}
         rowLabel={(c) => c.summary || 'Call detail'}
       />
-      {hasNextPage && (
+      {!compact && hasNextPage && (
         <div ref={sentinelRef} className="flex items-center justify-center py-3">
           {isFetchingNextPage && <Skeleton className="h-4 w-24" />}
         </div>

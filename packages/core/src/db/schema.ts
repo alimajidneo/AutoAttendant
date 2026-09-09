@@ -66,6 +66,7 @@ export const agents = pgTable("agents", {
   greeting: text("greeting").notNull().default(""),
   farewell: text("farewell").notNull().default(""),
   fallback: text("fallback").notNull().default(""),
+  bookingQuestions: jsonb("booking_questions").$type<string[]>().notNull().default([]),
   /** Local wall clock read against `timezone`, so "we open at 9" survives DST. */
   businessHours: jsonb("business_hours")
     .$type<BusinessHours>()
@@ -249,15 +250,53 @@ export const appointments = pgTable(
     status: appointmentStatusEnum("status").notNull(),
     /** The event's id in whichever provider `agents.calendar_provider` names. */
     externalEventId: text("external_event_id"),
+    /** Calendar used at booking time, so later cancellation survives a selection change. */
+    externalCalendarId: text("external_calendar_id"),
+    /** Account connection used for the event, needed when several Google accounts are connected. */
+    externalCalendarConnectionId: uuid("external_calendar_connection_id"),
+    /** Answers to the owner's configured intake questions, frozen at booking time. */
+    bookingDetails: jsonb("booking_details")
+      .$type<import("@receptionist/shared").BookingDetail[]>()
+      .notNull()
+      .default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("appointments_agent_start_time_idx").on(table.agentId, table.startTime)]
 ).enableRLS();
 
+/** Dormant legacy storage retained so upgrades never destructively drop customer credentials. */
 export const googleCredentials = pgTable("google_credentials", {
   authUserId: text("auth_user_id").primaryKey(),
   googleSubject: text("google_subject").notNull(),
   encryptedRefreshToken: text("encrypted_refresh_token").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }).enableRLS();
+
+/** Google accounts authorized for calendar access. These are integrations, not login identities. */
+export const calendarConnections = pgTable(
+  "calendar_connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    provider: text("provider").$type<CalendarProvider>().notNull().default("google"),
+    providerAccountId: text("provider_account_id").notNull(),
+    accountEmail: text("account_email").notNull(),
+    accountName: text("account_name"),
+    encryptedRefreshToken: text("encrypted_refresh_token").notNull(),
+    /** AES-GCM additional authenticated data; retained when importing legacy credentials. */
+    encryptionOwner: text("encryption_owner").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("calendar_connections_agent_provider_account_unique").on(
+      table.agentId,
+      table.provider,
+      table.providerAccountId,
+    ),
+    index("calendar_connections_agent_idx").on(table.agentId),
+  ],
+).enableRLS();

@@ -1,10 +1,8 @@
 @import "@fontsource-variable/host-grotesk/index.css";
 @import "tailwindcss";
 
-/* The product is light-only. Tailwind's `dark:` keys on the OS preference, so it
-   is bound here to a class nothing applies, neutralising every `dark:` utility
-   the shadcn components ship. A real dark theme arrives by adding `.dark` and a
-   second set of token values. */
+/* Themes are class controlled so the saved product preference wins over the OS
+   preference while still using the OS on a first visit. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* The anchor.
@@ -20,6 +18,7 @@
   --base-l: 96.76;
   --base-c: 2.288;
   --base-h: 97.4;
+  --ink-pole: 0;
 
   /* How far every departure travels. The anchor holds still when this moves,
      which is what makes it a contrast control rather than a brightness one.
@@ -74,11 +73,48 @@
      the rail. White on red 7.67, red as text 7.08 and 6.24. */
   --accent-fill: lch(32 55 258);
   --red-fill: lch(36 60 25);
+  --green-fill: lch(42 45 145);
   --white: lch(100 0 0);
 
   /* The ground every departure is measured from. `:root` is the stage. */
   --ground-l: var(--base-l);
   --ground-c: var(--base-c);
+}
+
+/* The dark palette keeps the same depth model. Only the anchor, direction and
+   fixed action colours change; components continue to consume semantic tokens. */
+.dark {
+  color-scheme: dark;
+
+  --base-l: 11;
+  --base-c: 10;
+  --base-h: 275;
+  --ink-pole: 100;
+
+  --d-sub: -0.12;
+  --d-card: 0.16;
+  --d-control: 0.17;
+  --d-control-hover: 0.25;
+  --d-control-active: 0.32;
+  --d-row-hover: 0.14;
+  --d-row-active: 0.23;
+  --d-border: 0.24;
+  --d-input: 0.34;
+
+  --dc-sub: 0;
+  --dc-card: 0;
+  --dc-control: 0;
+  --dc-control-hover: 0;
+  --dc-control-active: 0;
+  --dc-row-hover: 0;
+  --dc-row-active: 0;
+  --dc-border: 0;
+  --dc-input: 0;
+
+  --t-ink-1: 0.58;
+  --t-ink-2: 0.76;
+  --t-ink-3: 0.93;
+  --c-ink: 4;
 }
 
 /* The grounds.
@@ -167,15 +203,15 @@
   );
 
   --ink-1: lch(
-    calc(var(--ground-l) + var(--t-ink-1) * (0 - var(--ground-l)))
+    calc(var(--ground-l) + var(--t-ink-1) * (var(--ink-pole) - var(--ground-l)))
     calc(var(--c-ink) + (var(--ground-c) - var(--base-c)) / 2) var(--base-h)
   );
   --ink-2: lch(
-    calc(var(--ground-l) + var(--t-ink-2) * (0 - var(--ground-l)))
+    calc(var(--ground-l) + var(--t-ink-2) * (var(--ink-pole) - var(--ground-l)))
     calc(var(--c-ink) + (var(--ground-c) - var(--base-c)) / 2) var(--base-h)
   );
   --ink-3: lch(
-    calc(var(--ground-l) + var(--t-ink-3) * (0 - var(--ground-l)))
+    calc(var(--ground-l) + var(--t-ink-3) * (var(--ink-pole) - var(--ground-l)))
     calc(var(--c-ink) + (var(--ground-c) - var(--base-c)) / 2) var(--base-h)
   );
 
@@ -208,6 +244,9 @@
   --destructive: var(--red-fill);
   --destructive-foreground: var(--white);
   --destructive-hover: color-mix(in oklab, var(--red-fill), var(--white) 12%);
+  --destructive-subtle: color-mix(in srgb, var(--red-fill) 9%, transparent);
+  --success: var(--green-fill);
+  --success-subtle: color-mix(in srgb, var(--green-fill) 10%, transparent);
 
   --border: var(--line-1);
   --input: var(--line-2);
@@ -237,16 +276,98 @@
 
      `-dot` splits from the text rung because a dot is a graphical object needing
      3:1 while text needs 4.5:1. */
-  --status-booked: var(--ink-3);
-  --status-confirmed: var(--ink-3);
+  --status-booked: var(--green-fill);
+  --status-confirmed: var(--green-fill);
   --status-escalated: var(--accent-fill);
   --status-pending: var(--accent-fill);
   --status-requested: var(--accent-fill);
   --status-answered: var(--ink-1);
   --status-abandoned: var(--ink-1);
-  --status-resolved: var(--ink-1);
+  --status-resolved: var(--green-fill);
   --status-cancelled: var(--ink-1);
   --status-error: var(--red-fill);
+}
+
+/* VoiceBridge reference: a saturated blue rail against a clean white work area,
+   with stronger ink and type than the earlier paper-toned palette. */
+:root:not(.dark),
+:root:not(.dark) [data-ground] {
+  --background: #ffffff;
+  --stage: #ffffff;
+  --card: #ffffff;
+  --card-foreground: #0a1428;
+  --popover: #ffffff;
+  --popover-foreground: #0a1428;
+  --foreground: #0a1428;
+  --muted: #f3f6fb;
+  --muted-foreground: #526078;
+  --control: #ffffff;
+  --control-hover: #f1f5fb;
+  --control-active: #e8eef8;
+  --hover: #f1f5fb;
+  --active: #e8eef8;
+  --border: #dbe3ef;
+  --input: #cbd6e5;
+  --primary: #315cff;
+  --primary-hover: #244be1;
+  --primary-subtle: rgb(49 92 255 / 0.1);
+  --accent-ink: #315cff;
+  --ring: #315cff;
+  --success: #168a5b;
+  --success-subtle: rgb(22 163 106 / 0.11);
+  --warning: #a66f00;
+  --warning-subtle: rgb(217 154 0 / 0.13);
+  --violet: #7048d8;
+  --violet-subtle: rgb(139 92 246 / 0.11);
+  --destructive: #dc3545;
+  --destructive-subtle: rgb(239 68 68 / 0.1);
+  --sidebar: #2858d7;
+  --sidebar-foreground: #f7f9ff;
+  --sidebar-muted: #d8e4ff;
+  --sidebar-hover: rgb(255 255 255 / 0.12);
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #1e49bd;
+  --sidebar-border: rgb(255 255 255 / 0.18);
+}
+
+.dark,
+.dark [data-ground] {
+  --background: #07111f;
+  --stage: #07111f;
+  --card: #0d1a2b;
+  --card-foreground: #f3f6ff;
+  --popover: #0d1a2b;
+  --popover-foreground: #f3f6ff;
+  --foreground: #f3f6ff;
+  --muted: #101f33;
+  --muted-foreground: #bdc8d8;
+  --control: #101f33;
+  --control-hover: #152943;
+  --control-active: #1a3150;
+  --hover: #152943;
+  --active: #1a3150;
+  --border: #203149;
+  --input: #31445f;
+  --primary: #3973ff;
+  --primary-hover: #5688ff;
+  --primary-subtle: rgb(57 115 255 / 0.16);
+  --accent-ink: #7da2ff;
+  --ring: #3973ff;
+  --success: #22c982;
+  --success-subtle: rgb(34 201 130 / 0.14);
+  --warning: #e5a82d;
+  --warning-subtle: rgb(229 168 45 / 0.14);
+  --violet: #a78bfa;
+  --violet-subtle: rgb(167 139 250 / 0.14);
+  --destructive: #ff5964;
+  --destructive-subtle: rgb(255 89 100 / 0.14);
+  --sidebar: #0d1a2b;
+  --sidebar-foreground: #f1f5ff;
+  --sidebar-muted: #c4cfdf;
+  --sidebar-hover: #152943;
+  --sidebar-accent: rgb(57 115 255 / 0.18);
+  --sidebar-accent-foreground: #b8ccff;
+  --sidebar-border: #203149;
 }
 
 /* Tailwind's colour utilities, resolving through the semantic layer above. */
@@ -310,6 +431,13 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive-hover: var(--destructive-hover);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-violet: var(--violet);
+  --color-violet-subtle: var(--violet-subtle);
 
   --color-border: var(--border);
   --color-input: var(--input);
@@ -349,11 +477,7 @@
    the ground at its foot, a gutter, a radius and a hairline. */
 .stage-float {
   border-radius: var(--radius-2xl);
-  background-image: linear-gradient(
-    180deg,
-    var(--n-2) 0%,
-    color-mix(in oklab, var(--n-2), var(--n-1) 70%) 100%
-  );
+  background: var(--stage);
   box-shadow: 0 0 0 1px var(--line-1);
 }
 
@@ -363,10 +487,10 @@
 
   /* 450 is the body weight. A half step above regular is what lets 14px read
      crisp without reading bold. */
-  --font-weight-normal: 450;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  --font-weight-normal: 500;
+  --font-weight-medium: 600;
+  --font-weight-semibold: 700;
+  --font-weight-bold: 800;
 
   /* Three radii, one per rung of the elevation ladder. In a light theme the
      fills run out of room near white, so radius carries depth alongside the
@@ -382,12 +506,12 @@
   --radius-2xl: 12px;
 
   /* Six sizes, and the default scale is cleared so there is no seventh beneath
-     them. 14px is the floor: this is read by owners on laptops. */
+     them. 15px is the floor: this is read by owners on laptops. */
   --text-*: initial;
-  --text-sm: 14px;
-  --text-sm--line-height: calc(20 / 14);
-  --text-base: 16px;
-  --text-base--line-height: calc(24 / 16);
+  --text-sm: 15px;
+  --text-sm--line-height: calc(21 / 15);
+  --text-base: 17px;
+  --text-base--line-height: calc(25 / 17);
   /* The handover note on Home. A sentence read at a glance wants to sit above
      body text without becoming a heading, and `lg` at 20px reads as one. */
   --text-md: 18px;
@@ -406,7 +530,7 @@
      about the answer: a number, a time, a name, a line. A component may own its
      own width in one place; what is forbidden is the same number pasted at three
      call sites, which is how a width drifts out of agreement with itself. */
-  --container-page: 960px;
+  --container-page: 1280px;
   --container-form: 840px;
   /* One column of form, read once and never returned to: onboarding, and the
      escalation queue. Narrower than `form`, which is a settings surface you
@@ -483,7 +607,7 @@
     background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: var(--font-weight-normal);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

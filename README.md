@@ -1,3 +1,5 @@
+> **Current scope (2026-09-09):** [Delivery roadmap](docs/ROADMAP.md) — verify multiple Google/Microsoft calendars and privacy first, then company workspaces, employees and call routing. Workspace support is agreed, not yet implemented.
+
 # DeskRoute
 
 **Current development:** receptionist for USA customer handover using Supabase PostgreSQL, Supabase Auth, and LiveKit, with browser testing as the first milestone. Start with [SCOPE.md](SCOPE.md), [setup](docs/SETUP.md), and [decisions](docs/DECISIONS.md). Onboarding no longer requires a phone purchase. The upstream phone capabilities described below remain available for a later milestone.
@@ -138,6 +140,7 @@ R2_BUCKET_NAME=
 ```env
 PORT=8080
 DASHBOARD_ORIGINS=             # comma-separated; defaults to http://localhost:5173
+PUBLIC_API_URL=http://localhost:8080 # public API origin used by Google Calendar OAuth
                                # any localhost port is accepted when a localhost origin is listed
 ```
 

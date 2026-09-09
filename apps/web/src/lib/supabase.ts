@@ -16,18 +16,11 @@ export const supabase = authConfigured ? createClient(
   } },
 ) : null
 
-export async function signInWithGoogle(calendarOwner?: string) {
+export async function signInWithGoogle() {
   if (!supabase) throw new Error('Sign-in is not configured')
-  if (calendarOwner) sessionStorage.setItem('calendar-connect-owner', calendarOwner)
-  else sessionStorage.removeItem('calendar-connect-owner')
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google', options: {
       redirectTo: `${window.location.origin}/auth/callback`,
-      ...(calendarOwner ? {
-        scopes: ['calendar.events', 'calendar.calendarlist.readonly', 'calendar.freebusy']
-          .map(scope => `https://www.googleapis.com/auth/${scope}`).join(' '),
-        queryParams: { access_type: 'offline', prompt: 'consent' },
-      } : {}),
     },
   })
   if (error) throw error

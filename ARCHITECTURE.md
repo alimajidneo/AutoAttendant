@@ -1,3 +1,5 @@
+> **Current scope (2026-09-09):** [Delivery roadmap](docs/ROADMAP.md) — verify multiple Google/Microsoft calendars and privacy first, then company workspaces, employees and call routing. Workspace support is agreed, not yet implemented.
+
 # Architecture
 
 Reference for the whole system. `CLAUDE.md` holds the rules an agent must follow and points here for everything descriptive; nothing is stated in both.
@@ -332,3 +334,16 @@ Time to first token through LiveKit Inference, three samples from India: `openai
 ### Versioning
 
 `major.minor.patch` in the root `package.json` only. Every package is `private: true` with no `version` field, and `workspace:*` links by name. One patch bump per commit that changes what a customer runs, in the same commit as the work. `minor` is a release worth describing as new capability; `major` breaks the API contract or a database shape somebody has to think about.
+
+
+## Calendar hardening — 2026-09-09
+
+Calendar OAuth is bound to the initiating browser with a 10-minute HttpOnly SameSite=Lax cookie and an S256 PKCE challenge in signed state. The callback checks the cookie before exchanging a code and removes it on completion. Local cross-port API access opts into credentials only for OAuth start; production should be same-origin. No Redis/session database or additional polling is needed.
+
+Token reuse checks the owner-scoped database row before returning a cached credential. A reconnect changes the credential fingerprint, and deletion removes the authority to use the cache. Listing connections performs one scoped database read rather than one read per token. Availability refreshes only selected accounts. The worker re-reads the current calendar selection at each tool action; it does not retain one authorization snapshot for an entire call.
+
+Google credentials travel in request headers or POST bodies, not tokeninfo query strings. Scopes are checked on Google's authenticated token-exchange response. Provider response bodies and arbitrary internal exception messages are not returned through the API. Authenticated responses are private/no-store; browser caching is scoped to the current login and cleared on identity changes.
+
+Calendar reads are time-bounded. Missing calendars, per-calendar errors and malformed busy intervals are failures, not free time. Calendar lists follow pagination. Cancellation uses the connection saved with the appointment even after the booking destination changes. Reconciliation checks an absent event by ID before assuming deletion; it does not yet synchronize moved times.
+
+The dashboard uses a five-minute stale time, at most one query retry and no focus-triggered refetch. Production defaults to `/api`; dashboard aggregation, deployment adapters and measured invocation budgets remain pending. See `docs/CALENDAR_TESTING.md` for evidence and remaining booking/privacy limitations.

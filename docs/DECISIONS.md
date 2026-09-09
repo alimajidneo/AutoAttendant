@@ -1,3 +1,9 @@
+# Scope decision — 2026-09-09
+
+Follow [ROADMAP.md](ROADMAP.md) as the current task order. Keep Supabase Auth; calendar accounts remain separate from sign-in identities. Verify multiple Google accounts and Microsoft calendars before implementing company workspaces. The target model is user-owned calendar connections with explicit availability sharing to workspaces, company-owned receptionists and employee routing. Current connections are agent-owned; implement a reviewed data upgrade before multi-company rollout. No workspace administrator receives private calendar content simply through membership.
+
+Vercel Pro remains the website/HTTP API target; the persistent voice worker stays separate. Same-origin requests, aggregated reads and bounded caching remain work to verify, not deployed guarantees. Google and Microsoft failures must not silently widen availability. Mike's phone system is a discovery input to collect early, without blocking calendar tests.
+
 # Initial implementation decisions
 
 Recorded 2026-09-08.
@@ -5,8 +11,10 @@ Recorded 2026-09-08.
 | Area | Decision | Reason |
 | --- | --- | --- |
 | Database | Supabase PostgreSQL through the existing Drizzle/pg backend | Requested by owner; no ORM rewrite or browser database access. |
-| Authentication | Supabase Auth | Implemented Google sign-in, server-verified ownership, and encrypted Calendar refresh tokens. Live acceptance remains pending. |
-| Voice | LiveKit Cloud Build, local worker | Browser testing avoids number rental and PSTN charges; existing application already uses LiveKit. |
+| Authentication | Supabase Auth | Google login identifies the DeskRoute owner. Calendar OAuth is a separate backend flow so one owner can connect several Google accounts without changing their login session. |
+| Voice | LiveKit Cloud Build for testing, with eventual LiveKit Cloud agent deployment | Browser testing avoids number rental and PSTN charges; the long-running worker remains outside Vercel. |
+| Hosting | Vercel Pro for the eventual customer-facing web application and compatible API endpoints | Selected by the owner. Prepare the existing Vite application for Vercel without changing Supabase, Drizzle, or LiveKit. Do not attempt to run the persistent voice worker in a Vercel Function. |
+| Invocation budget | Aggregate dashboard reads and keep the API same-origin | Target two API invocations for a cold dashboard load, avoid polling and CORS preflights, and keep call-time work in the LiveKit worker. |
 | Models | Existing LiveKit inference provider initially | Avoid another provider account; choose supported models and check credits before a live session. |
 | Carrier | Defer Twilio/Telnyx selection | Browser milestone needs neither; eventual cost depends on country and forwarding route. |
 | Recording | Leave optional R2 configuration unset initially | Avoid another service and recording storage costs. |
@@ -20,7 +28,7 @@ For Supabase, use the direct connection when reachable over IPv6, or the session
 
 The product is for customer handover in the USA, not a personal app for its developer. The user confirmed the Supabase Data API is disabled. Keep the chosen Supabase/Drizzle/LiveKit architecture through delivery; do not require a customer to change providers or migrate data after handover. Configuration must use actual supported fields and real provider credentials, with no placeholder behavior.
 
-Local worker execution and Google OAuth testing mode are development arrangements. Hosted operation, production OAuth readiness, verified US telephone routing, data isolation, recovery, and measured costs are handover requirements. Existing customer number/forwarding details, hosting region, and approved operating budget remain deployment inputs.
+Local worker execution and Google OAuth testing mode are development arrangements. The eventual customer-facing application will use Vercel Pro; the LiveKit voice worker must use LiveKit Cloud or another persistent worker runtime. Hosted operation, production OAuth readiness, verified US telephone routing, data isolation, recovery, and measured costs are handover requirements. Existing customer number/forwarding details, hosting region, and approved operating budget remain deployment inputs.
 
 ## Official references
 
@@ -32,3 +40,5 @@ Local worker execution and Google OAuth testing mode are development arrangement
 - [Supabase Google authentication](https://supabase.com/docs/guides/auth/social-login/auth-google)
 
 Provider allowances and model catalogs can change; the dashboard is the final check before usage.
+
+The detailed Vercel assessment and invocation controls are in [VERCEL_FEASIBILITY.md](./VERCEL_FEASIBILITY.md).

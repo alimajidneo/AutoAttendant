@@ -15,7 +15,8 @@ import { calls as callsTable } from "@receptionist/core/db/schema.js";
 import { upsertCaller } from "@receptionist/core/repositories/callers.js";
 import { createCall, finishCall } from "@receptionist/core/repositories/calls.js";
 import { recordingEnabled, startCallRecording, stopCallRecording } from "@receptionist/core/providers/storage.js";
-import { getGoogleOAuthToken } from "@receptionist/core/providers/googleAuth.js";
+import { getAgentCalendarAccess } from "@receptionist/core/providers/googleAuth.js";
+import { getAgentById } from "@receptionist/core/repositories/agents.js";
 import type { AgentDeps, CallState, SlotStore } from "./receptionist/deps.js";
 import { buildSessionConfig, buildKeyterms } from "./session/pipeline.js";
 import { resolveCallerPhone } from "./session/caller.js";
@@ -85,13 +86,6 @@ export default defineAgent({
     const { agent, services, knowledge } = resolved;
     console.log(`[worker] resolved agent: ${agent.id}${isTestSession ? " (test session)" : ""}`);
 
-    // Fire Google OAuth token fetch in background (no await — resolves while greeting plays).
-    //    Token is cached at module level with a 50-minute TTL so repeat calls skip the network.
-    const tokenPromise: Promise<string | null> =
-      agent.calendarExternalId && agent.authUserId
-        ? getGoogleOAuthToken(agent.authUserId)
-        : Promise.resolve(null);
-
     // Generate callId locally — zero DB roundtrip needed
     const callId = crypto.randomUUID();
 
@@ -116,8 +110,15 @@ export default defineAgent({
       caller: null,
       callerPhone,
       callId,
-      getGoogleToken: () => tokenPromise,
+      getCalendarAccess: async () => {
+        const current = await getAgentById(agent.id);
+        return current?.authUserId
+          ? getAgentCalendarAccess(current.id, current.calendarExternalId, current.calendarPayload)
+          : null;
+      },
       calendarExternalId: agent.calendarExternalId ?? null,
+      conflictCalendarIds: agent.calendarPayload?.conflictCalendars?.map((calendar) => calendar.id)
+        ?? (agent.calendarExternalId ? [agent.calendarExternalId] : []),
       knowledge,
       callRowReady,
       callState,

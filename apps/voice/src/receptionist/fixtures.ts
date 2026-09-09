@@ -20,6 +20,7 @@ export function makeAgentConfig(overrides: Partial<AgentConfig> = {}): AgentConf
     greeting: AGENT_PROFILE.greeting,
     farewell: AGENT_PROFILE.farewell,
     fallback: AGENT_PROFILE.fallback,
+    bookingQuestions: [],
     businessHours: DEFAULT_BUSINESS_HOURS,
     minNoticeMinutes: DEFAULT_BOOKING_POLICY.minNoticeMinutes,
     maxAdvanceDays: DEFAULT_BOOKING_POLICY.maxAdvanceDays,
@@ -42,8 +43,9 @@ export function makeAgentDeps(overrides: Partial<AgentDeps> = {}): AgentDeps {
     caller: null,
     callerPhone: "+14155550123",
     callId: "22222222-2222-2222-2222-222222222222",
-    getGoogleToken: async () => null,
+    getCalendarAccess: async () => null,
     calendarExternalId: null,
+    conflictCalendarIds: [],
     knowledge: [],
     // Fixtures default to the row already existing, which is the normal case.
     callRowReady: Promise.resolve(true),

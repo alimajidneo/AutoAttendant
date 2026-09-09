@@ -148,6 +148,7 @@ ${buildHoursBlock(agent.businessHours, now, timeZone)}
 
 ## Booking
 ${calendarBlock}
+Callers may book a general 30-minute appointment even when its purpose is not listed as a service. Do not invent a price for it.
 ${knowledgeBlock}
 ## Behavior
 - If asked something you don't have context for, say exactly: "${agent.fallback}"

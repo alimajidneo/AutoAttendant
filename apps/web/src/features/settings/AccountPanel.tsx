@@ -5,10 +5,13 @@ import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Section, Row } from './SettingsList'
 import { SaveBar } from './SaveBar'
+import { userAvatarUrl } from '@/lib/user-profile'
+import { ExternalLink } from 'lucide-react'
 
 export function AccountPanel() {
   const { user } = useAuth()
   const email = user?.email ?? ''
+  const avatarUrl = userAvatarUrl(user)
 
   const [firstName, setFirstName] = useState(user?.user_metadata.first_name ?? '')
   const [lastName, setLastName] = useState(user?.user_metadata.last_name ?? '')
@@ -42,9 +45,9 @@ export function AccountPanel() {
     <div>
       <Section title="Profile">
         <li className="flex items-center gap-3.5 p-4">
-          {user?.user_metadata.avatar_url && (
+          {avatarUrl && (
             <img
-              src={user.user_metadata.avatar_url}
+              src={avatarUrl}
               alt=""
               className="size-10 rounded-full border border-border object-cover"
             />
@@ -86,6 +89,23 @@ export function AccountPanel() {
           htmlFor="email"
         >
           <Input id="email" className="w-field-lg" value={email} readOnly disabled />
+        </Row>
+      </Section>
+
+      <Section title="About">
+        <Row
+          title="Source code"
+          description="View the source code for this version of DeskRoute."
+        >
+          <a
+            href="https://github.com/alimajidneo/AutoAttendant"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 font-semibold text-accent-ink hover:underline"
+          >
+            Open repository
+            <ExternalLink className="size-4" aria-hidden="true" />
+          </a>
         </Row>
       </Section>
 

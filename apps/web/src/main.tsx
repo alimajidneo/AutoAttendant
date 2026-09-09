@@ -8,11 +8,16 @@ import { Toaster } from '@/components/ui/sonner'
 import App from './App'
 import { authConfigured } from '@/lib/supabase'
 import './index.css'
+import { applyTheme, getInitialTheme } from '@/lib/theme'
+
+applyTheme(getInitialTheme())
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
     },
   },
 })

@@ -23,6 +23,7 @@ export const AGENT_PROFILE: AgentProfile = {
   greeting: "Thanks for calling Test Business, this is Riley.",
   farewell: "Thanks for calling, goodbye.",
   fallback: "Let me check with the team and get back to you.",
+  bookingQuestions: [],
 };
 
 /** Deliberately different shapes: slot generation behaves differently for each. */
