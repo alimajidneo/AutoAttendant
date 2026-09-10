@@ -542,6 +542,6 @@ Run `pnpm db:migrate` before starting the updated API. Migration `0006_spooky_rh
 
 The top-bar bell opens the notification center; read status persists across devices. It refreshes when opened or manually refreshed, without background polling. See [notification behavior and tests](NOTIFICATIONS_AND_CALENDAR_SOURCES.md).
 
-Calendar event colors now identify Google accounts. Below the calendar, the source legend lists account email addresses and selected calendar names. If an account shows zero included calendars, turn on its calendar in Connections and save. Connecting an account alone does not enable its calendars.
+Calendar event colors identify connected Google or Microsoft accounts. Below the calendar, the source legend lists the provider, account email, and selected calendar names. If an account shows zero included calendars, turn on its calendar in Connections and save. Connecting an account alone does not enable its calendars.
 
 For SIM/mobile-number versus SIP/phone-system setup and when to start telephone testing, follow [TELEPHONY_PLAN.md](TELEPHONY_PLAN.md).

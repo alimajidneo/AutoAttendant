@@ -18,7 +18,7 @@ This repository is under active development. Browser voice calls and Google book
 
 ## In-app tutorial
 
-Open **Help & tutorial** in the sidebar, or visit `/help` on your DeskRoute website. The tutorial is also linked from sign-in, onboarding and Workspaces. Nine searchable guides explain setup, roles/privacy, hours, FAQs/intake, multiple Google accounts, appointments, notifications and browser call/handoff testing. Each guide has numbered steps, expected results and troubleshooting. Help is available before sign-in and adds no application API queries.
+Open **Help & tutorial** in the sidebar, or visit `/help` on your DeskRoute website. The tutorial is also linked from sign-in, onboarding and Workspaces. Nine searchable guides explain setup, roles/privacy, hours, FAQs/intake, Google/Microsoft calendars, Slack alerts, appointments and browser call/handoff testing. Each guide has numbered steps, expected results and troubleshooting. Help is available before sign-in and adds no application API queries.
 
 Microsoft Calendar and basic Slack alerts are available under **Settings → Connections**. Teams presence and Slack transfer approvals remain later work; see the [integration sequence and official documentation](docs/INTEGRATION_PLAN.md).
 
@@ -29,9 +29,9 @@ Microsoft Calendar and basic Slack alerts are available under **Settings → Con
 - One Slack workspace connection per DeskRoute workspace, with an owner-selected channel and opt-in alerts. Alert text excludes caller and calendar details.
 - Business hours, exceptions, timezone, booking notice/horizon, services and general appointments.
 - Configurable receptionist instructions, FAQ knowledge and caller intake questions.
-- Browser voice testing through LiveKit; bookings made during a test are real Google Calendar events.
+- Browser voice testing through LiveKit; bookings made during a test are real events in the selected provider calendar.
 - Calendar month grid and daily agenda, including personal events from the owner's explicitly selected calendars.
-- Google-account colors shared by every calendar from that account, with a named source legend below the calendar and source text on daily events.
+- Connected-account colors shared by every calendar from that account, with provider, account, and calendar names in the source legend.
 - Upcoming/ongoing bookings and Past appointments, classified by end time. Delete a past DeskRoute booking from either the daily agenda or Past appointments; its linked provider event and DeskRoute history are removed. Pending calendar reads are cancelled before updating every cached month.
 - In-app notification bell with unread count, record links and persistent read status across devices. Includes bookings, requests, cancellations, pending questions and failed calls.
 - Calls, transcripts, summaries, optional recordings, questions awaiting answers and FAQ management.
