@@ -23,6 +23,10 @@ export type SlotStore = {
 };
 
 export type AgentDeps = {
+  browserTransfer?: {
+    directory: () => Promise<{ userId: string; name: string; department: string }[]>;
+    request: (targetUserId: string) => Promise<unknown>;
+  };
   agent: AgentConfig;
   /** Cached with the agent, because slot generation needs their durations. */
   services: Service[];

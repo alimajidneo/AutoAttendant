@@ -1,3 +1,4 @@
+import { listWorkspaces } from "@receptionist/core/repositories/workspaces.js";
 import { Hono } from "hono";
 import { authenticate } from "../../middleware/auth.js";
 import type { AppEnv } from "../../types.js";
@@ -21,7 +22,11 @@ export const onboarding = new Hono<AppEnv>()
   .get("/session", async (c) => {
     const auth = c.get("authUser");
     if (!auth?.id) return c.json({ error: "Unauthorized" }, 401);
-    return c.json({ onboarded: !!(await resolveAgentByAuthUserId(auth.id)) });
+    const workspaces = await listWorkspaces(auth.id);
+    const selected = c.req.header("X-Workspace-Id");
+    const current = selected ? workspaces.find(item => item.id === selected) : workspaces[0];
+    return c.json({ onboarded: !!current, role: current?.role, workspaceOwner: current?.ownerUserId === auth.id,
+      workspaceId: current?.id, hasWorkspaces: workspaces.length > 0 });
   })
   .get("/phone/search", async (c) => {
     const auth = c.get("authUser");

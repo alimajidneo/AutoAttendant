@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppEnv } from "./types.js";
-import { authenticate, requireAgent } from "./middleware/auth.js";
+import { authenticate, requireAgent, requireManager } from "./middleware/auth.js";
 import { health } from "./modules/health/route.js";
 import { onboarding } from "./modules/onboarding/route.js";
 import { metrics } from "./modules/metrics/route.js";
@@ -15,10 +15,12 @@ import { telephony } from "./modules/telephony/route.js";
 import { agent } from "./modules/agent/route.js";
 import { calendarOAuthCallback } from "./modules/calendar/oauth-callback.js";
 
+import { transfers } from "./modules/transfers/route.js";
+import { workspaces } from "./modules/workspaces/route.js";
 import { notifications } from "./modules/notifications/route.js";
 
 const admin = new Hono<AppEnv>()
-  .use("*", authenticate, requireAgent)
+  .use("*", authenticate, requireAgent, requireManager)
   .route("/notifications", notifications)
   .route("/metrics", metrics)
   .route("/calls", calls)
@@ -35,6 +37,8 @@ export const routes = new Hono()
   .route("/health", health)
   .route("/calendar/oauth", calendarOAuthCallback)
   .route("/onboarding", onboarding)
+  .route("/workspaces", workspaces)
+  .route("/transfers", transfers)
   .route("/admin", admin);
 
 export type AppRoutes = typeof routes;

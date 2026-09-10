@@ -62,6 +62,18 @@ export function createAgentTools(deps: AgentDeps) {
    *  answer and the answer is discarded. */
 
   return {
+    ...(deps.browserTransfer ? {
+      transferDirectory: llm.tool({
+        description: "When the caller asks for a person or department, list currently available teammates. Ask which person if several match. Never invent a destination.",
+        parameters: z.object({}),
+        execute: async () => deps.browserTransfer!.directory(),
+      }),
+      requestTransfer: llm.tool({
+        description: "After the caller agrees, request a browser handoff to a teammate ID returned by transferDirectory. This requests acceptance; it does not mean the call is transferred. If unavailable, offer a message or appointment. Only one transfer attempt per test call.",
+        parameters: z.object({ targetUserId: z.string() }),
+        execute: async ({ targetUserId }) => deps.browserTransfer!.request(targetUserId),
+      }),
+    } : {}),
     createEscalation: llm.tool({
       description:
         "Record a question you could not answer, so the business owner can answer it later. " +

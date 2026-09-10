@@ -96,8 +96,8 @@ Also test a busy event in the first account, a recurring occurrence and an all-d
 
 1. Leave an appointment open through its end time. It remains Upcoming while in progress, then moves to Past appointments within 30 seconds. Returning to the tab also updates it. This clock runs locally; it does not poll the API or Google.
 2. Verify an appointment that ended yesterday appears in Past appointments, newest ended first, including cancelled history. “Ended” means the scheduled end passed, not proof the caller attended.
-3. Click Delete on a disposable past appointment. The confirmation explains that deletion removes the DeskRoute booking row permanently while retaining the original Google event. Cancel the dialog to preserve the record; confirm only when intentionally testing deletion.
-4. Reload after confirming deletion. The booking must stay removed from DeskRoute history. Its Google event can still appear in the calendar grid. No Google credential is required for this history-only action.
+3. Click Delete on a disposable past appointment. The confirmation explains that deletion removes the DeskRoute booking row permanently and its linked Google event. Cancel the dialog to preserve the record; confirm only when intentionally testing deletion.
+4. Reload after confirming deletion. The booking must stay removed from DeskRoute history. Its linked Google event must disappear from the calendar grid. If Google rejects deletion or the original account is disconnected, the local row must remain and show a retry/reconnect error.
 5. A future/ongoing booking cannot be deleted through the history endpoint. Owner and end-time checks are enforced in both the API and database deletion condition.
 
 The existing appointment list returns at most 100 records ordered by start time. Browsing older pages is still pending; deleting visible history does not constitute full account-data erasure (call records remain separate).

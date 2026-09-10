@@ -25,7 +25,7 @@ The API returns the latest 50 records in 30 days, ordered by occurrence and stab
 - Read requests must match an existing record and its displayed timestamp. Invented IDs, another owner's records and future timestamps cannot create read receipts. Old browser tabs cannot mark newer events read or move the saved version backwards.
 - RLS is enabled with no direct browser policies. The server's PostgreSQL connection enforces owner filtering. No credentials or raw provider errors are returned.
 - Read receipts persist across sessions/devices. They contain no copied notification body and cascade when the owner is deleted. They do not have an automatic cleanup job yet; the 30-day feed window is not a claim that source data is deleted after 30 days.
-- Current read ownership is the receptionist owner. Before shared workspaces, receipts must become member-specific and permissions must filter notification content.
+- As of v1.0.22, read receipts are member-specific within each workspace. Notification content is available only to managers through the scoped business API.
 
 ## Calendar source colors
 

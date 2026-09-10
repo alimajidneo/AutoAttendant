@@ -2,14 +2,15 @@
 
 Neodym's AI receptionist for USA customer teams. The receptionist answers business questions, checks selected calendars across Google accounts, books appointments, and sends questions it cannot answer to the owner's dashboard.
 
-**Version 1.0.21 · Updated 2026-09-10**
+**Version 1.0.22 · Updated 2026-09-10**
 
-This repository is under active development. Browser voice calls and Google booking have been tested. Human transfers, Microsoft calendars and shared company workspaces are still planned. The intended deployment is a Vercel website/HTTP API plus a separately hosted LiveKit voice worker.
+This repository is under active development. Browser voice calls and Google booking have been tested. Personal/team workspaces and browser handoff are implemented; two-person audio acceptance, Microsoft calendars and telephone transfer remain pending. The intended deployment is a Vercel website/HTTP API plus a separately hosted LiveKit voice worker.
 
 - [Setup instructions](docs/SETUP.md)
 - [Ordered delivery roadmap](docs/ROADMAP.md)
 - [Calendar acceptance checklist and evidence](docs/CALENDAR_TESTING.md)
 - [Notifications and calendar source colors](docs/NOTIFICATIONS_AND_CALENDAR_SOURCES.md)
+- [Workspaces, invitations and browser handoff](docs/WORKSPACES_AND_TRANSFERS.md)
 - [Phone integration sequence](docs/TELEPHONY_PLAN.md)
 - [Architecture](ARCHITECTURE.md) · [Decisions](docs/DECISIONS.md) · [Vercel feasibility](docs/VERCEL_FEASIBILITY.md)
 
@@ -22,9 +23,11 @@ This repository is under active development. Browser voice calls and Google book
 - Browser voice testing through LiveKit; bookings made during a test are real Google Calendar events.
 - Calendar month grid and daily agenda, including personal events from the owner's explicitly selected calendars.
 - Google-account colors shared by every calendar from that account, with a named source legend below the calendar and source text on daily events.
-- Upcoming/ongoing bookings and Past appointments, classified by end time. History deletion removes the DeskRoute booking row while retaining its Google event.
+- Upcoming/ongoing bookings and Past appointments, classified by end time. Deleting a past booking removes its linked Google event and DeskRoute history.
 - In-app notification bell with unread count, record links and persistent read status across devices. Includes bookings, requests, cancellations, pending questions and failed calls.
 - Calls, transcripts, summaries, optional recordings, questions awaiting answers and FAQ management.
+- Personal/team workspaces, explicit email-bound invitations, owner/manager/member access and configurable teammate departments/availability.
+- Browser handoff requests with recipient acceptance, manual inbox refresh and restricted LiveKit room tokens.
 - Light/dark themes, profile details and loading indicators.
 
 On **2026-09-10**, Ali reported the two-Google-account test was successful. Detailed failure, revocation, cross-owner and simultaneous-booking acceptance are separate checks; a successful basic test does not establish production readiness.
@@ -67,7 +70,7 @@ Apply committed migrations before starting an updated API:
 pnpm db:migrate
 ```
 
-Migration `0006_spooky_rhino` adds notification read receipts and an appointment-update index. Existing accounts and calendar connections remain in place. Migration `0004` expects Supabase's `auth.users` for legacy account import; the local integration test runner supplies an empty fixture for plain PostgreSQL.
+Migration `0007_square_darwin` adds workspaces, memberships, invitations, transfer requests and per-person notification receipts. Existing receptionists become personal workspaces; new team workspaces start separately. Existing accounts and calendar connections remain in place. Migration `0004` expects Supabase's `auth.users` for legacy account import; the local integration test runner supplies an empty fixture for plain PostgreSQL.
 
 Run in separate terminals:
 
@@ -93,7 +96,7 @@ Or use `pnpm dev` for all three. Do not start duplicate servers on the same port
 | Telephony | LiveKit SIP/phone-number integration; Mike's provider discovery and real-call acceptance pending |
 | Deployment target | Vercel website/API, separate persistent worker |
 
-Private records are scoped to the authenticated receptionist owner. Database RLS is enabled and the browser uses the authenticated API; Supabase's unused Data API stays disabled. Shared workspaces must add explicit member permissions and availability sharing before exposing any employee data.
+Private records are scoped to the selected workspace and verified membership. Managers access business records; members access their directory/profile and addressed browser transfers. Only the workspace owner manages calendar connections or views external personal event details. PostgreSQL RLS remains enabled, and Supabase's unused Data API stays disabled. Employee-owned availability sharing across companies remains pending.
 
 ## Verification
 
@@ -110,23 +113,25 @@ pnpm test:int      # disposable local PostgreSQL only
 
 `pnpm test:live` uses real credentials and writes Google Calendar test events; it is separate from the above checks. The integration runner refuses a non-local or differently named test database before creating fixtures or clearing test records.
 
-See [verification evidence](docs/NOTIFICATIONS_AND_CALENDAR_SOURCES.md#verification) for this release. Five existing web design-contract failures conflict with the current approved colors/theme and sign-in width; they are documented and have not been disabled.
+See [verification evidence](docs/WORKSPACES_AND_TRANSFERS.md#verification) for this release. Five existing web design-contract failures conflict with the current approved colors/theme and sign-in width; they are documented and have not been disabled.
 
 ## Remaining delivery work
 
 1. Complete rescheduling, invitations, external time-change synchronization and simultaneous-booking protection.
 2. Test remaining calendar privacy/failure cases and add Microsoft calendar support.
-3. Add company workspaces, employee ownership and explicit availability sharing.
-4. Add departments, approved transfer destinations and fallback rules.
+3. Accept-test workspaces and browser handoff with teammates; add explicit employee-owned calendar availability sharing.
+4. Extend browser department routing to approved telephone destinations, presence/transfer hours and reliable fallback rules.
 5. Integrate Mike's phone system and test inbound calls, assisted transfers, no-answer and hang-up behavior.
 6. Add Slack transfer approvals after phone transfers work.
-7. Deploy stable staging, finish production OAuth and verify privacy, backups and actual provider costs.
+7. Finish production OAuth and verify privacy, backups and actual provider costs before customer handover.
+
+Deploy stable Vercel staging and the separate worker before phone integration so teammates can test browser workflows first. See [the deployment and testing order](docs/WORKSPACES_AND_TRANSFERS.md).
 
 Provider discovery and a small telephone connectivity test can proceed before the complete team-routing product. See [the phone integration sequence](docs/TELEPHONY_PLAN.md). Do not port the customer's main number during early testing.
 
 ## API additions
 
-All `/api/admin/*` endpoints require a valid DeskRoute session and an owned receptionist.
+All `/api/admin/*` endpoints require a valid DeskRoute session and manager membership in the selected workspace. Calendar connection routes additionally require the workspace owner. `X-Workspace-Id` is validated on every scoped request.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -136,10 +141,12 @@ All `/api/admin/*` endpoints require a valid DeskRoute session and an owned rece
 | GET | `/api/admin/appointments/calendar?timeMin=…&timeMax=…` | Selected Google events and account/calendar sources; at most 45 days |
 | POST | `/api/admin/appointments/sync` | Reconcile deleted Google events and refresh bookings |
 | DELETE | `/api/admin/appointments/:id` | Cancel booking and remove its Google event |
-| DELETE | `/api/admin/appointments/history/:id` | Delete an ended DeskRoute booking, retaining Google event |
+| DELETE | `/api/admin/appointments/history/:id` | Delete an ended DeskRoute booking and its linked Google event |
 | GET | `/api/admin/calendar/list` | Connected Google accounts and available calendars |
 | PATCH | `/api/admin/calendar` | Save booking destination and conflict selection |
 | DELETE | `/api/admin/calendar/:connectionId` | Disconnect one account |
+
+`/api/workspaces` provides listing, creation, email-bound invitation acceptance and membership management. `/api/transfers` provides a member-scoped inbox and acceptance tokens. See [workspace guide](docs/WORKSPACES_AND_TRANSFERS.md).
 
 Other API modules cover onboarding, settings, calls, questions, knowledge, services, phone provisioning and browser voice sessions. Their routes are defined in `apps/api/src/routes.ts`.
 

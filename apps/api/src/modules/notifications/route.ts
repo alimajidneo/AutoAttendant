@@ -11,10 +11,10 @@ const readSchema = z.object({
 }).strict();
 
 export const notifications = new Hono<AppEnv>()
-  .get("/", async c => c.json(await listNotifications(c.get("agentId"))))
+  .get("/", async c => c.json(await listNotifications(c.get("agentId"), c.get("authUser").id)))
   .post("/read", async c => {
     const parsed = readSchema.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ error: "Choose up to 50 valid notifications" }, 400);
-    await markNotificationsRead(c.get("agentId"), parsed.data.items);
+    await markNotificationsRead(c.get("agentId"), c.get("authUser").id, parsed.data.items);
     return c.json({ saved: true });
   });

@@ -18,6 +18,7 @@ const Queue = lazy(() => import('@/features/escalations/QueuePage'))
 const Appointments = lazy(() => import('@/features/appointments/AppointmentsPage'))
 const Knowledge = lazy(() => import('@/features/knowledge/KnowledgePage'))
 const Onboarding = lazy(() => import('@/features/onboarding/OnboardingPage'))
+const Workspaces = lazy(() => import('@/features/workspaces/WorkspacesPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,7 @@ export default function App() {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <Routes>
+        <Route path="/workspaces" element={<ProtectedRoute><Suspense fallback={<RouteSkeleton />}><Workspaces /></Suspense></ProtectedRoute>} />
         <Route
           path="/sign-in"
           element={

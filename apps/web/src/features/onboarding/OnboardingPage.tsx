@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/apiClient'
@@ -72,6 +72,8 @@ export default function OnboardingPage() {
             Set up your assistant, then try a conversation in your browser.
           </p>
         </div>
+
+        <Link to="/workspaces" className="font-semibold text-primary">Have an invitation? Join a workspace</Link>
 
         <section className="flex flex-col gap-6">
           <h2 className="text-base font-semibold tracking-tight text-foreground">

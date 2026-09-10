@@ -1,3 +1,5 @@
+> **2026-09-10 update:** Implement personal/team workspaces now, as requested. Preserve existing data and keep calendar details owner-only. Use browser handoff for the initial routing test; do not purchase a number or configure paid phone routes. Deploy staging before telephone integration. See [workspace decisions and limitations](WORKSPACES_AND_TRANSFERS.md). This supersedes the earlier Microsoft-before-workspaces ordering below.
+
 # Scope decision — 2026-09-09
 
 Follow [ROADMAP.md](ROADMAP.md) as the current task order. Keep Supabase Auth; calendar accounts remain separate from sign-in identities. Verify multiple Google accounts and Microsoft calendars before implementing company workspaces. The target model is user-owned calendar connections with explicit availability sharing to workspaces, company-owned receptionists and employee routing. Current connections are agent-owned; implement a reviewed data upgrade before multi-company rollout. No workspace administrator receives private calendar content simply through membership.

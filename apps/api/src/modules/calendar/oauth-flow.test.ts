@@ -24,7 +24,7 @@ const connectionA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const connectionB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const app = new Hono<AppEnv>()
   .route("/api/calendar/oauth", calendarOAuthCallback)
-  .use("/api/admin/*", async (c, next) => { c.set("agentId", owner); await next(); })
+  .use("/api/admin/*", async (c, next) => { c.set("agentId", owner); c.set("workspaceOwner", true); await next(); })
   .route("/api/admin/calendar", calendar);
 
 beforeEach(() => {

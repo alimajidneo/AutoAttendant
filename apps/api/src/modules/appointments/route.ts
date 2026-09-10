@@ -29,6 +29,14 @@ export const appointments = new Hono<AppEnv>()
     if (!appointment.endTime || appointment.endTime.getTime() > Date.now()) {
       return c.json({ error: "Only appointments whose end time has passed can be deleted from history" }, 409);
     }
+    if (appointment.externalEventId) {
+      if (!appointment.externalCalendarId) return c.json({ error: "The original calendar is missing. Reconnect it before deleting." }, 409);
+      const agent = await getAgentById(agentId);
+      const connectionId = appointment.externalCalendarConnectionId ?? agent?.calendarPayload?.bookingConnectionId;
+      const token = connectionId ? await getCalendarConnectionToken(agentId, connectionId) : null;
+      if (!token) return c.json({ error: "Reconnect the appointment's Google account before deleting." }, 409);
+      await deleteCalendarEvent(token, appointment.externalCalendarId, appointment.externalEventId);
+    }
     if (!await deletePastAppointment(agentId, id)) {
       return c.json({ error: "Appointment changed. Refresh and try again." }, 409);
     }
@@ -44,6 +52,16 @@ export const appointments = new Hono<AppEnv>()
       timeMax.getTime() - timeMin.getTime() > 45 * DAY_MS
     ) {
       return c.json({ error: "Choose a valid calendar range of 45 days or less" }, 400);
+    }
+
+    if (!c.get("workspaceOwner")) {
+      const rows = await listAppointments(c.get("agentId"));
+      const events = rows.flatMap(item => item.startTime && item.endTime && item.status !== "cancelled"
+        && item.startTime < timeMax && item.endTime > timeMin ? [{
+          id: item.externalEventId ?? item.id, calendarId: item.externalCalendarId ?? "workspace",
+          title: item.service, start: item.startTime.toISOString(), end: item.endTime.toISOString(), allDay: false,
+        }] : []);
+      return c.json({ events, sources: [] });
     }
 
     const agent = await getAgentById(c.get("agentId"));

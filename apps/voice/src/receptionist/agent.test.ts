@@ -35,6 +35,12 @@ describe("ReceptionistAgent", () => {
     );
   });
 
+  it("exposes browser routing only when the worker enables it", () => {
+    expect(toolNames()).not.toContain("requestTransfer");
+    const browser = makeAgentDeps({ browserTransfer: { directory: async () => [], request: async () => ({ requested: true }) } });
+    expect(toolNames(browser)).toEqual(expect.arrayContaining(["transferDirectory", "requestTransfer"]));
+  });
+
   it("greets a known returning caller by name", () => {
     // PLAN.md 1.8.4: callers.name existed but nothing ever wrote it, so this
     // branch was unreachable dead code. rememberCallerName now populates it.

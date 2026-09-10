@@ -28,6 +28,7 @@ import { appointments } from "./route.js";
 const app = new Hono<AppEnv>()
   .use("*", async (c, next) => {
     c.set("agentId", "agent-1");
+    c.set("workspaceOwner", true);
     c.set("authUser", { id: "owner-1" } as never);
     await next();
   })
@@ -192,7 +193,7 @@ describe("saved calendar identity and moved events", () => {
 
 
 describe("past appointment history deletion", () => {
-  it("deletes only the authenticated owner's ended appointment, without touching Google", async () => {
+  it("deletes an ended local appointment without calling Google when it has no linked event", async () => {
     mocks.getAppointmentById.mockResolvedValue({ id: "past", endTime: new Date(Date.now() - 1000) });
     mocks.deletePastAppointment.mockResolvedValue(true);
     const response = await app.request("/appointments/history/past", { method: "DELETE" });
@@ -253,5 +254,30 @@ describe("calendar source legend", () => {
     const body = await response.json();
     expect(body.events).toEqual([]);
     expect(body.sources).toEqual([{ connectionId: "connection-1", accountEmail: "first@example.test", colorIndex: 0, calendarId: "cal-1", calendarName: "cal-1" }]);
+  });
+});
+
+
+describe("past Google event deletion", () => {
+  const past = { id: "past", endTime: new Date(0), externalEventId: "event-old", externalCalendarId: "cal-old", externalCalendarConnectionId: "connection-old" };
+  it("uses the saved account and deletes Google before the local record", async () => {
+    mocks.getAppointmentById.mockResolvedValue(past);
+    mocks.deletePastAppointment.mockResolvedValue(true);
+    expect((await app.request("/appointments/history/past", { method: "DELETE" })).status).toBe(200);
+    expect(mocks.getCalendarConnectionToken).toHaveBeenCalledWith("agent-1", "connection-old");
+    expect(mocks.deleteCalendarEvent).toHaveBeenCalledWith("token-1", "cal-old", "event-old");
+    expect(mocks.deleteCalendarEvent.mock.invocationCallOrder[0]).toBeLessThan(mocks.deletePastAppointment.mock.invocationCallOrder[0]);
+  });
+  it("keeps local history after a provider failure", async () => {
+    mocks.getAppointmentById.mockResolvedValue(past);
+    mocks.deleteCalendarEvent.mockRejectedValue(new Error("provider offline"));
+    expect((await app.request("/appointments/history/past", { method: "DELETE" })).status).toBe(500);
+    expect(mocks.deletePastAppointment).not.toHaveBeenCalled();
+  });
+  it("keeps history when the original account is disconnected", async () => {
+    mocks.getAppointmentById.mockResolvedValue(past);
+    mocks.getCalendarConnectionToken.mockResolvedValue(null);
+    expect((await app.request("/appointments/history/past", { method: "DELETE" })).status).toBe(409);
+    expect(mocks.deletePastAppointment).not.toHaveBeenCalled();
   });
 });

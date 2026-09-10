@@ -36,6 +36,7 @@ export default function SettingsPage() {
     setParams(p, { replace: true })
   }
 
+  const { data: session } = useQuery({ queryKey: keys.session, queryFn: fetchers.session })
   const { data: settings, isLoading } = useQuery({
     queryKey: keys.settings,
     queryFn: fetchers.settings,
@@ -71,7 +72,7 @@ export default function SettingsPage() {
       ) : panel === 'agent' ? (
         <AgentPanel settings={settings} />
       ) : (
-        <ConnectionsPanel settings={settings} />
+        session?.workspaceOwner ? <ConnectionsPanel settings={settings} /> : <p className="text-sm text-muted-foreground">The workspace owner manages calendar connections. Personal calendar details are private.</p>
       )}
     </PageContainer>
   )

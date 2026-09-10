@@ -1,3 +1,5 @@
+> **2026-09-10 scope update:** At Ali's request, workspace implementation and browser transfer testing moved ahead of Microsoft. See [current workspace capabilities and testing](WORKSPACES_AND_TRANSFERS.md). Two-Google-account basic testing was reported successful.
+
 # DeskRoute delivery roadmap
 
 Agreed with Ali on 2026-09-09. Neodym builds the product; Neodym or Triangle is the first pilot. This is the current scope and execution order. It supersedes conflicting personal-use, Clerk, provider and day-order instructions in earlier plans. Existing working code is preserved; completion requires evidence, not a date.
@@ -25,9 +27,9 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 | 5 | Microsoft calendar connections | Personal Outlook and work Microsoft 365 tested with appropriate permissions/admin approval. Not implemented. |
 | 6 | Mixed-provider availability | Google and Microsoft jointly block time; recurring/all-day/DST cases verified. Pending step 5. |
 | 7 | Thomas's calendar inventory | Identify all five actual providers, permissions and restrictions. Apple Calendar is a client, not proof that iCloud integration is needed. Awaiting inventory. |
-| 8 | Workspaces | Separate companies, switch workspaces, invite members. Not implemented. |
-| 9 | Workspace privacy and roles | Owner/admin/member permissions; explicit per-workspace availability sharing; isolated calls/messages/settings. No implied personal-calendar access. Not implemented. |
-| 10 | Employees and routing | Departments, booking destination, transfer phone numbers and hours. Employees need not all be dashboard admins. Not implemented. |
+| 8 | Workspaces | Separate personal/team workspaces, tab-local switching and email-bound invitations implemented. Teammate live acceptance pending. |
+| 9 | Workspace privacy and roles | Owner/manager/member permissions and isolated business data implemented; owner-only external calendar details. Employee-owned availability sharing remains pending. |
+| 10 | Employees and routing | Member profiles, departments, manual availability and browser handoff requests implemented. Employee booking destinations, phone numbers, presence and transfer hours remain pending. |
 | 11 | Cross-workspace scheduling | A booking for an employee in one company blocks the other without revealing details; prevent simultaneous cross-workspace booking. Pending. |
 | 12 | Receptionist behavior | Approved FAQ answers, configurable intake, general appointments, honest message fallback. Existing features require full journey acceptance. |
 | 13 | Mike's VoIP discovery | Provider documentation, SIP/transfer/presence, number routing, costs. Collect in parallel from the beginning; do not choose a carrier blindly. |
@@ -42,7 +44,7 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 
 2026-09-10: Ali reported the two-Google-account test successful. Add persistent in-app notifications and account-colored calendar sources with a legend; update README and delivery documentation in the same commit. See [notifications/source behavior](NOTIFICATIONS_AND_CALENDAR_SOURCES.md).
 
-Next functional work: appointment rescheduling/invitations and remaining boundary/privacy tests, then Microsoft. Gather Mike's provider details now; a small inbound telephone connectivity test may proceed before workspaces, while a shared team-routing pilot requires employee ownership and permissions. See [phone integration sequence](TELEPHONY_PLAN.md).
+Next: live browser handoff acceptance, stable Vercel staging with a separate worker, and teammate privacy tests. Then finish appointment lifecycle and Microsoft. Gather Mike's provider details now; a small inbound telephone connectivity test may proceed before workspaces, while a shared team-routing pilot requires employee ownership and permissions. See [phone integration sequence](TELEPHONY_PLAN.md).
 
 ## Later only if required
 

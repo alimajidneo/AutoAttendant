@@ -1,3 +1,5 @@
+import { useQuery } from '@tanstack/react-query'
+import { keys, fetchers } from '@/lib/queries'
 import { Link } from 'react-router-dom'
 import { Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -10,6 +12,7 @@ import { NotificationCenter } from '@/features/notifications/NotificationCenter'
 
 export function TopBar() {
   const { user } = useAuth()
+  const { data: settings } = useQuery({ queryKey: keys.settings, queryFn: fetchers.settings })
   const { theme, setTheme } = useTheme()
   const avatarUrl = userAvatarUrl(user)
   const name = user?.user_metadata.full_name || user?.email || 'Account'
@@ -23,7 +26,8 @@ export function TopBar() {
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b border-border bg-stage/90 px-5 backdrop-blur-xl md:px-8">
       <div className="flex items-center gap-3">
         <SidebarTrigger className="md:hidden" />
-        <span className="text-sm font-medium text-muted-foreground">{today}</span>
+        <Link to="/workspaces" className="text-sm font-semibold text-primary">{settings?.business.name || 'Workspaces'} · Switch</Link>
+        <span className="hidden text-sm font-medium text-muted-foreground sm:block">{today}</span>
       </div>
       <div className="flex items-center gap-1.5">
         <Button

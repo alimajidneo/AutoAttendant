@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import {
   RoomAudioRenderer,
   useAgent,
+  useParticipants,
   BarVisualizer,
   useSession,
   SessionProvider,
@@ -18,9 +19,11 @@ export interface TestSessionData {
 
 function LivePill({ onEnd }: { onEnd: () => void }) {
   const agent = useAgent()
+  const participants = useParticipants()
+  const teammate = participants.some(item => item.identity.startsWith("transfer-"))
   return (
-    <Button onClick={onEnd} size="lg" className="w-30 gap-3" aria-label="End the test">
-      {agent.microphoneTrack ? (
+    <Button onClick={onEnd} size="lg" className="gap-3" aria-label="End the test">
+      {teammate ? <span className="text-sm">Teammate joined</span> : agent.microphoneTrack ? (
         <BarVisualizer
           state={agent.state}
           track={agent.microphoneTrack}

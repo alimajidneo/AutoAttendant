@@ -308,6 +308,42 @@ export const calendarConnections = pgTable(
 /** Read receipts only; notification text stays in its original owner-scoped records. */
 export const notificationReads = pgTable("notification_reads", {
   agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
   notificationId: text("notification_id").notNull(),
   seenThrough: timestamp("seen_through", { withTimezone: true }).notNull(),
-}, table => [primaryKey({ columns: [table.agentId, table.notificationId] })]).enableRLS();
+}, table => [primaryKey({ columns: [table.agentId, table.userId, table.notificationId] })]).enableRLS();
+
+export const workspaces = pgTable("workspaces", {
+  agentId: uuid("agent_id").primaryKey().references(() => agents.id, { onDelete: "cascade" }),
+  ownerUserId: text("owner_user_id").notNull(),
+  kind: text("kind").$type<"personal" | "team">().notNull(),
+}).enableRLS();
+
+export const workspaceMembers = pgTable("workspace_members", {
+  agentId: uuid("agent_id").notNull().references(() => workspaces.agentId, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  role: text("role").$type<"manager" | "member">().notNull(),
+  displayName: text("display_name").notNull().default(""),
+  department: text("department").notNull().default(""),
+  available: boolean("available").notNull().default(false),
+}, t => [primaryKey({ columns: [t.agentId, t.userId] }), index("workspace_members_user_idx").on(t.userId)]).enableRLS();
+
+export const workspaceInvites = pgTable("workspace_invites", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  agentId: uuid("agent_id").notNull().references(() => workspaces.agentId, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  role: text("role").$type<"manager" | "member">().notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+}, t => [index("workspace_invites_agent_idx").on(t.agentId)]).enableRLS();
+
+export const transferRequests = pgTable("transfer_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  agentId: uuid("agent_id").notNull().references(() => workspaces.agentId, { onDelete: "cascade" }),
+  roomName: text("room_name").notNull().unique(),
+  callerIdentity: text("caller_identity").notNull(),
+  targetUserId: text("target_user_id").notNull(),
+  status: text("status").$type<"pending" | "accepted" | "declined" | "connected" | "ended">().notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, t => [index("transfer_requests_inbox_idx").on(t.agentId, t.targetUserId, t.expiresAt)]).enableRLS();

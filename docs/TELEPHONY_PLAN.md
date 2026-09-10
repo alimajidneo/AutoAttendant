@@ -1,3 +1,5 @@
+> **2026-09-10 update:** The current test uses browser handoff and explicit teammate acceptance, with no telephone number/carrier. Workspaces and departments are implemented; real SIP transfers remain pending. Complete browser testing and hosted staging before buying a test route. See [browser handoff guide](WORKSPACES_AND_TRANSFERS.md).
+
 # Phone, SIM and SIP integration sequence
 
 Updated 2026-09-10. This is planned work; human call transfer is not implemented.

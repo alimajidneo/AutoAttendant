@@ -15,7 +15,7 @@ describe('notification ownership and persistence', () => {
     await makeAppointment(other.id, { serviceName: 'Other owner private appointment' });
     await makeEscalation(other.id, { question: 'Private question' });
     await makeCall(other.id, { outcome: 'error' });
-    const feed = await listNotifications(owner.id);
+    const feed = await listNotifications(owner.id, "reader");
     expect(feed).toHaveLength(3);
     expect(feed.map(item => item.kind).sort()).toEqual(['booking', 'call-error', 'question']);
     expect(feed.find(item => item.kind === 'call-error')?.href).toBe(`/calls/${call.id}`);
@@ -27,12 +27,12 @@ describe('notification ownership and persistence', () => {
   it('persists read receipts, isolates owners, and handles duplicate/repeated reads', async () => {
     const owner = await makeAgent(); const other = await makeAgent();
     await makeAppointment(owner.id);
-    const [item] = await listNotifications(owner.id);
-    await markNotificationsRead(other.id, [item, item]);
-    expect((await listNotifications(owner.id))[0].read).toBe(false);
-    await markNotificationsRead(owner.id, [item, item]);
-    await markNotificationsRead(owner.id, [item]);
-    expect((await listNotifications(owner.id))[0].read).toBe(true);
+    const [item] = await listNotifications(owner.id, "reader");
+    await markNotificationsRead(other.id, "reader", [item, item]);
+    expect((await listNotifications(owner.id, "reader"))[0].read).toBe(false);
+    await markNotificationsRead(owner.id, "reader", [item, item]);
+    await markNotificationsRead(owner.id, "reader", [item]);
+    expect((await listNotifications(owner.id, "reader"))[0].read).toBe(true);
     const rows = await db.execute(sql`SELECT * FROM notification_reads`);
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0].agent_id).toBe(owner.id);
@@ -41,26 +41,26 @@ describe('notification ownership and persistence', () => {
   it('makes a cancellation unread and prevents an old displayed version from marking it read', async () => {
     const owner = await makeAgent();
     const appointment = await makeAppointment(owner.id, { updatedAt: new Date(Date.now() - 60_000) });
-    const [original] = await listNotifications(owner.id);
-    await markNotificationsRead(owner.id, [original]);
+    const [original] = await listNotifications(owner.id, "reader");
+    await markNotificationsRead(owner.id, "reader", [original]);
     await cancelAppointmentById(appointment.id, owner.id);
-    const [cancelled] = await listNotifications(owner.id);
+    const [cancelled] = await listNotifications(owner.id, "reader");
     expect(cancelled.kind).toBe('cancellation');
     expect(cancelled.read).toBe(false);
-    await markNotificationsRead(owner.id, [original]);
-    expect((await listNotifications(owner.id))[0].read).toBe(false);
-    await markNotificationsRead(owner.id, [cancelled]);
-    expect((await listNotifications(owner.id))[0].read).toBe(true);
+    await markNotificationsRead(owner.id, "reader", [original]);
+    expect((await listNotifications(owner.id, "reader"))[0].read).toBe(false);
+    await markNotificationsRead(owner.id, "reader", [cancelled]);
+    expect((await listNotifications(owner.id, "reader"))[0].read).toBe(true);
   });
 
   it('rejects invented IDs and future versions without inserting receipts', async () => {
     const owner = await makeAgent(); await makeAppointment(owner.id);
-    const [item] = await listNotifications(owner.id);
-    await markNotificationsRead(owner.id, [
+    const [item] = await listNotifications(owner.id, "reader");
+    await markNotificationsRead(owner.id, "reader", [
       { ...item, occurredAt: new Date(Date.now() + 86_400_000).toISOString() },
       { ...item, id: 'appointment:00000000-0000-0000-0000-000000000000:confirmed' },
     ]);
-    expect((await listNotifications(owner.id))[0].read).toBe(false);
+    expect((await listNotifications(owner.id, "reader"))[0].read).toBe(false);
     expect((await db.execute(sql`SELECT * FROM notification_reads`)).rows).toHaveLength(0);
   });
 
@@ -68,18 +68,18 @@ describe('notification ownership and persistence', () => {
     const owner = await makeAgent();
     await makeAppointment(owner.id, { updatedAt: new Date(Date.now() - 31 * 86_400_000), serviceName: 'Old record' });
     await makeEscalation(owner.id, { status: 'resolved' });
-    expect(await listNotifications(owner.id)).toEqual([]);
+    expect(await listNotifications(owner.id, "reader")).toEqual([]);
     for (let n = 0; n < 52; n++) await makeAppointment(owner.id);
-    expect(await listNotifications(owner.id)).toHaveLength(50);
+    expect(await listNotifications(owner.id, "reader")).toHaveLength(50);
   });
 
   it('keeps a same-millisecond status change unread', async () => {
     const owner = await makeAgent(); await makeAppointment(owner.id);
-    const [original] = await listNotifications(owner.id);
-    await markNotificationsRead(owner.id, [original]);
+    const [original] = await listNotifications(owner.id, "reader");
+    await markNotificationsRead(owner.id, "reader", [original]);
     await db.execute(sql`UPDATE appointments SET status = 'cancelled' WHERE agent_id = ${owner.id}`);
-    await markNotificationsRead(owner.id, [original]);
-    const [cancelled] = await listNotifications(owner.id);
+    await markNotificationsRead(owner.id, "reader", [original]);
+    const [cancelled] = await listNotifications(owner.id, "reader");
     expect(cancelled.read).toBe(false);
     expect(cancelled.kind).toBe('cancellation');
     expect(cancelled.id).not.toBe(original.id);

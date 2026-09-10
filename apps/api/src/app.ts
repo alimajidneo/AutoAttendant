@@ -36,7 +36,7 @@ export function createApp({ allowedOrigins }: AppOptions) {
     cors({
       origin: (origin) => (isAllowedOrigin(origin, allowedOrigins) ? origin : null),
       allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-      allowHeaders: ["Authorization", "Content-Type"],
+      allowHeaders: ["Authorization", "Content-Type", "X-Workspace-Id"],
       credentials: true,
       maxAge: 86_400,
     })

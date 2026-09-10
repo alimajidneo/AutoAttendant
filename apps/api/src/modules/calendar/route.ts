@@ -1,3 +1,4 @@
+import { requireCalendarOwner } from "../../middleware/calendar-owner.js";
 import { Hono } from "hono";
 import { randomBytes } from "node:crypto";
 import { setCookie } from "hono/cookie";
@@ -21,7 +22,7 @@ const calendarScopes = [
   "https://www.googleapis.com/auth/calendar.freebusy",
 ];
 
-export const calendar = new Hono<AppEnv>()
+export const calendar = new Hono<AppEnv>().use("*", requireCalendarOwner)
   .get("/oauth/start", c => {
     if (!googleConnectionConfigured()) return c.json({ error: "Calendar connection is not configured on the server" }, 503);
     const redirectUri = `${apiEnv.PUBLIC_API_URL ?? new URL(c.req.url).origin}/api/calendar/oauth/callback`;

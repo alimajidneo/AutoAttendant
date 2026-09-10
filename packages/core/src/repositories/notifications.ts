@@ -28,13 +28,13 @@ const titles: Record<NotificationItem["kind"], string> = {
   question: "Question needs attention", "call-error": "Call needs review",
 };
 
-export async function listNotifications(agentId: string): Promise<NotificationItem[]> {
+export async function listNotifications(agentId: string, userId: string): Promise<NotificationItem[]> {
   const result = await db.execute<{
     id: string; record_id: string; kind: NotificationItem["kind"]; detail: string; occurred_at: string; read: boolean;
   }>(sql`
     WITH recent AS (SELECT * FROM (${sources(agentId)}) source ORDER BY occurred_at DESC, id DESC LIMIT 50)
     SELECT recent.*, coalesce(r.seen_through >= recent.occurred_at, false) AS read
-    FROM recent LEFT JOIN ${notificationReads} r ON r.agent_id = ${agentId} AND r.notification_id = recent.id
+    FROM recent LEFT JOIN ${notificationReads} r ON r.agent_id = ${agentId} AND r.user_id = ${userId} AND r.notification_id = recent.id
     ORDER BY recent.occurred_at DESC, recent.id DESC
   `);
   return result.rows.map(row => ({
@@ -44,17 +44,17 @@ export async function listNotifications(agentId: string): Promise<NotificationIt
   }));
 }
 
-export async function markNotificationsRead(agentId: string, items: NotificationReadInput[]) {
+export async function markNotificationsRead(agentId: string, userId: string, items: NotificationReadInput[]) {
   if (!items.length) return;
   const unique = [...new Map(items.map(item => [item.id, item])).values()];
   const requested = sql.join(unique.map(item => sql`(${item.id}::text, ${item.occurredAt}::timestamptz)`), sql`, `);
   // Match the displayed version; an event changing during this request stays unread.
   await db.execute(sql`
     WITH source AS (${sources(agentId)}), requested(id, occurred_at) AS (VALUES ${requested})
-    INSERT INTO ${notificationReads} (agent_id, notification_id, seen_through)
-    SELECT ${agentId}::uuid, s.id, s.occurred_at FROM source s
+    INSERT INTO ${notificationReads} (agent_id, user_id, notification_id, seen_through)
+    SELECT ${agentId}::uuid, ${userId}, s.id, s.occurred_at FROM source s
     JOIN requested r ON r.id = s.id AND r.occurred_at = s.occurred_at
-    ON CONFLICT (agent_id, notification_id) DO UPDATE
+    ON CONFLICT (agent_id, user_id, notification_id) DO UPDATE
       SET seen_through = greatest(notification_reads.seen_through, excluded.seen_through)
   `);
 }

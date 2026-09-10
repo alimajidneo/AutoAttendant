@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { AccessToken } from "livekit-server-sdk";
 import { RoomConfiguration, RoomAgentDispatch } from "@livekit/protocol";
@@ -10,7 +11,7 @@ import { env } from "@receptionist/core/env.js";
  */
 export const agent = new Hono<AppEnv>().post("/test", async (c) => {
   const agentId = c.get("agentId");
-  const roomName = `test-${agentId}-${Date.now()}`;
+  const roomName = `test-${agentId}-${randomUUID()}`;
 
   const at = new AccessToken(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET, {
     identity: `admin-${agentId}`,
@@ -19,7 +20,7 @@ export const agent = new Hono<AppEnv>().post("/test", async (c) => {
     ttl: "10m",
   });
 
-  at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true });
+  at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true, canUpdateOwnMetadata: false });
   at.roomConfig = new RoomConfiguration({
     agents: [new RoomAgentDispatch({ agentName: "receptionist" })],
   });

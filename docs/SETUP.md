@@ -1,3 +1,5 @@
+> **Workspace update (2026-09-10):** Apply migration `0007_square_darwin`, restart API and voice worker, then reload. Follow [workspace setup, teammate invitations and browser transfer testing](WORKSPACES_AND_TRANSFERS.md). Existing accounts/calendars are preserved.
+
 > **Current work (2026-09-09):** Follow [ROADMAP.md](ROADMAP.md) for the agreed calendar-first scope and [CALENDAR_TESTING.md](CALENDAR_TESTING.md) for the multiple-account acceptance steps. Google connection setup now uses a short-lived HttpOnly browser cookie and PKCE; restart the API and voice worker after updating, then start a fresh connection from DeskRoute. No new credentials or database migration are required by this hardening batch.
 
 # DeskRoute setup — USA customer handover

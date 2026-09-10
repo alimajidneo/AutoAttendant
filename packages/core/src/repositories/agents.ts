@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { agents, phoneNumbers } from "../db/schema.js";
+import { agents, phoneNumbers, workspaces, workspaceMembers } from "../db/schema.js";
 
 export type AgentRow = typeof agents.$inferSelect;
 
@@ -96,8 +96,12 @@ export async function createAgent(input: {
   minNoticeMinutes?: number;
   maxAdvanceDays?: number;
 }): Promise<AgentConfig> {
-  const rows = await db.insert(agents).values(input).returning(agentFields);
-  return rows[0]!;
+  return db.transaction(async tx => {
+    const [agent] = await tx.insert(agents).values(input).returning(agentFields);
+    await tx.insert(workspaces).values({ agentId: agent!.id, ownerUserId: input.authUserId, kind: "personal" });
+    await tx.insert(workspaceMembers).values({ agentId: agent!.id, userId: input.authUserId, role: "manager" });
+    return agent!;
+  });
 }
 
 export async function updateAgent(

@@ -154,9 +154,14 @@ export default function AppointmentsPage() {
   const removeHistory = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/admin/appointments/history/${id}`),
     onSuccess: (_response, id) => {
+      const removed = appointments.find(item => item.id === id)
+      if (removed?.externalEventId) queryClient.setQueriesData<CalendarAgenda>({ queryKey: ['appointments', 'calendar'] }, current => current ? {
+        ...current, events: current.events.filter(event => event.id !== removed.externalEventId || event.calendarId !== removed.externalCalendarId),
+      } : current)
       queryClient.setQueryData<AppointmentItem[]>(keys.appointments, (current = []) => current.filter(item => item.id !== id))
       void queryClient.invalidateQueries({ queryKey: keys.notifications })
-      toast.success('Past appointment deleted from DeskRoute')
+      void calendarQuery.refetch()
+      toast.success('Past appointment deleted from DeskRoute and its calendar')
     },
     onError: () => toast.error('Could not delete this past appointment. Refresh and try again.'),
   })
@@ -386,7 +391,7 @@ export default function AppointmentsPage() {
       <section className="mt-5 overflow-hidden rounded-2xl border border-border bg-card shadow-sm" data-ground="card" aria-label="Past appointments">
         <div className="border-b border-border px-4 py-4 sm:px-5">
           <h2 className="text-base font-semibold text-foreground">Past appointments <span className="ml-2 text-sm text-muted-foreground">{past.length}</span></h2>
-          <p className="mt-1 text-sm text-muted-foreground">Appointments move here after their end time. Deleting history keeps the original Google Calendar event.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Appointments move here after their end time. Deleting an appointment also removes its linked Google Calendar event.</p>
         </div>
         <div className="divide-y divide-border px-4 sm:px-5">
           {appointmentsQuery.isLoading ? <Skeleton className="my-4 h-16" /> : appointmentsQuery.isError ? (
@@ -409,7 +414,7 @@ export default function AppointmentsPage() {
         open={deleting !== null}
         onOpenChange={open => { if (!open) setDeleting(null) }}
         title="Delete this past appointment?"
-        description={deleting ? `${deleting.service} will be permanently removed from DeskRoute history. Its Google Calendar event will stay unchanged.` : undefined}
+        description={deleting ? `${deleting.service} will be permanently removed from DeskRoute history. Its linked Google Calendar event will also be deleted.` : undefined}
         confirmLabel="Delete past appointment"
         variant="destructive"
         onConfirm={async () => { if (deleting) await removeHistory.mutateAsync(deleting.id) }}

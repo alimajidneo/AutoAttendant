@@ -35,8 +35,8 @@ export const settings = new Hono<AppEnv>()
         storageConfigured,
         phoneNumber: numbers[0]?.e164 ?? null,
         calendarProvider: agent.calendarProvider ?? null,
-        calendarExternalId: agent.calendarExternalId ?? null,
-        calendarPayload: agent.calendarPayload ?? null,
+        calendarExternalId: c.get("workspaceOwner") ? agent.calendarExternalId ?? null : null,
+        calendarPayload: c.get("workspaceOwner") ? agent.calendarPayload ?? null : null,
       },
       agent: {
         name: agent.personaName,

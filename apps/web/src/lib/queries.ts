@@ -53,7 +53,7 @@ export const fetchers = {
     apiClient.get<{ url: string }>(`/admin/calls/${id}/recording`).then((r) => r.data),
 
   session: () =>
-    apiClient.get<{ onboarded: boolean }>('/onboarding/session').then((r) => r.data),
+    apiClient.get<{ onboarded: boolean; role?: "manager" | "member"; workspaceOwner: boolean; workspaceId?: string; hasWorkspaces: boolean }>('/onboarding/session').then((r) => r.data),
   settings: () =>
     apiClient.get<AppSettings>('/admin/settings').then((r) => r.data),
 

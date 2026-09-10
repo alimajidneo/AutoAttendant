@@ -4,6 +4,15 @@ type TokenGetter = (opts?: { skipCache?: boolean }) => Promise<string | null>
 
 type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean }
 
+const callbackWorkspace = new URLSearchParams(window.location.search).get('workspace')
+if (callbackWorkspace && /^[0-9a-f-]{36}$/i.test(callbackWorkspace)) sessionStorage.setItem('deskroute.workspace', callbackWorkspace)
+const workspaceId = sessionStorage.getItem('deskroute.workspace')
+
+export function openWorkspace(id: string, path = '/') {
+  sessionStorage.setItem('deskroute.workspace', id)
+  window.location.assign(path)
+}
+
 let _getToken: TokenGetter | null = null
 
 export function setTokenGetter(getter: TokenGetter | null) {
@@ -15,6 +24,7 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use(async (config) => {
+  if (workspaceId) config.headers["X-Workspace-Id"] = workspaceId
   if (_getToken) {
     const token = await _getToken()
     if (token) config.headers.Authorization = `Bearer ${token}`

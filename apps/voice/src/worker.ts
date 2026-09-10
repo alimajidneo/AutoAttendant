@@ -6,6 +6,10 @@ import {
   defineAgent,
   voice,
 } from "@livekit/agents";
+import { installBrowserHandoff } from "./session/browser-handoff.js";
+import { RoomServiceClient } from "livekit-server-sdk";
+import { env as coreEnv } from "@receptionist/core/env.js";
+import { transferDirectory, requestBrowserTransfer, connectTransfer, endTransfer } from "@receptionist/core/repositories/transfers.js";
 import * as silero from "@livekit/agents-plugin-silero";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
@@ -106,13 +110,17 @@ export default defineAgent({
 
     const deps: AgentDeps = {
       agent,
+      browserTransfer: isTestSession ? {
+        directory: () => transferDirectory(agent.id),
+        request: target => requestBrowserTransfer(agent.id, roomName, participant.identity, target),
+      } : undefined,
       services,
       caller: null,
       callerPhone,
       callId,
       getCalendarAccess: async () => {
         const current = await getAgentById(agent.id);
-        return current?.authUserId
+        return current
           ? getAgentCalendarAccess(current.id, current.calendarExternalId, current.calendarPayload)
           : null;
       },
@@ -135,6 +143,17 @@ export default defineAgent({
 
     // Create and start session
     const session = new voice.AgentSession(sessionOptions);
+
+    let handedOff = false;
+    if (isTestSession) installBrowserHandoff({
+      room: ctx.room,
+      callerIdentity: participant.identity,
+      authorize: (id, userId) => connectTransfer(agent.id, roomName, id, userId),
+      removeRecipient: identity => new RoomServiceClient(coreEnv.LIVEKIT_URL, coreEnv.LIVEKIT_API_KEY, coreEnv.LIVEKIT_API_SECRET)
+        .removeParticipant(roomName, identity),
+      shutdownAgent: () => { handedOff = true; session.shutdown({ drain: true }); },
+      callerLeft: () => endTransfer(agent.id, roomName),
+    });
 
     await session.start({
       agent: new ReceptionistAgent(deps),
@@ -201,6 +220,7 @@ export default defineAgent({
         // Test sessions skip DB finalization — no call row was created
         if (isTestSession) {
           console.log(`[worker] test session ${callId} ended`);
+          if (handedOff) ctx.shutdown("Browser handoff completed");
           return;
         }
 

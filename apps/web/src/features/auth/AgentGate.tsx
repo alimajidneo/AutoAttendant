@@ -9,7 +9,7 @@ import { keys, fetchers } from '@/lib/queries'
  */
 export function AgentGate() {
   const location = useLocation()
-  const { data, isPending } = useQuery({
+  const { data, isPending, isError } = useQuery({
     queryKey: keys.session,
     queryFn: fetchers.session,
     // The gate blocks every route, so a wrong answer is worse than a slow one:
@@ -20,6 +20,9 @@ export function AgentGate() {
   if (isPending) {
     return <RouteSkeleton />
   }
+
+  if (isError) return <p className="p-6">Unable to load your workspace. Refresh to retry.</p>
+  if (data?.role === 'member' || (!data?.onboarded && data?.hasWorkspaces)) return <Navigate to="/workspaces" replace />
 
   const onboarded = !!data?.onboarded
 

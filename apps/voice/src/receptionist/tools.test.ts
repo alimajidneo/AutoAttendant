@@ -379,3 +379,15 @@ describe("cross-account scheduling privacy", () => {
     expect(deleteCalendarEvent).not.toHaveBeenCalled();
   });
 });
+
+
+describe("browser forwarding tools", () => {
+  it("uses the worker's scoped directory and destination request", async () => {
+    const directory = vi.fn().mockResolvedValue([{ userId: "member", name: "Sam", department: "Sales" }]);
+    const request = vi.fn().mockResolvedValue({ requested: true });
+    const tools = createAgentTools(makeAgentDeps({ browserTransfer: { directory, request } }));
+    expect(await tools.transferDirectory!.execute({}, runCtx())).toEqual([{ userId: "member", name: "Sam", department: "Sales" }]);
+    expect(await tools.requestTransfer!.execute({ targetUserId: "member" }, runCtx())).toEqual({ requested: true });
+    expect(request).toHaveBeenCalledWith("member");
+  });
+});
