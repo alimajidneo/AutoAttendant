@@ -1,14 +1,14 @@
 import { llm } from "@livekit/agents";
 import { z } from "zod";
 import type { AgentDeps } from "./deps.js";
-import { getCalendarConnectionToken } from "@receptionist/core/providers/googleAuth.js";
+import { getCalendarCredential } from "@receptionist/core/providers/calendarAccess.js";
 import { createEscalation } from "@receptionist/core/repositories/escalations.js";
 import { setCallerName } from "@receptionist/core/repositories/callers.js";
 import {
-  fetchBusyRanges,
-  createCalendarEvent,
-  deleteCalendarEvent,
-} from "@receptionist/core/providers/calendar.js";
+  createProviderCalendarEvent,
+  deleteProviderCalendarEvent,
+  fetchProviderBusyRanges,
+} from "@receptionist/core/providers/calendarProvider.js";
 import {
   describeAppointmentWindow,
   describeDate,
@@ -25,6 +25,7 @@ import {
   cancelAppointmentById,
   getAppointmentById,
 } from "@receptionist/core/repositories/appointments.js";
+import { notifySlack } from "@receptionist/core/providers/slack.js";
 
 /** How many times the agent reads out at once. More than three is unfollowable. */
 const MAX_SLOTS_OFFERED = 3;
@@ -112,6 +113,7 @@ export function createAgentTools(deps: AgentDeps) {
           transcriptExcerpt,
         });
         deps.callState.wasEscalated = true;
+        void notifySlack(agentId, "question").catch(err => console.error("[slack] question alert failed:", err));
         return { escalated: true };
       },
     }),
@@ -238,8 +240,8 @@ export function createAgentTools(deps: AgentDeps) {
 
         let free = candidates;
         try {
-          const busy = (await Promise.all(access.conflicts.map(group => fetchBusyRanges(
-            group.token, group.calendarIds,
+          const busy = (await Promise.all(access.conflicts.map(group => fetchProviderBusyRanges(
+            group.provider, group.token, group.calendarIds,
             candidates[0]!.blockStart.toISOString(), candidates.at(-1)!.blockEnd.toISOString(),
           )))).flat();
           free = filterByBusy(candidates, busy);
@@ -350,6 +352,7 @@ export function createAgentTools(deps: AgentDeps) {
             ...appointmentBase,
             status: "requested",
           });
+          void notifySlack(agentId, "request").catch(err => console.error("[slack] request alert failed:", err));
           deps.callState.wasBooked = true;
           return {
             booked: false,
@@ -361,8 +364,8 @@ export function createAgentTools(deps: AgentDeps) {
         try {
           // The slot was computed while the caller was deciding, so it is
           // re-checked immediately before the write.
-          const busy = (await Promise.all(access.conflicts.map(group => fetchBusyRanges(
-            group.token, group.calendarIds, slot.blockStart.toISOString(), slot.blockEnd.toISOString(),
+          const busy = (await Promise.all(access.conflicts.map(group => fetchProviderBusyRanges(
+            group.provider, group.token, group.calendarIds, slot.blockStart.toISOString(), slot.blockEnd.toISOString(),
           )))).flat();
           if (filterByBusy([slot], busy).length === 0) {
             deps.slots.held.delete(slotId);
@@ -377,7 +380,8 @@ export function createAgentTools(deps: AgentDeps) {
               ? ` (appointment ${describeSlot(slot, timeZone)}; includes setup and cleanup)`
               : "";
 
-          const eventId = await createCalendarEvent(
+          const eventId = await createProviderCalendarEvent(
+            access.booking.provider,
             access.booking.token,
             access.booking.calendarId,
             {
@@ -407,6 +411,7 @@ export function createAgentTools(deps: AgentDeps) {
           });
           deps.callState.wasBooked = true;
           deps.slots.held.delete(slotId);
+          void notifySlack(agentId, "booking").catch(err => console.error("[slack] booking alert failed:", err));
 
           return { booked: true, time: describeSlot(slot, timeZone) };
         } catch (err) {
@@ -416,6 +421,7 @@ export function createAgentTools(deps: AgentDeps) {
             status: "requested",
           });
           deps.callState.wasBooked = true;
+          void notifySlack(agentId, "request").catch(slackError => console.error("[slack] request alert failed:", slackError));
           return {
             booked: false,
             reason:
@@ -481,14 +487,20 @@ export function createAgentTools(deps: AgentDeps) {
 
         if (appointment.externalEventId) {
           const calendarId = appointment.externalCalendarId ?? deps.calendarExternalId;
-          const token = appointment.externalCalendarConnectionId
-            ? await getCalendarConnectionToken(agentId, appointment.externalCalendarConnectionId)
-            : (await calendarAccess())?.booking.token;
-          if (!calendarId || !token) {
+          const fallback = (await calendarAccess())?.booking;
+          const credential = appointment.externalCalendarConnectionId
+            ? await getCalendarCredential(agentId, appointment.externalCalendarConnectionId)
+            : fallback;
+          if (!calendarId || !credential) {
             return { error: "The calendar could not be reached, so the appointment was not cancelled." };
           }
           try {
-            await deleteCalendarEvent(token, calendarId, appointment.externalEventId);
+            await deleteProviderCalendarEvent(
+              credential.provider,
+              credential.token,
+              calendarId,
+              appointment.externalEventId,
+            );
           } catch (err) {
             console.error("[agent] deleteCalendarEvent failed:", err);
             return { error: "The calendar could not be updated, so the appointment was not cancelled." };
@@ -497,6 +509,8 @@ export function createAgentTools(deps: AgentDeps) {
 
         const cancelled = await cancelAppointmentById(appointmentId, agentId);
         if (!cancelled) return { error: "Appointment not found." };
+
+        void notifySlack(agentId, "cancellation").catch(err => console.error("[slack] cancellation alert failed:", err));
 
         return { cancelled: true, appointmentId };
       },

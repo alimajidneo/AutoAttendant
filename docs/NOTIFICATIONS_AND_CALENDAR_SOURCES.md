@@ -16,9 +16,17 @@ Opening an unread notification saves its read state before navigating. Mark all 
 
 The API returns the latest 50 records in 30 days, ordered by occurrence and stable ID. This is a recent activity feed, not an immutable audit log: the current booking state replaces its previous state. No Google event text is imported into notifications. A calendar event created directly in Google is not a DeskRoute booking notification.
 
+## Optional Slack delivery
+
+The workspace owner can connect one Slack workspace, choose a channel the DeskRoute bot has joined, and enable individual alert types. Slack delivery is event-driven; it does not poll. The message says only that a booking, request, cancellation, caller question, or call error occurred. Caller names, phone numbers, appointment times, calendar titles, transcripts, and recordings are excluded. The full record remains behind DeskRoute authentication.
+
+The Slack bot requests `chat:write`, `channels:read`, and `groups:read`. It does not request message history, direct messages, users, files, admin access, or workspace-wide posting. A saved channel is revalidated against the bot's current channel membership. **Send test** performs one explicit message. Interactive transfer approval is not implemented.
+
+Migration `0008_curved_nebula` stores one encrypted Slack bot token and selected settings per workspace behind RLS. Disconnect removes the local token and requests revocation at Slack.
+
 ## Cost and privacy
 
-- One aggregate HTTP read on dashboard mount, opening the panel or manual refresh. No recurring timers, polling, Realtime subscriptions, email, SMS, browser push or new service subscriptions.
+- One aggregate HTTP read on dashboard mount, opening the panel or manual refresh. No recurring timers, polling, Realtime subscriptions, email, SMS, or browser push. Slack calls occur only for installation/settings, explicit tests, and enabled business events.
 - Supported local appointment actions invalidate the cached feed; the bell otherwise reflects its last successful fetch. External voice activity is visible on the next refresh/open.
 - Existing appointment/question/call rows provide the content. Only `(agent_id, notification_id, seen_through)` is stored in `notification_reads`.
 - Every source query and read-receipt join filters by authenticated `agentId`. The API rejects a supplied owner override, invalid IDs/timestamps and batches above 50.
@@ -29,7 +37,7 @@ The API returns the latest 50 records in 30 days, ordered by occurrence and stab
 
 ## Calendar source colors
 
-`GET /admin/appointments/calendar` returns `{ events, sources }`. Each source contains only the selected calendar's ID/name, connection ID, account email and palette index. Token data never enters this response. The account metadata uses the existing owner-scoped connection read; it does not add a Google request.
+`GET /admin/appointments/calendar` returns `{ events, sources }`. Each source contains only provider, selected calendar ID/name, connection ID, account email and palette index. Token data never enters this response. The account metadata uses the existing owner-scoped connection read.
 
 All calendars from one account share a color, including receptionist bookings. The eight theme-aware colors repeat beyond eight accounts; visible account/calendar text remains the authoritative source indicator. Colors follow connection creation order across date/month navigation; removing an earlier connection may reassign later palette positions.
 
@@ -58,6 +66,6 @@ Manual acceptance:
 1. Open the bell; verify real records, then mark one read and reload. It should stay read.
 2. Mark all displayed notifications read; a later booking/cancellation should appear unread after opening/refreshing.
 3. Check another DeskRoute login: it must not see the first account's notifications.
-4. On Appointments, compare both Google accounts' events and the source legend. Navigate to an empty month; sources should remain listed.
+4. On Appointments, compare selected Google and Microsoft accounts' events and the source legend. Navigate to an empty month; sources should remain listed.
 5. Check light/dark themes and a narrow viewport. Read the source text without relying on color alone.
 6. Create a Google-only event: it should appear in the calendar, not create a booking notification.

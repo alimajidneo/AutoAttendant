@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => ({
   listCalendars: vi.fn(), updateAgent: vi.fn(), getAgentById: vi.fn(), deleteCalendarConnection: vi.fn(),
 }));
 vi.mock("@receptionist/core/providers/googleAuth.js", () => mocks);
+vi.mock("@receptionist/core/providers/microsoftAuth.js", () => ({ microsoftConnectionConfigured: vi.fn(() => false) }));
+vi.mock("@receptionist/core/providers/microsoftCalendar.js", () => ({ MicrosoftCalendarScopeMissingError: class extends Error {} }));
+vi.mock("@receptionist/core/providers/calendarAccess.js", () => ({ getAllCalendarConnectionTokens: mocks.getCalendarConnectionTokens }));
+vi.mock("@receptionist/core/providers/calendarProvider.js", () => ({ listProviderCalendars: (_provider: string, token: string) => mocks.listCalendars(token) }));
 vi.mock("@receptionist/core/repositories/agents.js", () => mocks);
 vi.mock("@receptionist/core/repositories/calendar-connections.js", () => mocks);
 vi.mock("@receptionist/core/providers/calendar.js", () => ({ ...mocks, CalendarScopeMissingError: class extends Error {} }));

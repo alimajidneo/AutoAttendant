@@ -10,6 +10,7 @@ import type {
   EscalationStatus,
   CalendarOption,
   CalendarConnectionSummary,
+  SlackConnectionSummary,
 } from '@receptionist/shared'
 import type { Period } from './types'
 import type { AppSettings } from './settings-types'
@@ -30,6 +31,7 @@ export const keys = {
   settings: ['settings'] as const,
   appointments: ['appointments'] as const,
   calendarList: ['calendar', 'list'] as const,
+  slack: ['slack'] as const,
 }
 
 export const fetchers = {
@@ -64,4 +66,6 @@ export const fetchers = {
     apiClient
       .get<{ connected: boolean; connections: CalendarConnectionSummary[]; calendars: CalendarOption[] }>('/admin/calendar/list')
       .then((r) => r.data),
+  slack: () =>
+    apiClient.get<SlackConnectionSummary>('/admin/slack').then((r) => r.data),
 }

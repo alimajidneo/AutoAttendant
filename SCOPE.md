@@ -9,7 +9,7 @@ Active implementation scope from the updated 2026-09-08 daily work plan, especia
 - Target Vercel Pro for the eventual customer-facing web application and compatible API endpoints. Keep the persistent LiveKit voice worker outside Vercel.
 - Keep testing within available free allowances. No phone purchase, paid upgrade, or carrier traffic is needed for the first milestone. Model inference consumes credits even when transport has a free allowance.
 - Preserve the existing working UI and voice safeguards. Extend the existing application rather than replace its architecture.
-- Direct connections to multiple Google accounts and cross-account conflict calendars are implemented. Slack approval remains the next application integration.
+- Direct Google and Microsoft account connections, mixed-provider conflict checks, and selected-channel Slack alerts are implemented. Microsoft/Slack live acceptance and Slack transfer approval remain.
 - Decide telephone routing after checking the US customer's existing number, forwarding support, and costs. Twilio and Telnyx remain candidates for that later step.
 
 ## First milestone acceptance

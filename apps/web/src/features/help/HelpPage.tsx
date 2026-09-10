@@ -58,7 +58,7 @@ export default function HelpPage() {
               {matches.map(guide => <Link key={guide.id} to={`/help?guide=${guide.id}`} onClick={() => setSearch('')} aria-current={selected.id === guide.id ? 'page' : undefined} className={`rounded-xl px-3 py-3 text-sm font-semibold transition-colors ${selected.id === guide.id ? 'bg-primary-subtle text-accent-ink' : 'hover:bg-sunk-1'}`}>{guide.title}</Link>)}
             </nav>
             {matches.length === 0 && <p role="status" className="mt-4 text-sm text-muted-foreground">No matching guides. Try “calendar”, “invite” or “microphone”.</p>}
-            <p className="mt-5 border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground">Google calendars and browser calls are available. Microsoft, Slack and Teams integrations are planned.</p>
+            <p className="mt-5 border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground">Google and Microsoft calendars, Slack alerts, and browser calls are available. Teams presence and telephone transfer are later steps.</p>
           </aside>
           <article aria-labelledby="guide-title" className="min-w-0 rounded-2xl border border-border bg-card p-5 shadow-low md:col-span-2 md:p-7">
             <div className="flex flex-wrap items-center gap-2 text-sm font-semibold"><span className="rounded-full bg-primary-subtle px-3 py-1 text-accent-ink">Guide {index + 1} of {guides.length}</span><span className="text-muted-foreground">{selected.audience}</span></div>

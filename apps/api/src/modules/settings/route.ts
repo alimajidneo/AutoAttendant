@@ -8,14 +8,16 @@ import {
 import { listServices } from "@receptionist/core/repositories/services.js";
 import { storageConfigured } from "@receptionist/core/providers/storage.js";
 import { updateSettingsSchema } from "../../schemas.js";
+import { getSlackConnection } from "@receptionist/core/repositories/slack-connections.js";
 
 export const settings = new Hono<AppEnv>()
   .get("/", async (c) => {
     const agentId = c.get("agentId");
-    const [agent, services, numbers] = await Promise.all([
+    const [agent, services, numbers, slack] = await Promise.all([
       getAgentById(agentId),
       listServices(agentId),
       listPhoneNumbers(agentId),
+      c.get("workspaceOwner") ? getSlackConnection(agentId) : null,
     ]);
     if (!agent) return c.json({ error: "Agent not found" }, 404);
 
@@ -48,6 +50,13 @@ export const settings = new Hono<AppEnv>()
       setup: {
         checklistDismissed: agent.checklistDismissed,
         hoursSeen: agent.hoursSeen,
+      },
+      integrations: {
+        slack: slack ? {
+          connected: true,
+          teamName: slack.teamName,
+          channelName: slack.channelName,
+        } : { connected: false, teamName: null, channelName: null },
       },
     });
   })

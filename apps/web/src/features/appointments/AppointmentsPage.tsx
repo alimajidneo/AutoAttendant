@@ -149,7 +149,7 @@ export default function AppointmentsPage() {
       void queryClient.invalidateQueries({ queryKey: keys.notifications })
       toast.success('Appointment cancelled')
     },
-    onError: () => toast.error('Could not cancel the appointment in Google Calendar. Nothing was changed.'),
+    onError: () => toast.error('Could not cancel the appointment in its calendar. Nothing was changed.'),
   })
 
   const removeHistory = useMutation({
@@ -163,7 +163,7 @@ export default function AppointmentsPage() {
     onError: (error) => {
       const detail = isAxiosError<{ error?: string }>(error) && error.response?.status === 409
         ? error.response.data.error : undefined
-      toast.error(detail || 'Could not delete this past appointment. Check the original Google account connection and try again.')
+      toast.error(detail || 'Could not delete this past appointment. Check the original calendar account and try again.')
     },
   })
 
@@ -177,7 +177,7 @@ export default function AppointmentsPage() {
     <PageContainer>
       <PageHeader
         title="Appointments"
-        description="Appointments and events from the Google calendars you have selected."
+        description="Appointments and events from the Google and Microsoft calendars you have selected."
         actions={
           <Button variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending || removeHistory.isPending || cancel.isPending}>
             <RefreshCw className={cn(refresh.isPending && 'animate-spin')} />
@@ -275,12 +275,12 @@ export default function AppointmentsPage() {
           {sourceAccounts.length > 0 && (
             <section aria-label="Calendar sources" className="border-t border-border bg-muted/20 px-4 py-3 sm:px-5">
               <h3 className="text-sm font-semibold text-foreground">Calendar sources</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Each color identifies a Google account. Only your selected calendars are shown.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Each color identifies a connected account. Only your selected calendars are shown.</p>
               <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
                 {sourceAccounts.map(account => <li key={account.connectionId} className="flex min-w-0 items-start gap-2">
                   <span aria-hidden="true" className={cn('calendar-source-dot mt-1 size-3 shrink-0 rounded-full', calendarSourceClass(account.colorIndex))} />
                   <div className="min-w-0">
-                    <p className="break-all text-sm font-semibold text-foreground">{account.accountEmail}</p>
+                    <p className="break-all text-sm font-semibold text-foreground">{account.provider === 'google' ? 'Google' : 'Microsoft'} · {account.accountEmail}</p>
                     {account.calendars.length > 0 && <p className="break-words text-sm text-muted-foreground">{account.calendars.join(' · ')}</p>}
                   </div>
                 </li>)}
@@ -292,7 +292,7 @@ export default function AppointmentsPage() {
             <h3 className="font-semibold text-foreground">{dateLabel(selectedDay)}</h3>
             {calendarQuery.isError ? (
               <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                Calendar events are unavailable. Check Google Calendar under Settings → Connections.
+                Calendar events are unavailable. Check Calendars under Settings → Connections.
               </p>
             ) : selectedEvents.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">Nothing scheduled on this calendar.</p>
@@ -396,7 +396,7 @@ export default function AppointmentsPage() {
       <section className="mt-5 overflow-hidden rounded-2xl border border-border bg-card shadow-sm" data-ground="card" aria-label="Past appointments">
         <div className="border-b border-border px-4 py-4 sm:px-5">
           <h2 className="text-base font-semibold text-foreground">Past appointments <span className="ml-2 text-sm text-muted-foreground">{past.length}</span></h2>
-          <p className="mt-1 text-sm text-muted-foreground">Appointments move here after their end time. Deleting an appointment also removes its linked Google Calendar event.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Appointments move here after their end time. Deleting one also removes its linked provider event.</p>
         </div>
         <div className="divide-y divide-border px-4 sm:px-5">
           {appointmentsQuery.isLoading ? <Skeleton className="my-4 h-16" /> : appointmentsQuery.isError ? (
@@ -419,7 +419,7 @@ export default function AppointmentsPage() {
         open={deleting !== null}
         onOpenChange={open => { if (!open) setDeleting(null) }}
         title="Delete this past appointment?"
-        description={deleting ? `${deleting.service} will be permanently removed from DeskRoute history. Its linked Google Calendar event will also be deleted.` : undefined}
+        description={deleting ? `${deleting.service} will be permanently removed from DeskRoute history. Its linked calendar event will also be deleted.` : undefined}
         confirmLabel="Delete past appointment"
         variant="destructive"
         onConfirm={async () => { if (deleting) await removeHistory.mutateAsync(deleting) }}
@@ -430,7 +430,7 @@ export default function AppointmentsPage() {
         onOpenChange={(open) => { if (!open) setCancelling(null) }}
         title="Cancel this appointment?"
         description={cancelling
-          ? `${cancelling.service} will be removed from Google Calendar and marked cancelled here.`
+          ? `${cancelling.service} will be removed from its calendar and marked cancelled here.`
           : undefined}
         confirmLabel="Cancel appointment"
         variant="destructive"

@@ -1,4 +1,4 @@
-> **Workspace update (2026-09-10):** Apply migration `0007_square_darwin`, restart API and voice worker, then reload. Follow [workspace setup, teammate invitations and browser transfer testing](WORKSPACES_AND_TRANSFERS.md). Existing accounts/calendars are preserved.
+> **Integration update (2026-09-10):** Apply migration `0008_curved_nebula`, configure the Microsoft and Slack credentials in sections 8 and 9, then restart API and voice. Existing users, workspaces, Google accounts, calendars, and appointments are preserved.
 
 > **Current work (2026-09-09):** Follow [ROADMAP.md](ROADMAP.md) for the agreed calendar-first scope and [CALENDAR_TESTING.md](CALENDAR_TESTING.md) for the multiple-account acceptance steps. Google connection setup now uses a short-lived HttpOnly browser cookie and PKCE; restart the API and voice worker after updating, then start a fresh connection from DeskRoute. No new credentials or database migration are required by this hardening batch.
 
@@ -8,7 +8,7 @@ These instructions are for your checkout at `/home/ali/NewProjects/AutoAttendant
 
 Current decision: use **Supabase PostgreSQL + Supabase Auth + LiveKit**. Google sign-in supports customer administrators; no account, business, calendar, timezone, or phone number is hard-coded to the developer. No Clerk account is needed.
 
-Current implementation: phone-free onboarding, Supabase Google sign-in, API owner verification, multiple directly connected Google accounts, encrypted Calendar token renewal, exact-time booking, general 30-minute appointments, cross-account conflict checking, dashboard cancellation, explicit Calendar reconciliation, and a month view of the selected calendars are implemented. Login identities and Calendar connections are separate. The deployment owner controls cloud settings and startup. Supabase Data API can stay disabled.
+Current implementation: phone-free onboarding, Supabase Google sign-in, API owner verification, multiple directly connected Google and Microsoft accounts, encrypted Calendar token renewal, mixed-provider availability and booking, selected-channel Slack alerts, exact-time booking, general 30-minute appointments, dashboard cancellation, explicit Calendar reconciliation, and a month view of selected calendars. Login identities and external connections are separate. Teams presence and Slack transfer approval are not part of this batch.
 
 ## Saved credential verification — 2026-09-08
 
@@ -88,7 +88,7 @@ This guide contains no invented credentials or proposed environment variables. R
 
 ### Latest code verification
 
-Latest checks passed: 176 unit tests, typecheck, lint, and production build. Migration `0004` was applied to the configured Supabase project and verified: one existing connection, three linked appointments, and one configured agent were migrated. Real Google sign-in, the original Calendar connection, browser voice, and one booking were manually verified. Direct second-account OAuth and cross-account availability still need live acceptance after adding the API callback URI in Google Cloud.
+Latest automated result for the integration batch: 255 unit/API/voice tests and 44 disposable PostgreSQL integration tests pass. Typecheck, lint, and production build pass. The complete migration chain passed locally, and migration `0008_curved_nebula` was applied successfully to the configured Supabase development database. Web tests remain 61 passing with the same five pre-existing design-contract failures. Live Microsoft and Slack acceptance remains. Real Google sign-in, two Google accounts, browser voice, and a Calendar booking were manually verified earlier.
 
 ## 1. Find and edit the environment files
 
@@ -333,7 +333,7 @@ Expected: commands finish successfully. Last baseline: 176 unit tests, typecheck
 
 ## 6. Database verification and first app startup
 
-Check that `packages/core/.env` points to the intended project, then run the command below. Drizzle applies only migrations that are not already recorded. Migration `0004` adds independent encrypted Google-account connections and ties existing appointments to the account that owns their Google event. No manual table design or pasted SQL is needed.
+Check that `packages/core/.env` points to the intended project, then run the command below. Drizzle applies only migrations that are not already recorded. Migration `0008_curved_nebula` adds one encrypted Slack installation per workspace. Microsoft reuses the existing provider-neutral calendar-connections table, so no Microsoft-specific credential table is added. No manual table design or pasted SQL is needed.
 
 The repository's migration command, run from the application root, is:
 
@@ -413,6 +413,103 @@ pnpm dev:voice
 
 Use the dashboard browser test, allow microphone access, and make a short test conversation. Stop the worker with **Ctrl+C** when finished. A browser test creates no call recording/log entry, but booking tools write real appointments and calendar events. Verify both records before calling the milestone complete.
 
+## 8. Connect Microsoft Outlook and Microsoft 365
+
+DeskRoute uses one Microsoft Entra application owned by the operator. Customers connect their own personal Outlook.com or organizational Microsoft 365 accounts through that application. Connecting a Microsoft account does not change the user's DeskRoute/Supabase login.
+
+### 8A. Create the Entra application
+
+1. Sign in to [Microsoft Entra admin center](https://entra.microsoft.com/) with the Neodym work account that should own the development integration.
+2. Open **Identity → Applications → App registrations**. If the left navigation differs, search for **App registrations** at the top.
+3. Select **New registration**.
+4. Enter `DeskRoute Development` as the name.
+5. Under **Supported account types**, select **Accounts in any organizational directory and personal Microsoft accounts**. This exact choice permits both work/school Microsoft 365 and personal Outlook.com accounts.
+6. Under **Redirect URI**, choose the **Web** platform and enter exactly:
+
+   ```text
+   http://localhost:8080/api/microsoft/oauth/callback
+   ```
+
+7. Select **Register**.
+8. On **Overview**, copy the **Application (client) ID**. Do not copy the Object ID or Directory (tenant) ID.
+
+### 8B. Add only the calendar permission DeskRoute uses
+
+1. In the new app, open **API permissions**.
+2. Keep the delegated `User.Read` permission created by Microsoft.
+3. Select **Add a permission → Microsoft Graph → Delegated permissions**.
+4. Search for `Calendars.ReadWrite`, select it, and choose **Add permissions**.
+5. Do not add application permissions, tenant-wide calendar access, Teams calling, chat history, mail, contacts, or files.
+6. For a personal Outlook account, the user can normally consent during connection. A Microsoft 365 organization may require an administrator to approve the delegated permissions under its own tenant policy. Do not grant tenant-wide admin consent just to bypass a policy without the customer's administrator.
+
+DeskRoute also requests the standard delegated `openid`, `profile`, `email`, and `offline_access` scopes during sign-in. `offline_access` supplies a refresh token so the receptionist can check the calendar while the dashboard is closed. Refresh tokens are encrypted in PostgreSQL, rotated when Microsoft returns a replacement, and never sent to the website.
+
+### 8C. Create and save the client secret
+
+1. Open **Certificates & secrets → Client secrets → New client secret**.
+2. Use the description `DeskRoute local development` and choose the shortest expiry that fits the pilot.
+3. Select **Add**.
+4. Copy the secret's **Value** immediately. Microsoft shows the value once. The **Secret ID** is not the client secret.
+5. In both [apps/api/.env](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/api/.env) and [apps/voice/.env](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/voice/.env), set `MICROSOFT_CLIENT_ID` to the Application (client) ID and `MICROSOFT_CLIENT_SECRET` to the client secret Value. Replace the blank entries already present; do not add duplicates.
+6. Keep `TOKEN_ENCRYPTION_KEY` unchanged and identical in those two files. Do not put the Microsoft secret in `apps/web`, Git, chat, screenshots, or the Supabase browser key settings.
+7. Restart `pnpm dev:api` and `pnpm dev:voice`. The website does not need Microsoft credentials.
+
+### 8D. Connect and verify an account
+
+1. Apply migration `0008_curved_nebula` with `pnpm db:migrate` if it has not already been applied.
+2. In DeskRoute, open **Settings → Connections → Calendars → Manage**.
+3. Select **Microsoft**. Choose the Outlook.com or Microsoft 365 account and approve the requested Calendar access.
+4. Back in DeskRoute, choose one writable **Booking calendar** and enable every Google/Microsoft calendar that should block free time. Select **Save calendar settings**.
+5. Create a clearly named test event in Outlook at a known time. Refresh the DeskRoute Appointments page and verify that event appears.
+6. Ask the browser voice agent for that exact time; it must report the time unavailable.
+7. Book a different free time and verify the new event appears in the selected Outlook calendar.
+8. Delete that event in Outlook, choose **Refresh** in DeskRoute, and verify the DeskRoute appointment becomes cancelled.
+
+Repeat with a second Microsoft account and then with one Google plus one Microsoft calendar. A successful OAuth screen alone is not acceptance; conflict blocking, booking, deletion, recurrence, all-day events, and daylight-saving boundaries still need live checks.
+
+Signing in to Microsoft Teams is not required for these calendar steps. Teams uses the same Microsoft identity platform, but presence and transfer-approval features need separate permissions and organizational testing. They remain disabled until the calendar path is accepted.
+
+For production, add the deployed HTTPS API callback as another **Web** redirect URI and set the deployed API's `PUBLIC_API_URL` to that origin. Keep the local callback only in the development app. The production registration should use Neodym's verified publisher/domain details so customer administrators can evaluate the consent request.
+
+## 9. Connect Slack notifications
+
+The first Slack integration sends privacy-minimal notifications to one owner-selected channel. It does not read message history, direct messages, user profiles, or calendar contents. It does not yet approve or perform a live call transfer.
+
+### 9A. Create the Slack app
+
+1. Sign in to [Slack API apps](https://api.slack.com/apps) with the account that can install apps in the test Slack workspace.
+2. Select **Create New App → From scratch**.
+3. Enter `DeskRoute` as the app name and choose the Slack workspace used for testing.
+4. Open **OAuth & Permissions**.
+5. Under **Redirect URLs**, add exactly:
+
+   ```text
+   http://localhost:8080/api/slack/oauth/callback
+   ```
+
+6. Under **Bot Token Scopes**, add only:
+   - `chat:write` — post the selected alerts.
+   - `channels:read` — list public channels the bot has joined.
+   - `groups:read` — list private channels the bot has joined.
+7. Do not add message-history, direct-message, users, files, admin, or workspace-wide posting scopes. DeskRoute intentionally does not request `chat:write.public`.
+8. Open **Basic Information → App Credentials**. Copy the **Client ID** and **Client Secret**. Do not share the Signing Secret; this alert-only release has no inbound Slack actions.
+
+### 9B. Save, install, and select a channel
+
+1. In [apps/api/.env](/home/ali/NewProjects/AutoAttendant/deskroute-app/apps/api/.env), set `SLACK_CLIENT_ID` to Slack's Client ID and `SLACK_CLIENT_SECRET` to Slack's Client Secret. Replace the blank entries already present; do not add duplicates.
+2. Keep the API's existing `TOKEN_ENCRYPTION_KEY`; it encrypts the installed bot token before storage.
+3. Restart `pnpm dev:api`.
+4. In DeskRoute, open **Settings → Connections → Slack → Connect Slack**.
+5. Choose the test Slack workspace and approve the three displayed bot permissions.
+6. In Slack, open the intended channel, open the channel details, choose **Integrations → Add apps**, and add `DeskRoute`. For a private channel, a channel member must invite the app.
+7. Return to DeskRoute and select **Check again**. Choose the channel.
+8. Turn on only the alert types the team wants and select **Save**.
+9. Select **Send test**. Verify that Slack receives exactly one generic DeskRoute connection message.
+
+Booking, request, cancellation, caller-question, and call-error alerts are event-driven; DeskRoute does not poll Slack or Teams in the background. The messages do not include a caller's name, phone number, transcript, recording, calendar event title, or appointment time. This reduces disclosure in a shared channel.
+
+For production, add the deployed HTTPS Slack callback, update `PUBLIC_API_URL`, and configure Slack app distribution for customer workspaces. Each DeskRoute workspace stores one encrypted Slack installation and its own selected channel. Disconnecting Slack deletes the local credential immediately and requests Slack token revocation.
+
 ## Troubleshooting
 
 | Symptom | What to check |
@@ -429,6 +526,11 @@ Use the dashboard browser test, allow microphone access, and make a short test c
 | Google redirect mismatch while signing in | Copy Supabase's exact `/auth/v1/callback` URL into the Google OAuth client. |
 | Google redirect mismatch while connecting a calendar | Add `http://localhost:8080/api/calendar/oauth/callback` to the same Google OAuth client's authorized redirect URIs and set API `PUBLIC_API_URL=http://localhost:8080`. |
 | No calendars or denied access | Check Google Calendar API, test-user membership, calendar scope, and reauthorization. |
+| Microsoft says the redirect URI does not match | In Entra, add the exact Web URI `http://localhost:8080/api/microsoft/oauth/callback`; keep API `PUBLIC_API_URL=http://localhost:8080`, then restart API. |
+| A work Microsoft account requires approval | Ask that Microsoft 365 tenant's administrator to review the delegated `User.Read` and `Calendars.ReadWrite` request. Do not switch to application permissions. |
+| Microsoft connects but no calendar is writable | Confirm the account owns or can edit at least one Outlook calendar, reconnect it, then select that calendar as the booking destination. |
+| Slack shows no channels | Invite the DeskRoute Slack app into the intended channel, return to DeskRoute, and select **Check again**. |
+| Slack OAuth fails | Match the Slack redirect URL to API `PUBLIC_API_URL`, verify the API Client ID/Secret, and restart API. |
 | Worker rejects model configuration | `LLM_MODEL` and `SUMMARY_LLM_MODEL` need verified IDs before startup. |
 
 When reporting an error, send its text with credentials removed and say which command or screen produced it. For current development, finish Supabase section 2 first. Customer handover additionally requires verified Supabase Auth, calendar token renewal, US inbound calling and transfers, customer isolation, deployment/restart checks, recovery procedures, and an accurate operating-cost record. These checks are not yet complete.

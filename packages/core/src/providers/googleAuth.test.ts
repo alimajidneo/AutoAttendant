@@ -31,7 +31,7 @@ describe("independent Google Calendar accounts", () => {
   it("renews the token with the connection's encryption owner", async () => {
     mocks.getCalendarConnection.mockResolvedValue({
       encryptedRefreshToken: encryptToken("refresh-2", "connection-2", "12".repeat(32)),
-      id: "connection-2", encryptionOwner: "connection-2",
+      id: "connection-2", provider: "google", encryptionOwner: "connection-2",
     });
     request.mockResolvedValue(response({ access_token: "renewed-2" }));
     expect(await getCalendarConnectionToken("agent-1", "connection-2")).toBe("renewed-2");
@@ -41,7 +41,7 @@ describe("independent Google Calendar accounts", () => {
   it("returns null after Google revokes one account", async () => {
     mocks.getCalendarConnection.mockResolvedValue({
       encryptedRefreshToken: encryptToken("revoked", "connection-3", "12".repeat(32)),
-      id: "connection-3", encryptionOwner: "connection-3",
+      id: "connection-3", provider: "google", encryptionOwner: "connection-3",
     });
     request.mockResolvedValue(response({ error: "invalid_grant" }, 400));
     expect(await getCalendarConnectionToken("agent-1", "connection-3")).toBeNull();
@@ -85,7 +85,7 @@ describe("independent Google Calendar accounts", () => {
 });
 
 function connection(id: string, refresh = id) {
-  return { id, encryptionOwner: id,
+  return { id, provider: "google", encryptionOwner: id,
     encryptedRefreshToken: encryptToken(refresh, id, "12".repeat(32)) };
 }
 

@@ -1,4 +1,4 @@
-# Google calendar acceptance — first delivery gate
+# Calendar acceptance — first delivery gate
 
 Scope and order: [ROADMAP.md](ROADMAP.md). Last reviewed 2026-09-10.
 
@@ -124,6 +124,17 @@ pnpm test:web
 `pnpm test` runs mocked unit/agent tests. It is not provider or browser acceptance. `pnpm test:int` and `pnpm test:live` are separate suites; do not run them as a shortcut. The existing live suite creates Google events and does not prove multi-account acceptance.
 
 Record each manual result as pass/fail, the step number and the visible error. Do not paste passwords, tokens, private event titles or personal calendar screenshots into the test log.
+
+## 7. Microsoft and mixed-provider acceptance
+
+1. Follow [Microsoft setup](SETUP.md#8-connect-microsoft-outlook-and-microsoft-365) using the multi-tenant plus personal-account registration option.
+2. Connect one personal Outlook.com account. Verify listing, a busy event, one booking into Outlook, DeskRoute cancellation, and external-delete reconciliation.
+3. Connect one work/school Microsoft 365 account. Record whether user consent succeeds or its administrator requires approval; do not broaden permissions to bypass policy.
+4. Select one Google calendar and one Microsoft calendar for conflicts. A busy event from either provider must block its exact time without exposing the event title to the voice model.
+5. Repeat for a secondary calendar, recurring occurrence, all-day busy event, daylight-saving transition, revoked Microsoft grant, and a moved event.
+6. Confirm a Microsoft booking retains its original provider/account/calendar identifiers after the selected booking destination changes.
+
+Automated integration-batch evidence on 2026-09-10: 255 unit/API/voice tests and 44 disposable PostgreSQL integration tests passed; all migrations through `0008_curved_nebula` applied locally. Typecheck, lint, and production build passed. Migration `0008_curved_nebula` also applied successfully to the configured Supabase development database. These checks used mocked Microsoft/Slack responses and do not count as live provider acceptance.
 
 
 ## 2026-09-10: past booking deletion and source labels (1.0.24)

@@ -7,13 +7,23 @@ import { env as apiEnv } from "../../env.js";
 import { env as coreEnv } from "@receptionist/core/env.js";
 import { getAgentById, updateAgent } from "@receptionist/core/repositories/agents.js";
 import { deleteCalendarConnection } from "@receptionist/core/repositories/calendar-connections.js";
-import { listCalendars, CalendarScopeMissingError } from "@receptionist/core/providers/calendar.js";
+import { CalendarScopeMissingError } from "@receptionist/core/providers/calendar.js";
+import { MicrosoftCalendarScopeMissingError } from "@receptionist/core/providers/microsoftCalendar.js";
 import {
-  getCalendarConnectionTokens,
   googleConnectionConfigured,
 } from "@receptionist/core/providers/googleAuth.js";
+import { microsoftConnectionConfigured } from "@receptionist/core/providers/microsoftAuth.js";
+import { getAllCalendarConnectionTokens } from "@receptionist/core/providers/calendarAccess.js";
+import { listProviderCalendars } from "@receptionist/core/providers/calendarProvider.js";
 import { calendarSelectSchema } from "../../schemas.js";
-import { createOAuthState, oauthChallenge, OAUTH_COOKIE, OAUTH_COOKIE_PATH } from "./oauth-state.js";
+import {
+  createOAuthState,
+  MICROSOFT_OAUTH_COOKIE,
+  MICROSOFT_OAUTH_COOKIE_PATH,
+  oauthChallenge,
+  OAUTH_COOKIE,
+  OAUTH_COOKIE_PATH,
+} from "./oauth-state.js";
 
 const calendarScopes = [
   "openid", "email", "profile",
@@ -41,19 +51,39 @@ export const calendar = new Hono<AppEnv>().use("*", requireCalendarOwner)
     });
     return c.json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
   })
+  .get("/oauth/microsoft/start", c => {
+    if (!microsoftConnectionConfigured()) return c.json({ error: "Microsoft Calendar is not configured on the server" }, 503);
+    const redirectUri = `${apiEnv.PUBLIC_API_URL ?? new URL(c.req.url).origin}/api/microsoft/oauth/callback`;
+    const verifier = randomBytes(32).toString("base64url");
+    setCookie(c, MICROSOFT_OAUTH_COOKIE, verifier, {
+      httpOnly: true, secure: new URL(redirectUri).protocol === "https:",
+      sameSite: "Lax", path: MICROSOFT_OAUTH_COOKIE_PATH, maxAge: 600,
+    });
+    c.header("Cache-Control", "no-store");
+    const params = new URLSearchParams({
+      client_id: coreEnv.MICROSOFT_CLIENT_ID!, redirect_uri: redirectUri,
+      response_type: "code", response_mode: "query",
+      scope: "openid profile email offline_access User.Read Calendars.ReadWrite",
+      state: createOAuthState(c.get("agentId"), verifier), prompt: "select_account",
+      code_challenge: oauthChallenge(verifier), code_challenge_method: "S256",
+    });
+    return c.json({ url: `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}` });
+  })
   .get("/list", async c => {
-    const connectionTokens = await getCalendarConnectionTokens(c.get("agentId"));
+    const connectionTokens = await getAllCalendarConnectionTokens(c.get("agentId"));
     const results = await Promise.all(connectionTokens.map(async ({ row, token }) => {
       const connection = {
-        id: row.id, accountEmail: row.accountEmail, accountName: row.accountName,
+        id: row.id, provider: row.provider, accountEmail: row.accountEmail, accountName: row.accountName,
         reconnectRequired: !token,
       };
       if (!token) return { connection, calendars: [] };
       try {
-        const calendars = await listCalendars(token);
-        return { connection, calendars: calendars.map(item => ({ ...item, connectionId: row.id, accountEmail: row.accountEmail })) };
+        const calendars = await listProviderCalendars(row.provider, token);
+        return { connection, calendars: calendars.map(item => ({ ...item, provider: row.provider, connectionId: row.id, accountEmail: row.accountEmail })) };
       } catch (error) {
-        if (error instanceof CalendarScopeMissingError) return { connection: { ...connection, reconnectRequired: true }, calendars: [] };
+        if (error instanceof CalendarScopeMissingError || error instanceof MicrosoftCalendarScopeMissingError) {
+          return { connection: { ...connection, reconnectRequired: true }, calendars: [] };
+        }
         throw error;
       }
     }));
@@ -62,10 +92,10 @@ export const calendar = new Hono<AppEnv>().use("*", requireCalendarOwner)
   .patch("/", async c => {
     const parsed = calendarSelectSchema.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-    const available = await getCalendarConnectionTokens(c.get("agentId"));
+    const available = await getAllCalendarConnectionTokens(c.get("agentId"));
     const listed = (await Promise.all(available.map(async ({ row, token }) => {
       if (!token) return [];
-      return (await listCalendars(token)).map(calendar => ({ ...calendar, connectionId: row.id }));
+      return (await listProviderCalendars(row.provider, token)).map(calendar => ({ ...calendar, provider: row.provider, connectionId: row.id }));
     }))).flat();
     const key = (connectionId: string, calendarId: string) => `${connectionId}\u0000${calendarId}`;
     const byKey = new Map(listed.map(item => [key(item.connectionId, item.id), item]));
@@ -77,7 +107,7 @@ export const calendar = new Hono<AppEnv>().use("*", requireCalendarOwner)
     if (conflicts.some(item => !item)) return c.json({ error: "One or more calendars are unavailable. Reconnect the account and try again." }, 400);
 
     await updateAgent(c.get("agentId"), {
-      calendarProvider: "google",
+      calendarProvider: booking.provider,
       calendarExternalId: booking.id,
       calendarPayload: {
         summary: booking.summary,

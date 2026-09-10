@@ -9,7 +9,8 @@ describe("Google Calendar OAuth state", () => {
 
   it("rejects tampering", () => {
     const state = createOAuthState("agent-1", "a".repeat(43));
-    expect(readOAuthState(`${state.slice(0, -1)}x`, "a".repeat(43))).toBeNull();
+    const replacement = state.endsWith("x") ? "y" : "x";
+    expect(readOAuthState(`${state.slice(0, -1)}${replacement}`, "a".repeat(43))).toBeNull();
   });
 
   it("expires after ten minutes", () => {

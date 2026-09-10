@@ -8,14 +8,15 @@ import {
   listConfirmedAppointmentsForSync,
   deletePastAppointment,
 } from "@receptionist/core/repositories/appointments.js";
+import { getAgentCalendarAccess, getCalendarCredential } from "@receptionist/core/providers/calendarAccess.js";
 import {
-  deleteCalendarEvent,
-  listCalendarEvents,
-  listCalendarEventIds,
-  calendarEventExists,
-} from "@receptionist/core/providers/calendar.js";
-import { getAgentCalendarAccess, getCalendarConnectionToken } from "@receptionist/core/providers/googleAuth.js";
+  deleteProviderCalendarEvent,
+  listProviderCalendarEventIds,
+  listProviderCalendarEvents,
+  providerCalendarEventExists,
+} from "@receptionist/core/providers/calendarProvider.js";
 import { getAgentById } from "@receptionist/core/repositories/agents.js";
+import { notifySlack } from "@receptionist/core/providers/slack.js";
 
 const DAY_MS = 86_400_000;
 
@@ -33,9 +34,14 @@ export const appointments = new Hono<AppEnv>()
       if (!appointment.externalCalendarId) return c.json({ error: "The original calendar is missing. Reconnect it before deleting." }, 409);
       const agent = await getAgentById(agentId);
       const connectionId = appointment.externalCalendarConnectionId ?? agent?.calendarPayload?.bookingConnectionId;
-      const token = connectionId ? await getCalendarConnectionToken(agentId, connectionId) : null;
-      if (!token) return c.json({ error: "Reconnect the appointment's Google account before deleting." }, 409);
-      await deleteCalendarEvent(token, appointment.externalCalendarId, appointment.externalEventId);
+      const credential = connectionId ? await getCalendarCredential(agentId, connectionId) : null;
+      if (!credential) return c.json({ error: "Reconnect the appointment's calendar account before deleting." }, 409);
+      await deleteProviderCalendarEvent(
+        credential.provider,
+        credential.token,
+        appointment.externalCalendarId,
+        appointment.externalEventId,
+      );
     }
     if (!await deletePastAppointment(agentId, id)) {
       return c.json({ error: "Appointment changed. Refresh and try again." }, 409);
@@ -65,24 +71,25 @@ export const appointments = new Hono<AppEnv>()
     }
 
     const agent = await getAgentById(c.get("agentId"));
-    if (!agent?.calendarExternalId) return c.json({ error: "Connect Google Calendar first" }, 409);
+    if (!agent?.calendarExternalId) return c.json({ error: "Connect a calendar first" }, 409);
     const access = await getAgentCalendarAccess(agent.id, agent.calendarExternalId, agent.calendarPayload);
-    if (!access) return c.json({ error: "Reconnect Google Calendar" }, 409);
-    const calendars = new Map<string, string>();
+    if (!access) return c.json({ error: "Reconnect your calendar account" }, 409);
+    const calendars = new Map<string, { provider: typeof access.booking.provider; token: string; connectionId: string; calendarId: string }>();
     const sources: CalendarAgendaSource[] = [];
     for (const group of access.conflicts) {
       const account = access.accounts.find(item => item.connectionId === group.connectionId);
       if (!account) return c.json({ error: "Calendar account unavailable" }, 409);
       for (const calendarId of group.calendarIds) {
-        if (calendars.has(calendarId)) continue;
-        calendars.set(calendarId, group.token);
+        const key = `${group.provider}\u0000${calendarId}`;
+        if (calendars.has(key)) continue;
+        calendars.set(key, { provider: group.provider, token: group.token, connectionId: group.connectionId, calendarId });
         const reference = agent.calendarPayload?.conflictCalendars?.find(item => item.connectionId === group.connectionId && item.id === calendarId);
         sources.push({ ...account, calendarId, calendarName: reference?.summary
           ?? (calendarId === agent.calendarExternalId ? agent.calendarPayload?.summary : undefined) ?? calendarId });
       }
     }
-    const results = await Promise.all([...calendars].map(([calendarId, token]) =>
-      listCalendarEvents(token, calendarId, timeMin.toISOString(), timeMax.toISOString()),
+    const results = await Promise.all([...calendars.values()].map(({ provider, token, calendarId }) =>
+      listProviderCalendarEvents(provider, token, calendarId, timeMin.toISOString(), timeMax.toISOString()),
     ));
     return c.json({ events: results.flat(), sources });
   })
@@ -99,33 +106,39 @@ export const appointments = new Hono<AppEnv>()
     for (const row of rows) {
       if (!row.externalCalendarId || !row.externalEventId || !row.startTime || !row.endTime) continue;
       const connectionId = row.externalCalendarConnectionId ?? agent?.calendarPayload?.bookingConnectionId;
-      if (!connectionId) return c.json({ error: "Reconnect the appointment's Google account before refreshing" }, 409);
+      if (!connectionId) return c.json({ error: "Reconnect the appointment's calendar account before refreshing" }, 409);
       const groupKey = `${connectionId}\u0000${row.externalCalendarId}`;
       const group = byCalendar.get(groupKey);
       if (group) group.push(row);
       else byCalendar.set(groupKey, [row]);
     }
 
-    // Finish every Google read before changing local state. A partial provider
+    // Finish every provider read before changing local state. A partial provider
     // failure therefore cannot make only half the dashboard look cancelled.
     const liveByCalendar = new Map<string, Set<string>>();
-    const tokens = new Map<string, Promise<string | null>>();
+    const credentials = new Map<string, ReturnType<typeof getCalendarCredential>>();
     await Promise.all(
       [...byCalendar].map(async ([groupKey, group]) => {
         const [connectionId, calendarId] = groupKey.split("\u0000") as [string, string];
-        if (!tokens.has(connectionId)) tokens.set(connectionId, getCalendarConnectionToken(agentId, connectionId));
-        const token = await tokens.get(connectionId);
-        if (!token) throw new Error("A calendar account must be reconnected");
+        if (!credentials.has(connectionId)) credentials.set(connectionId, getCalendarCredential(agentId, connectionId));
+        const credential = await credentials.get(connectionId);
+        if (!credential) throw new Error("A calendar account must be reconnected");
         const starts = group.map((row) => row.startTime!.getTime());
         const ends = group.map((row) => row.endTime!.getTime());
-        const live = await listCalendarEventIds(
-          token,
+        const live = await listProviderCalendarEventIds(
+          credential.provider,
+          credential.token,
           calendarId,
           new Date(Math.min(...starts) - DAY_MS).toISOString(),
           new Date(Math.max(...ends) + DAY_MS).toISOString(),
         );
         for (const row of group) {
-          if (!live.has(row.externalEventId!) && await calendarEventExists(token, calendarId, row.externalEventId!)) {
+          if (!live.has(row.externalEventId!) && await providerCalendarEventExists(
+            credential.provider,
+            credential.token,
+            calendarId,
+            row.externalEventId!,
+          )) {
             live.add(row.externalEventId!);
           }
         }
@@ -141,6 +154,10 @@ export const appointments = new Hono<AppEnv>()
         const cancelled = await cancelAppointmentById(row.id, agentId);
         if (cancelled) cancelledIds.push(row.id);
       }
+    }
+
+    if (cancelledIds.length > 0) {
+      await notifySlack(agentId, "cancellation").catch(err => console.error("[slack] cancellation alert failed:", err));
     }
 
     return c.json({
@@ -162,12 +179,13 @@ export const appointments = new Hono<AppEnv>()
       }
       const agent = await getAgentById(agentId);
       const connectionId = appointment.externalCalendarConnectionId ?? agent?.calendarPayload?.bookingConnectionId;
-      const token = connectionId
-        ? await getCalendarConnectionToken(agentId, connectionId)
+      const credential = connectionId
+        ? await getCalendarCredential(agentId, connectionId)
         : null;
-      if (!token) return c.json({ error: "Reconnect Google Calendar before cancelling" }, 409);
-      await deleteCalendarEvent(
-        token,
+      if (!credential) return c.json({ error: "Reconnect the calendar account before cancelling" }, 409);
+      await deleteProviderCalendarEvent(
+        credential.provider,
+        credential.token,
         appointment.externalCalendarId,
         appointment.externalEventId,
       );
@@ -175,5 +193,6 @@ export const appointments = new Hono<AppEnv>()
 
     const cancelled = await cancelAppointmentById(appointmentId, agentId);
     if (!cancelled) return c.json({ error: "Appointment not found" }, 404);
+    await notifySlack(agentId, "cancellation").catch(err => console.error("[slack] cancellation alert failed:", err));
     return c.json({ cancelled: true, appointmentId });
   });

@@ -1,6 +1,6 @@
 # Slack and Microsoft integration plan
 
-Updated 2026-09-10. These integrations are planned, not implemented. Keep Supabase Auth for DeskRoute identity; connect external accounts separately with explicit workspace authorization. The intended customer size is 10–25 users. Add one working path at a time.
+Updated 2026-09-10. Microsoft Calendar and the first Slack alert slice are implemented but have not yet passed live account acceptance. Teams and interactive Slack transfer approval remain planned. Keep Supabase Auth for DeskRoute identity; connect external accounts separately with explicit workspace authorization. The intended customer size is 10–25 users.
 
 ## Microsoft: calendars first
 
@@ -51,6 +51,6 @@ For privacy, do not post personal calendar event titles or full call transcripts
 
 ## In-app tutorial
 
-`/help` is a public tutorial with searchable, linkable guides covering onboarding, workspaces, hours, agent knowledge/intake, Google calendars, appointments, notifications, browser tests and browser handoff. It contains generic instructions only. Access it from sign-in, onboarding, Workspaces or the dashboard's **Help & tutorial** link. Operator credentials and deployment instructions remain in [SETUP.md](SETUP.md).
+`/help` is a public tutorial with searchable, linkable guides covering onboarding, workspaces, hours, agent knowledge/intake, Google/Microsoft calendars, Slack notifications, appointments, browser tests and browser handoff. It contains generic instructions only. Access it from sign-in, onboarding, Workspaces or the dashboard's **Help & tutorial** link. Operator credentials and deployment instructions remain in [SETUP.md](SETUP.md).
 
 Validation for tutorial release 1.0.23: typecheck, lint and production build pass. Browser checks cover public access, topic search and no-results feedback, shareable guide URLs, previous/next focus and scrolling, troubleshooting expansion, light/dark themes and a 390px mobile viewport without horizontal overflow. Web checks remain 55 passing / 5 existing design-contract failures (palette/status expectations and the existing sign-in pixel width). The existing large-bundle build warning remains. No live voice calls, calendar writes or external messages were used for this tutorial validation.

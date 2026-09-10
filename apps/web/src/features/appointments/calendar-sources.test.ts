@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { calendarSourceClass, calendarSourceLabel, groupCalendarSources } from './calendar-sources'
 describe('calendar account colors and legend', () => {
   const sources = [
-    { connectionId: 'first', accountEmail: 'first@example.test', colorIndex: 0, calendarId: 'one', calendarName: 'Work' },
-    { connectionId: 'second', accountEmail: 'second@example.test', colorIndex: 1, calendarId: 'two', calendarName: 'Personal' },
-    { connectionId: 'first', accountEmail: 'first@example.test', colorIndex: 0, calendarId: 'three', calendarName: 'Bookings' },
+    { connectionId: 'first', provider: 'google' as const, accountEmail: 'first@example.test', colorIndex: 0, calendarId: 'one', calendarName: 'Work' },
+    { connectionId: 'second', provider: 'microsoft' as const, accountEmail: 'second@example.test', colorIndex: 1, calendarId: 'two', calendarName: 'Personal' },
+    { connectionId: 'first', provider: 'google' as const, accountEmail: 'first@example.test', colorIndex: 0, calendarId: 'three', calendarName: 'Bookings' },
   ]
   it('uses one color per account, different colors for the first eight accounts', () => {
     expect(calendarSourceClass(sources[0].colorIndex)).toBe(calendarSourceClass(sources[2].colorIndex))
@@ -22,7 +22,7 @@ describe('calendar account colors and legend', () => {
 })
 
 describe('calendar source text', () => {
-  const source = { connectionId: 'account', accountEmail: 'owner@example.test', colorIndex: 0, calendarId: 'primary', calendarName: 'owner@example.test' }
+  const source = { connectionId: 'account', provider: 'google' as const, accountEmail: 'owner@example.test', colorIndex: 0, calendarId: 'primary', calendarName: 'owner@example.test' }
   it('shows the email once when Google uses it as the calendar name', () => {
     expect(groupCalendarSources([source])[0].calendars).toEqual([])
     expect(calendarSourceLabel(source)).toBe('owner@example.test')

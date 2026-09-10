@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Calendar, Phone, Plus, Trash2 } from 'lucide-react'
+import { Calendar, MessageSquareText, Phone, Plus, Send, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { CalendarOption } from '@receptionist/shared'
+import type { CalendarOption, CalendarProvider, SlackAlertKind } from '@receptionist/shared'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -28,7 +28,15 @@ import type { AppSettings } from '@/lib/settings-types'
 import { cn } from '@/lib/utils'
 import { Section, SubRow, MEASURE } from './SettingsList'
 
-type Open = 'phone' | 'calendar' | null
+type Open = 'phone' | 'calendar' | 'slack' | null
+
+const alertOptions: Array<{ id: SlackAlertKind; label: string; description: string }> = [
+  { id: 'booking', label: 'New bookings', description: 'An appointment was booked.' },
+  { id: 'request', label: 'Requests', description: 'A booking needs manual confirmation.' },
+  { id: 'cancellation', label: 'Cancellations', description: 'An appointment was cancelled.' },
+  { id: 'question', label: 'Caller questions', description: 'A question needs a team answer.' },
+  { id: 'call-error', label: 'Call errors', description: 'A call needs attention.' },
+]
 
 function ConnectionRow({
   icon: Icon,
@@ -76,21 +84,39 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
     calendar.connectionId ? [`${calendar.connectionId}\u0000${calendar.id}`] : []) ?? []
   const [conflictDraft, setConflictChoices] = useState<string[] | null>(null)
   const conflictChoices = conflictDraft ?? savedConflictChoices
-  const [granting, setGranting] = useState(false)
+  const [granting, setGranting] = useState<CalendarProvider | null>(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null)
+  const [confirmSlackDisconnect, setConfirmSlackDisconnect] = useState(false)
+  const [slackChannel, setSlackChannel] = useState<string | null>(null)
+  const [slackAlerts, setSlackAlerts] = useState<SlackAlertKind[] | null>(null)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const result = params.get('calendar')
     if (!result && params.get('manageCalendars') !== '1') return
     setOpen('calendar')
-    if (result === 'connected') toast.success('Account connected. Select its calendars below and save to include their events.')
-    else if (result) toast.error(params.get('message') ?? 'Google account could not be connected')
+    const provider = params.get('provider') === 'microsoft' ? 'Microsoft' : 'Google'
+    if (result === 'connected') toast.success(`${provider} account connected. Select its calendars below and save.`)
+    else if (result) toast.error(params.get('message') ?? `${provider} account could not be connected`)
     params.delete('manageCalendars')
     params.delete('calendar')
     params.delete('message')
     window.history.replaceState(null, '', `${window.location.pathname}?${params}`)
     void qc.invalidateQueries({ queryKey: keys.calendarList })
+  }, [qc])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const result = params.get('slack')
+    if (!result) return
+    setOpen('slack')
+    if (result === 'connected') toast.success('Slack connected. Choose a channel and alerts below.')
+    else toast.error(params.get('message') ?? 'Slack could not be connected')
+    params.delete('slack')
+    params.delete('message')
+    window.history.replaceState(null, '', `${window.location.pathname}?${params}`)
+    void qc.invalidateQueries({ queryKey: keys.slack })
+    void qc.invalidateQueries({ queryKey: keys.settings })
   }, [qc])
 
   const phone = settings.business.phoneNumber
@@ -108,6 +134,19 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
     enabled: open === 'calendar',
     staleTime: 0,
   })
+
+  const slackQuery = useQuery({
+    queryKey: keys.slack,
+    queryFn: fetchers.slack,
+    enabled: open === 'slack',
+    staleTime: 0,
+  })
+
+  useEffect(() => {
+    if (!slackQuery.data) return
+    setSlackChannel(current => current ?? slackQuery.data.channelId)
+    setSlackAlerts(current => current ?? slackQuery.data.alertKinds)
+  }, [slackQuery.data])
 
   const selectCalendar = useMutation({
     mutationFn: (calendar: CalendarOption) =>
@@ -138,19 +177,59 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
       setChoice(null)
       setConflictChoices(null)
       setConfirmDisconnect(null)
-      toast.success('Google account disconnected')
+      toast.success('Calendar account disconnected')
     },
     onError: () => toast.error('Could not disconnect. Try again.'),
   })
 
-  async function grantAccess() {
-    setGranting(true)
+  async function grantAccess(provider: CalendarProvider) {
+    setGranting(provider)
     try {
-      const { data } = await apiClient.get<{ url: string }>('/admin/calendar/oauth/start', { withCredentials: true })
+      const path = provider === 'google' ? '/admin/calendar/oauth/start' : '/admin/calendar/oauth/microsoft/start'
+      const { data } = await apiClient.get<{ url: string }>(path, { withCredentials: true })
       window.location.assign(data.url)
     }
-    catch { toast.error('Could not open Google. Try again.'); setGranting(false) }
+    catch { toast.error(`Could not open ${provider === 'google' ? 'Google' : 'Microsoft'}. Try again.`); setGranting(null) }
   }
+
+  async function connectSlack() {
+    try {
+      const { data } = await apiClient.get<{ url: string }>('/admin/slack/oauth/start', { withCredentials: true })
+      window.location.assign(data.url)
+    } catch { toast.error('Could not open Slack. Try again.') }
+  }
+
+  const saveSlack = useMutation({
+    mutationFn: () => apiClient.patch('/admin/slack', {
+      channelId: slackChannel,
+      alertKinds: slackAlerts ?? [],
+    }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: keys.slack })
+      await qc.invalidateQueries({ queryKey: keys.settings })
+      toast.success('Slack notification settings saved')
+    },
+    onError: () => toast.error('Could not save Slack settings. Invite DeskRoute to the channel and try again.'),
+  })
+
+  const testSlack = useMutation({
+    mutationFn: () => apiClient.post('/admin/slack/test'),
+    onSuccess: () => toast.success('Test message sent to Slack'),
+    onError: () => toast.error('Could not send the test message.'),
+  })
+
+  const disconnectSlack = useMutation({
+    mutationFn: () => apiClient.delete('/admin/slack'),
+    onSuccess: async () => {
+      setSlackChannel(null)
+      setSlackAlerts(null)
+      setConfirmSlackDisconnect(false)
+      await qc.invalidateQueries({ queryKey: keys.slack })
+      await qc.invalidateQueries({ queryKey: keys.settings })
+      toast.success('Slack disconnected')
+    },
+    onError: () => toast.error('Could not disconnect Slack.'),
+  })
 
   const calendars = data?.calendars ?? []
   const connections = data?.connections ?? []
@@ -185,7 +264,7 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
         />
         <ConnectionRow
           icon={Calendar}
-          title="Google Calendar"
+          title="Calendars"
           description={
             calendarId
               ? `${conflictCalendarCount} checked for conflicts; appointments go to ${calendarName ?? 'the booking calendar'}.`
@@ -194,6 +273,16 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
           connected={!!calendarId}
           onOpen={() => setOpen('calendar')}
           actionLabel={calendarId ? 'Manage' : 'Connect'}
+        />
+        <ConnectionRow
+          icon={MessageSquareText}
+          title="Slack"
+          description={settings.integrations.slack.connected
+            ? `Connected to ${settings.integrations.slack.teamName}${settings.integrations.slack.channelName ? ` · #${settings.integrations.slack.channelName}` : ' · choose a channel'}.`
+            : 'Notify your team about bookings and caller follow-ups.'}
+          connected={settings.integrations.slack.connected}
+          onOpen={() => setOpen('slack')}
+          actionLabel={settings.integrations.slack.connected ? 'Manage' : 'Connect'}
         />
       </Section>
 
@@ -239,7 +328,7 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
       <Sheet open={open === 'calendar'} onOpenChange={(v) => !v && setOpen(null)}>
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>Google Calendar</SheetTitle>
+            <SheetTitle>Calendars</SheetTitle>
             <SheetDescription>
               {calendarId
                 ? `Writing to ${calendarName ?? calendarId}`
@@ -249,41 +338,52 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
 
           <div className="flex flex-col gap-3">
             {isLoading ? (
-              <LoadingIndicator compact label="Loading Google calendars" />
+              <LoadingIndicator compact label="Loading calendars" />
             ) : isError ? (
               <div className="space-y-3">
-                <p role="alert" className="text-destructive">Could not load your Google accounts. Try again.</p>
+                <p role="alert" className="text-destructive">Could not load your calendar accounts. Try again.</p>
                 <Button variant="outline" onClick={() => void refetch()}>Retry</Button>
               </div>
             ) : !data?.connected ? (
               <>
                 <p className="text-muted-foreground">
-                  Give your agent access to Google Calendar, then pick which calendar holds your
-                  appointments.
+                  Connect Google or Microsoft, then pick where appointments are saved and which calendars block free time.
                 </p>
-                <Button onClick={grantAccess} disabled={granting} className="self-start">
-                  <Calendar />
-                  {granting ? 'Opening Google' : 'Connect Google Calendar'}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => void grantAccess('google')} disabled={granting !== null}>
+                    <Calendar />
+                    {granting === 'google' ? 'Opening Google' : 'Connect Google'}
+                  </Button>
+                  <Button variant="outline" onClick={() => void grantAccess('microsoft')} disabled={granting !== null}>
+                    <Calendar />
+                    {granting === 'microsoft' ? 'Opening Microsoft' : 'Connect Microsoft'}
+                  </Button>
+                </div>
               </>
             ) : (
               <>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="font-medium text-foreground">Connected Google accounts</p>
+                      <p className="font-medium text-foreground">Connected calendar accounts</p>
                       <p className="text-sm text-muted-foreground">Connecting an account does not select all its calendars. Choose which ones appear on your appointments page below.</p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={grantAccess} disabled={granting}>
-                      <Plus className="size-4" /> {granting ? 'Opening Google' : 'Connect account'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => void grantAccess('google')} disabled={granting !== null}>
+                        <Plus className="size-4" /> {granting === 'google' ? 'Opening Google' : 'Google'}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => void grantAccess('microsoft')} disabled={granting !== null}>
+                        <Plus className="size-4" /> {granting === 'microsoft' ? 'Opening Microsoft' : 'Microsoft'}
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-1 rounded-xl border border-border p-2">
                     {connections.map(connection => (
                       <div key={connection.id} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2">
                         <div className="min-w-0">
                           <p className="truncate font-medium text-foreground">{connection.accountEmail}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-sm text-muted-foreground">
+                            {connection.provider === 'google' ? 'Google' : 'Microsoft'} · {' '}
                             {connection.reconnectRequired ? 'Permission expired — reconnect this account'
                               : `${new Set([...savedConflictChoices, ...(initialBookingKey ? [initialBookingKey] : [])].filter(key => key.startsWith(`${connection.id}\u0000`))).size} calendars included on your appointments page`}
                           </p>
@@ -296,7 +396,7 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
                   </div>
                 </div>
                 {calendars.length === 0 ? (
-                  <p className="rounded-lg bg-sunk-1 p-3 text-sm text-muted-foreground">Reconnect the account or create a Google Calendar, then check again.</p>
+                  <p className="rounded-lg bg-sunk-1 p-3 text-sm text-muted-foreground">Reconnect the account or create a calendar in Google or Outlook, then check again.</p>
                 ) : <>
                 <SubRow
                   title="Booking calendar"
@@ -335,8 +435,8 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
                         <label htmlFor={`conflict-calendar-${encodeURIComponent(id)}`} key={id} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-hover">
                           <span className="min-w-0">
                             <span className="block truncate font-medium text-foreground">{calendar.summary}</span>
-                            <span className="block text-xs text-muted-foreground">
-                              {id === activeBookingKey ? 'Booking destination' : `${calendar.accountEmail} · ${calendar.writable ? 'Can read and edit' : 'Availability only'}`}
+                            <span className="block text-sm text-muted-foreground">
+                              {id === activeBookingKey ? 'Booking destination' : `${calendar.provider === 'google' ? 'Google' : 'Microsoft'} · ${calendar.accountEmail} · ${calendar.writable ? 'Can read and edit' : 'Availability only'}`}
                             </span>
                           </span>
                           <Switch
@@ -370,16 +470,116 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
         </SheetContent>
       </Sheet>
 
+      <Sheet open={open === 'slack'} onOpenChange={(v) => !v && setOpen(null)}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Slack notifications</SheetTitle>
+            <SheetDescription>
+              {slackQuery.data?.connected
+                ? `Connected to ${slackQuery.data.teamName}`
+                : 'Connect one Slack workspace to this DeskRoute workspace.'}
+            </SheetDescription>
+          </SheetHeader>
+          {slackQuery.isLoading ? (
+            <LoadingIndicator compact label="Loading Slack" />
+          ) : slackQuery.isError ? (
+            <div className="space-y-3">
+              <p role="alert" className="text-destructive">Could not load Slack. Try again.</p>
+              <Button variant="outline" onClick={() => void slackQuery.refetch()}>Retry</Button>
+            </div>
+          ) : !slackQuery.data?.connected ? (
+            <div className="space-y-3">
+              <p className="text-muted-foreground">
+                DeskRoute requests permission to post messages and see channels that the bot has joined. Caller names, numbers, recordings, and transcripts are not included in Slack alerts.
+              </p>
+              <Button onClick={() => void connectSlack()}>
+                <MessageSquareText /> Connect Slack
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <SubRow title="Notification channel" description="Invite the DeskRoute bot to a channel before selecting it.">
+                <Select value={slackChannel ?? ''} onValueChange={(value) => setSlackChannel(value ?? null)}>
+                  <SelectTrigger className="w-field-md">
+                    <SelectValue placeholder="Choose a channel">
+                      {value => {
+                        const channel = slackQuery.data.channels.find(item => item.id === value)
+                        return channel ? `#${channel.name}` : 'Choose a channel'
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {slackQuery.data.channels.map(channel => (
+                      <SelectItem key={channel.id} value={channel.id}>
+                        #{channel.name}{channel.private ? ' (private)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </SubRow>
+              {slackQuery.data.channels.length === 0 && (
+                <p className="rounded-lg bg-sunk-1 p-3 text-sm text-muted-foreground">
+                  No channels are available. In Slack, invite the DeskRoute app to a channel, then select Check again.
+                </p>
+              )}
+              <div className="space-y-1 border-t border-border/60 pt-3">
+                <p className="font-medium text-foreground">Send an alert when</p>
+                {alertOptions.map(option => {
+                  const checked = (slackAlerts ?? []).includes(option.id)
+                  return (
+                    <label htmlFor={`slack-alert-${option.id}`} key={option.id} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-hover">
+                      <span>
+                        <span className="block font-medium text-foreground">{option.label}</span>
+                        <span className="block text-sm text-muted-foreground">{option.description}</span>
+                      </span>
+                      <Switch
+                        id={`slack-alert-${option.id}`}
+                        checked={checked}
+                        onCheckedChange={value => setSlackAlerts(current => value
+                          ? [...new Set([...(current ?? []), option.id])]
+                          : (current ?? []).filter(id => id !== option.id))}
+                        aria-label={`Notify Slack for ${option.label}`}
+                      />
+                    </label>
+                  )
+                })}
+              </div>
+              <div className="flex flex-wrap justify-between gap-2 border-t border-border/60 pt-3">
+                <Button variant="destructive" size="sm" onClick={() => setConfirmSlackDisconnect(true)}>Disconnect</Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => void slackQuery.refetch()}>Check again</Button>
+                  <Button variant="outline" size="sm" onClick={() => testSlack.mutate()} disabled={!slackQuery.data.channelId || testSlack.isPending}>
+                    <Send className="size-4" /> Send test
+                  </Button>
+                  <Button size="sm" onClick={() => saveSlack.mutate()} disabled={!slackChannel || saveSlack.isPending}>
+                    {saveSlack.isPending ? 'Saving' : 'Save'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
       <ConfirmDialog
         open={!!confirmDisconnect}
         onOpenChange={(open) => !open && setConfirmDisconnect(null)}
-        title="Disconnect this Google account?"
-        description="Its calendars stop blocking availability. If it holds the booking calendar, choose another booking calendar afterward. Existing appointments stay in Google Calendar."
+        title="Disconnect this calendar account?"
+        description="Its calendars stop blocking availability. If it holds the booking calendar, choose another afterward. Existing appointments stay in the provider calendar."
         confirmLabel="Disconnect"
         variant="destructive"
         onConfirm={async () => {
           if (confirmDisconnect) await disconnect.mutateAsync(confirmDisconnect)
         }}
+      />
+      <ConfirmDialog
+        open={confirmSlackDisconnect}
+        onOpenChange={setConfirmSlackDisconnect}
+        title="Disconnect Slack?"
+        description="DeskRoute will stop sending notifications to this Slack workspace. You can reconnect it later."
+        confirmLabel="Disconnect"
+        variant="destructive"
+        onConfirm={async () => { await disconnectSlack.mutateAsync() }}
       />
     </div>
   )

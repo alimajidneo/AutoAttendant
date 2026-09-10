@@ -114,7 +114,23 @@ export function disclosureFor(recordCalls: boolean): Disclosure {
 }
 
 /** A union of one, so no column has to name a vendor. */
-export type CalendarProvider = "google";
+export type CalendarProvider = "google" | "microsoft";
+export type SlackAlertKind = "booking" | "cancellation" | "request" | "question" | "call-error";
+
+export interface SlackChannelOption {
+  id: string;
+  name: string;
+  private: boolean;
+}
+
+export interface SlackConnectionSummary {
+  connected: boolean;
+  teamName: string | null;
+  channelId: string | null;
+  channelName: string | null;
+  alertKinds: SlackAlertKind[];
+  channels: SlackChannelOption[];
+}
 
 /** Who sold the number. `manual` is one the operator wired up themselves. */
 export type PhoneNumberProvider = "livekit" | "twilio" | "telnyx" | "manual";
@@ -141,6 +157,7 @@ export type CalendarReference = {
 /** One of the calendars a connected account can offer, for the picker. */
 export interface CalendarOption {
   connectionId: string;
+  provider: CalendarProvider;
   accountEmail: string;
   id: string;
   summary: string;
@@ -151,6 +168,7 @@ export interface CalendarOption {
 
 export interface CalendarConnectionSummary {
   id: string;
+  provider: CalendarProvider;
   accountEmail: string;
   accountName: string | null;
   reconnectRequired: boolean;
@@ -295,6 +313,7 @@ export interface NotificationReadInput {
 
 export interface CalendarAgendaSource {
   connectionId: string;
+  provider: CalendarProvider;
   accountEmail: string;
   calendarId: string;
   calendarName: string;

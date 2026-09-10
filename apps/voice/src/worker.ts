@@ -19,7 +19,7 @@ import { calls as callsTable } from "@receptionist/core/db/schema.js";
 import { upsertCaller } from "@receptionist/core/repositories/callers.js";
 import { createCall, finishCall } from "@receptionist/core/repositories/calls.js";
 import { recordingEnabled, startCallRecording, stopCallRecording } from "@receptionist/core/providers/storage.js";
-import { getAgentCalendarAccess } from "@receptionist/core/providers/googleAuth.js";
+import { getAgentCalendarAccess } from "@receptionist/core/providers/calendarAccess.js";
 import { getAgentById } from "@receptionist/core/repositories/agents.js";
 import type { AgentDeps, CallState, SlotStore } from "./receptionist/deps.js";
 import { buildSessionConfig, buildKeyterms } from "./session/pipeline.js";
@@ -30,6 +30,7 @@ import { CallMetrics } from "./session/metrics.js";
 import { extractTranscript } from "./session/transcript.js";
 import { generateCallSummary } from "./session/summary.js";
 import { resolveAgent, type ResolvedAgent } from "./session/resolve-agent.js";
+import { notifySlack } from "@receptionist/core/providers/slack.js";
 
 // A failed stopEgress leaves the egress running and billing, so it retries.
 async function stopEgressWithRetry(egressId: string, maxAttempts = 3): Promise<void> {
@@ -188,6 +189,7 @@ export default defineAgent({
       console.log(`[speech] overlap call=${callId} ${JSON.stringify(ev)}`);
     });
 
+    let callErrorAlertSent = false;
     session.on(voice.AgentSessionEventTypes.Error, (ev) => {
       const err = ev.error;
       // InterruptionDetectionError carries no nested `error`, unlike the
@@ -199,6 +201,10 @@ export default defineAgent({
           `recoverable=${err.recoverable}:`,
         cause instanceof Error ? cause.message : cause
       );
+      if (!callErrorAlertSent) {
+        callErrorAlertSent = true;
+        void notifySlack(agent.id, "call-error").catch(slackError => console.error("[slack] call error alert failed:", slackError));
+      }
     });
 
     // Register close handler BEFORE any async work — prevents race conditions

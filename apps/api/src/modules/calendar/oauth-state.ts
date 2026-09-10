@@ -3,6 +3,10 @@ import { env as coreEnv } from "@receptionist/core/env.js";
 
 export const OAUTH_COOKIE = "deskroute_calendar_oauth";
 export const OAUTH_COOKIE_PATH = "/api/calendar/oauth";
+export const MICROSOFT_OAUTH_COOKIE = "deskroute_microsoft_oauth";
+export const MICROSOFT_OAUTH_COOKIE_PATH = "/api/microsoft/oauth";
+export const SLACK_OAUTH_COOKIE = "deskroute_slack_oauth";
+export const SLACK_OAUTH_COOKIE_PATH = "/api/slack/oauth";
 type OAuthState = { agentId: string; expiresAt: number; challenge: string };
 
 export function oauthChallenge(verifier: string): string {
@@ -10,7 +14,7 @@ export function oauthChallenge(verifier: string): string {
 }
 
 export function createOAuthState(agentId: string, verifier: string): string {
-  if (!coreEnv.TOKEN_ENCRYPTION_KEY) throw new Error("Calendar credential encryption is not configured");
+  if (!coreEnv.TOKEN_ENCRYPTION_KEY) throw new Error("OAuth credential encryption is not configured");
   const payload = Buffer.from(JSON.stringify({ agentId, expiresAt: Date.now() + 10 * 60_000, challenge: oauthChallenge(verifier) })).toString("base64url");
   const signature = createHmac("sha256", coreEnv.TOKEN_ENCRYPTION_KEY).update(payload).digest("base64url");
   return `${payload}.${signature}`;

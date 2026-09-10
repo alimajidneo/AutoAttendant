@@ -1,6 +1,6 @@
 {
   "name": "deskroute",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "private": true,
   "packageManager": "pnpm@10.34.5",
   "type": "module",

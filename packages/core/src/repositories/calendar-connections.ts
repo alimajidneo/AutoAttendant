@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { calendarConnections } from "../db/schema.js";
+import type { CalendarProvider } from "@receptionist/shared";
 
 export type CalendarConnectionRow = typeof calendarConnections.$inferSelect;
 
@@ -26,8 +27,9 @@ export async function saveCalendarConnection(input: {
   accountName: string | null;
   encryptedRefreshToken: string;
   encryptionOwner: string;
+  provider: CalendarProvider;
 }) {
-  const values = { ...input, provider: "google" as const, updatedAt: new Date() };
+  const values = { ...input, updatedAt: new Date() };
   const [row] = await db.insert(calendarConnections).values(values)
     .onConflictDoUpdate({
       target: [calendarConnections.agentId, calendarConnections.provider, calendarConnections.providerAccountId],
@@ -47,4 +49,21 @@ export async function deleteCalendarConnection(agentId: string, id: string) {
     eq(calendarConnections.agentId, agentId),
     eq(calendarConnections.id, id),
   ));
+}
+
+export async function updateCalendarConnectionCredential(
+  agentId: string,
+  id: string,
+  encryptedRefreshToken: string,
+  encryptionOwner: string,
+) {
+  const [row] = await db.update(calendarConnections).set({
+    encryptedRefreshToken,
+    encryptionOwner,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(calendarConnections.agentId, agentId),
+    eq(calendarConnections.id, id),
+  )).returning();
+  return row ?? null;
 }

@@ -19,8 +19,17 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@receptionist/core/repositories/appointments.js", () => mocks);
-vi.mock("@receptionist/core/providers/googleAuth.js", () => mocks);
-vi.mock("@receptionist/core/providers/calendar.js", () => mocks);
+vi.mock("@receptionist/core/providers/calendarAccess.js", () => ({
+  getAgentCalendarAccess: mocks.getAgentCalendarAccess,
+  getCalendarCredential: mocks.getCalendarConnectionToken,
+}));
+vi.mock("@receptionist/core/providers/calendarProvider.js", () => ({
+  providerCalendarEventExists: mocks.calendarEventExists,
+  deleteProviderCalendarEvent: mocks.deleteCalendarEvent,
+  listProviderCalendarEvents: mocks.listCalendarEvents,
+  listProviderCalendarEventIds: mocks.listCalendarEventIds,
+}));
+vi.mock("@receptionist/core/providers/slack.js", () => ({ notifySlack: vi.fn(async () => false) }));
 vi.mock("@receptionist/core/repositories/agents.js", () => mocks);
 
 import { appointments } from "./route.js";
@@ -38,14 +47,14 @@ app.onError((_error, c) => c.json({ error: "failed" }, 500));
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getAgentCalendarAccess.mockResolvedValue({
-    accounts: [{ connectionId: "connection-1", accountEmail: "first@example.test", colorIndex: 0 }],
-    booking: { connectionId: "connection-1", calendarId: "cal-1", token: "token-1" },
-    conflicts: [{ connectionId: "connection-1", calendarIds: ["cal-1"], token: "token-1" }],
+    accounts: [{ connectionId: "connection-1", provider: "google", accountEmail: "first@example.test", colorIndex: 0 }],
+    booking: { connectionId: "connection-1", provider: "google", calendarId: "cal-1", token: "token-1" },
+    conflicts: [{ connectionId: "connection-1", provider: "google", calendarIds: ["cal-1"], token: "token-1" }],
   });
   mocks.getAgentById.mockResolvedValue({ id: "agent-1", calendarExternalId: "cal-1", calendarPayload: { bookingConnectionId: "connection-1" } });
   mocks.listCalendars.mockResolvedValue([{ id: "cal-1", summary: "Primary", primary: true }]);
   mocks.listAppointments.mockResolvedValue([]);
-  mocks.getCalendarConnectionToken.mockResolvedValue("token-1");
+  mocks.getCalendarConnectionToken.mockResolvedValue({ connectionId: "connection-1", provider: "google", token: "token-1" });
   mocks.calendarEventExists.mockResolvedValue(false);
 });
 
@@ -136,6 +145,7 @@ describe("calendar view", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).events[0]?.title).toBe("Dentist");
     expect(mocks.listCalendarEvents).toHaveBeenCalledWith(
+      "google",
       "token-1",
       "cal-1",
       "2026-09-01T00:00:00.000Z",
@@ -148,12 +158,12 @@ describe("saved calendar identity and moved events", () => {
   it("cancels using the original account after the booking destination changes", async () => {
     mocks.getAppointmentById.mockResolvedValue({ id: "old", status: "confirmed", externalEventId: "old-event",
       externalCalendarId: "old-calendar", externalCalendarConnectionId: "old-connection" });
-    mocks.getCalendarConnectionToken.mockResolvedValue("old-token");
+    mocks.getCalendarConnectionToken.mockResolvedValue({ connectionId: "old-connection", provider: "google", token: "old-token" });
     mocks.cancelAppointmentById.mockResolvedValue({ id: "old" });
     const result = await app.request("/appointments/old", { method: "DELETE" });
     expect(result.status).toBe(200);
     expect(mocks.getCalendarConnectionToken).toHaveBeenCalledWith("agent-1", "old-connection");
-    expect(mocks.deleteCalendarEvent).toHaveBeenCalledWith("old-token", "old-calendar", "old-event");
+    expect(mocks.deleteCalendarEvent).toHaveBeenCalledWith("google", "old-token", "old-calendar", "old-event");
     expect(mocks.getAgentCalendarAccess).not.toHaveBeenCalled();
   });
 
@@ -175,7 +185,7 @@ describe("saved calendar identity and moved events", () => {
     mocks.calendarEventExists.mockResolvedValue(true);
     const result = await app.request("/appointments/sync", { method: "POST" });
     expect(result.status).toBe(200);
-    expect(mocks.calendarEventExists).toHaveBeenCalledWith("token-1", "cal-1", "moved-event");
+    expect(mocks.calendarEventExists).toHaveBeenCalledWith("google", "token-1", "cal-1", "moved-event");
     expect(mocks.cancelAppointmentById).not.toHaveBeenCalled();
   });
 
@@ -226,17 +236,17 @@ describe("past appointment history deletion", () => {
 describe("multiple-account calendar display", () => {
   it("reads every selected calendar across accounts and reads shared calendars only once", async () => {
     mocks.getAgentCalendarAccess.mockResolvedValue({ accounts: [
-      { connectionId: "connection-1", accountEmail: "first@example.test", colorIndex: 0 },
-      { connectionId: "connection-2", accountEmail: "second@example.test", colorIndex: 1 },
+      { connectionId: "connection-1", provider: "google", accountEmail: "first@example.test", colorIndex: 0 },
+      { connectionId: "connection-2", provider: "google", accountEmail: "second@example.test", colorIndex: 1 },
     ], conflicts: [
-      { connectionId: "connection-1", token: "token-1", calendarIds: ["cal-1", "shared"] },
-      { connectionId: "connection-2", token: "token-2", calendarIds: ["cal-2", "shared"] },
+      { connectionId: "connection-1", provider: "google", token: "token-1", calendarIds: ["cal-1", "shared"] },
+      { connectionId: "connection-2", provider: "google", token: "token-2", calendarIds: ["cal-2", "shared"] },
     ] });
-    mocks.listCalendarEvents.mockImplementation(async (_token, calendarId) => [{ id: "event", calendarId }]);
+    mocks.listCalendarEvents.mockImplementation(async (_provider, _token, calendarId) => [{ id: "event", calendarId }]);
     const response = await app.request("/appointments/calendar?timeMin=2026-09-01T00:00:00Z&timeMax=2026-10-01T00:00:00Z");
     expect(response.status).toBe(200);
     expect(mocks.listCalendarEvents).toHaveBeenCalledTimes(3);
-    expect(mocks.listCalendarEvents).toHaveBeenCalledWith("token-2", "cal-2", "2026-09-01T00:00:00.000Z", "2026-10-01T00:00:00.000Z");
+    expect(mocks.listCalendarEvents).toHaveBeenCalledWith("google", "token-2", "cal-2", "2026-09-01T00:00:00.000Z", "2026-10-01T00:00:00.000Z");
     const body = await response.json();
     expect(body.events.map((event: { calendarId: string }) => event.calendarId)).toEqual(["cal-1", "shared", "cal-2"]);
     expect(body.sources.find((source: { calendarId: string }) => source.calendarId === "cal-2")).toMatchObject({
@@ -253,7 +263,7 @@ describe("calendar source legend", () => {
     const response = await app.request("/appointments/calendar?timeMin=2026-09-01&timeMax=2026-10-01");
     const body = await response.json();
     expect(body.events).toEqual([]);
-    expect(body.sources).toEqual([{ connectionId: "connection-1", accountEmail: "first@example.test", colorIndex: 0, calendarId: "cal-1", calendarName: "cal-1" }]);
+    expect(body.sources).toEqual([{ connectionId: "connection-1", provider: "google", accountEmail: "first@example.test", colorIndex: 0, calendarId: "cal-1", calendarName: "cal-1" }]);
   });
 });
 
@@ -265,7 +275,7 @@ describe("past Google event deletion", () => {
     mocks.deletePastAppointment.mockResolvedValue(true);
     expect((await app.request("/appointments/history/past", { method: "DELETE" })).status).toBe(200);
     expect(mocks.getCalendarConnectionToken).toHaveBeenCalledWith("agent-1", "connection-old");
-    expect(mocks.deleteCalendarEvent).toHaveBeenCalledWith("token-1", "cal-old", "event-old");
+    expect(mocks.deleteCalendarEvent).toHaveBeenCalledWith("google", "token-1", "cal-old", "event-old");
     expect(mocks.deleteCalendarEvent.mock.invocationCallOrder[0]).toBeLessThan(mocks.deletePastAppointment.mock.invocationCallOrder[0]);
   });
   it("keeps local history after a provider failure", async () => {

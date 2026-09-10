@@ -21,6 +21,7 @@ import {
   type CalendarPayload,
   type BusinessHours,
   type PhoneNumberProvider,
+  type SlackAlertKind,
 } from "@receptionist/shared";
 export type {
   Service,
@@ -304,6 +305,21 @@ export const calendarConnections = pgTable(
     index("calendar_connections_agent_idx").on(table.agentId),
   ],
 ).enableRLS();
+
+/** One explicit Slack installation per workspace. Bot tokens never reach the browser. */
+export const slackConnections = pgTable("slack_connections", {
+  agentId: uuid("agent_id").primaryKey().references(() => agents.id, { onDelete: "cascade" }),
+  teamId: text("team_id").notNull(),
+  teamName: text("team_name").notNull(),
+  botUserId: text("bot_user_id"),
+  encryptedBotToken: text("encrypted_bot_token").notNull(),
+  encryptionOwner: text("encryption_owner").notNull(),
+  channelId: text("channel_id"),
+  channelName: text("channel_name"),
+  alertKinds: jsonb("alert_kinds").$type<SlackAlertKind[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}).enableRLS();
 
 /** Read receipts only; notification text stays in its original owner-scoped records. */
 export const notificationReads = pgTable("notification_reads", {

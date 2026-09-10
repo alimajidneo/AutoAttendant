@@ -15,6 +15,10 @@ const coreEnvSchema = z
     SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
     GOOGLE_CLIENT_ID: z.string().min(1).optional(),
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+    MICROSOFT_CLIENT_ID: z.string().min(1).optional(),
+    MICROSOFT_CLIENT_SECRET: z.string().min(1).optional(),
+    SLACK_CLIENT_ID: z.string().min(1).optional(),
+    SLACK_CLIENT_SECRET: z.string().min(1).optional(),
     TOKEN_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
     /** All four or none. A partial set reads as configured and fails per call. */
     R2_ACCOUNT_ID: z.string().min(1).optional(),

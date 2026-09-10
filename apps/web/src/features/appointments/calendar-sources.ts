@@ -1,4 +1,4 @@
-import type { CalendarAgendaSource } from '@receptionist/shared'
+import type { CalendarAgendaSource, CalendarProvider } from '@receptionist/shared'
 
 const classes = ['calendar-source-blue', 'calendar-source-violet', 'calendar-source-green', 'calendar-source-amber',
   'calendar-source-pink', 'calendar-source-teal', 'calendar-source-orange', 'calendar-source-slate'] as const
@@ -8,7 +8,7 @@ export function calendarSourceClass(index: number) {
 }
 
 export function groupCalendarSources(sources: CalendarAgendaSource[]) {
-  const accounts = new Map<string, { connectionId: string; accountEmail: string; colorIndex: number; calendars: string[] }>()
+  const accounts = new Map<string, { connectionId: string; provider: CalendarProvider; accountEmail: string; colorIndex: number; calendars: string[] }>()
   for (const source of sources) {
     const account = accounts.get(source.connectionId) ?? { ...source, calendars: [] }
     const name = source.calendarName.trim()

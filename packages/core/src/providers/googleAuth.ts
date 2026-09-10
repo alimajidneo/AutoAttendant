@@ -74,7 +74,7 @@ export async function connectGoogleCalendarAccount(
   const id = randomUUID();
   const owner = id;
   return saveCalendarConnection({
-    id, agentId, providerAccountId: account.sub, accountEmail: account.email,
+    id, agentId, provider: "google", providerAccountId: account.sub, accountEmail: account.email,
     accountName: account.name, encryptionOwner: owner,
     encryptedRefreshToken: encryptToken(refreshToken, owner, env.TOKEN_ENCRYPTION_KEY!),
   });
@@ -87,6 +87,7 @@ export async function getCalendarConnectionToken(agentId: string, connectionId: 
 }
 
 async function tokenForConnection(agentId: string, row: CalendarConnectionRow): Promise<string | null> {
+  if (row.provider !== "google") return null;
   if (!env.TOKEN_ENCRYPTION_KEY) return null;
   const key = `${agentId}:${row.id}`;
   const credential = `${row.encryptionOwner}:${row.encryptedRefreshToken}`;
@@ -109,7 +110,7 @@ async function tokenForConnection(agentId: string, row: CalendarConnectionRow): 
 export async function getCalendarConnectionTokens(agentId: string, selectedIds?: ReadonlySet<string>) {
   const rows = await listCalendarConnections(agentId);
   return Promise.all(rows.map((row, colorIndex) => ({ row, colorIndex }))
-    .filter(({ row }) => !selectedIds || selectedIds.has(row.id))
+    .filter(({ row }) => row.provider === "google" && (!selectedIds || selectedIds.has(row.id)))
     .map(async ({ row, colorIndex }) => ({ row, colorIndex, token: await tokenForConnection(agentId, row) })));
 }
 

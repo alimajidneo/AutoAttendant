@@ -3,7 +3,11 @@ import { createAgentTools } from "./tools.js";
 import { makeAgentConfig, makeAgentDeps } from "./fixtures.js";
 import { createEscalation } from "@receptionist/core/repositories/escalations.js";
 import { setCallerName } from "@receptionist/core/repositories/callers.js";
-import { createCalendarEvent, deleteCalendarEvent, fetchBusyRanges } from "@receptionist/core/providers/calendar.js";
+import {
+  createProviderCalendarEvent as createCalendarEvent,
+  deleteProviderCalendarEvent as deleteCalendarEvent,
+  fetchProviderBusyRanges as fetchBusyRanges,
+} from "@receptionist/core/providers/calendarProvider.js";
 import {
   cancelAppointmentById,
   createAppointment,
@@ -20,8 +24,8 @@ const okCalendar = () =>
     calendarExternalId: "cal-1",
     getCalendarAccess: async () => ({
       accounts: [],
-      booking: { connectionId: "00000000-0000-4000-8000-000000000001", calendarId: "primary", token: "token-1" },
-      conflicts: [{ connectionId: "00000000-0000-4000-8000-000000000001", calendarIds: ["primary"], token: "token-1" }],
+      booking: { connectionId: "00000000-0000-4000-8000-000000000001", provider: "google", calendarId: "primary", token: "token-1" },
+      conflicts: [{ connectionId: "00000000-0000-4000-8000-000000000001", provider: "google", calendarIds: ["primary"], token: "token-1" }],
     }),
   });
 
@@ -34,11 +38,17 @@ beforeEach(() => {
 
 afterEach(() => vi.useRealTimers());
 
-vi.mock("@receptionist/core/providers/calendar.js", () => ({
-  fetchBusyRanges: vi.fn(async () => []),
-  createCalendarEvent: vi.fn(async () => "evt-1"),
-  deleteCalendarEvent: vi.fn(async () => {}),
+vi.mock("@receptionist/core/providers/calendarProvider.js", () => ({
+  fetchProviderBusyRanges: vi.fn(async () => []),
+  createProviderCalendarEvent: vi.fn(async () => "evt-1"),
+  deleteProviderCalendarEvent: vi.fn(async () => {}),
 }));
+
+vi.mock("@receptionist/core/providers/calendarAccess.js", () => ({
+  getCalendarCredential: vi.fn(async () => ({ provider: "google", token: "token-1", connectionId: "connection-1" })),
+}));
+
+vi.mock("@receptionist/core/providers/slack.js", () => ({ notifySlack: vi.fn(async () => false) }));
 
 vi.mock("@receptionist/core/repositories/appointments.js", () => ({
   createAppointment: vi.fn(async () => ({ id: "appt-1" })),
@@ -67,10 +77,10 @@ describe("every tool returns a result to the model", () => {
     const deps = okCalendar();
     deps.getCalendarAccess = async () => ({
       accounts: [],
-      booking: { connectionId: "connection-1", calendarId: "cal-1", token: "token-1" },
+      booking: { connectionId: "connection-1", provider: "google", calendarId: "cal-1", token: "token-1" },
       conflicts: [
-        { connectionId: "connection-1", calendarIds: ["cal-1", "cal-2"], token: "token-1" },
-        { connectionId: "connection-2", calendarIds: ["work"], token: "token-2" },
+        { connectionId: "connection-1", provider: "google", calendarIds: ["cal-1", "cal-2"], token: "token-1" },
+        { connectionId: "connection-2", provider: "google", calendarIds: ["work"], token: "token-2" },
       ],
     });
     const tools = createAgentTools(deps);
@@ -79,8 +89,8 @@ describe("every tool returns a result to the model", () => {
       runCtx(),
     );
     expect(fetchBusyRanges).toHaveBeenCalledTimes(2);
-    expect(fetchBusyRanges).toHaveBeenCalledWith("token-1", ["cal-1", "cal-2"], expect.any(String), expect.any(String));
-    expect(fetchBusyRanges).toHaveBeenCalledWith("token-2", ["work"], expect.any(String), expect.any(String));
+    expect(fetchBusyRanges).toHaveBeenCalledWith("google", "token-1", ["cal-1", "cal-2"], expect.any(String), expect.any(String));
+    expect(fetchBusyRanges).toHaveBeenCalledWith("google", "token-2", ["work"], expect.any(String), expect.any(String));
   });
 
   it("checkAvailability returns slots, not a function", async () => {
@@ -344,10 +354,10 @@ describe("cross-account scheduling privacy", () => {
     const deps = okCalendar();
     deps.getCalendarAccess = async () => ({
       accounts: [],
-      booking: { connectionId: "work", calendarId: "cal-1", token: "work-token" },
+      booking: { connectionId: "work", provider: "google", calendarId: "cal-1", token: "work-token" },
       conflicts: [
-        { connectionId: "work", calendarIds: ["cal-1"], token: "work-token" },
-        { connectionId: "personal", calendarIds: ["home"], token: "personal-token" },
+        { connectionId: "work", provider: "google", calendarIds: ["cal-1"], token: "work-token" },
+        { connectionId: "personal", provider: "google", calendarIds: ["home"], token: "personal-token" },
       ],
     });
     const tools = createAgentTools(deps);

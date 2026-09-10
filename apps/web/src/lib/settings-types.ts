@@ -31,4 +31,11 @@ export interface AppSettings {
   agent: AgentProfile
   /** What the owner has been through, for the checklist on Home. */
   setup: AgentSetup
+  integrations: {
+    slack: {
+      connected: boolean
+      teamName: string | null
+      channelName: string | null
+    }
+  }
 }

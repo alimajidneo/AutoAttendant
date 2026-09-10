@@ -24,8 +24,8 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 | 2 | Cross-account conflict checks | A busy event in either selected account blocks the requested time; genuinely free 11 AM works. Automated cross-account/exact-time regressions pass; basic two-account test reported successful; detailed boundary checks remain. |
 | 3 | Appointment lifecycle | Chosen destination, invitation, rescheduling, cancellation and external changes verified. Booking/cancellation, end-time-based Past appointments and owner-scoped history deletion exist; invitations, rescheduling and race-safe booking remain incomplete. |
 | 4 | Privacy and failure handling | Ownership enforced even on cached credentials; browser-bound OAuth; missing/revoked/malformed calendar data blocks booking; no provider secrets/event details in errors. Hardening implemented with passing regression tests; live acceptance and narrower scopes pending. |
-| 5 | Microsoft calendar connections | Personal Outlook and work Microsoft 365 tested with appropriate permissions/admin approval. Not implemented. |
-| 6 | Mixed-provider availability | Google and Microsoft jointly block time; recurring/all-day/DST cases verified. Pending step 5. |
+| 5 | Microsoft calendar connections | Delegated personal Outlook and work Microsoft 365 OAuth, listing, booking, cancellation, refresh-token rotation, and external-delete sync are implemented. Live account/admin-policy acceptance remains. |
+| 6 | Mixed-provider availability | Google and Microsoft busy ranges are combined in the booking path. Live recurrence, all-day, DST, revocation, and race acceptance remain. |
 | 7 | Thomas's calendar inventory | Identify all five actual providers, permissions and restrictions. Apple Calendar is a client, not proof that iCloud integration is needed. Awaiting inventory. |
 | 8 | Workspaces | Separate personal/team workspaces, tab-local switching and email-bound invitations implemented. Teammate live acceptance pending. |
 | 9 | Workspace privacy and roles | Owner/manager/member permissions and isolated business data implemented; owner-only external calendar details. Employee-owned availability sharing remains pending. |
@@ -35,7 +35,7 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 | 13 | Mike's VoIP discovery | Provider documentation, SIP/transfer/presence, number routing, costs. Collect in parallel from the beginning; do not choose a carrier blindly. |
 | 14 | Stable hosted staging | Website/API/worker work without Ali's computer; stable OAuth/Slack callback URLs, small DB pool, invocation measurements. Pending. |
 | 15 | Real telephone testing | Inbound route, audio, response latency and measured provider usage. Pending. |
-| 16 | Slack approvals and transfer | Authenticated call-specific accept/decline, expiration, hang-up, busy and no-answer behavior; actual human connection. Pending. |
+| 16 | Slack alerts, approvals and transfer | Workspace install, selected channel, privacy-minimal alerts, and explicit test messages are implemented. Signed interactive accept/decline and actual human transfer remain pending. |
 | 17 | Failure paths | Calendar/Slack/carrier failures reach scheduling or a message, never invented success. Pending full integration. |
 | 18 | Production readiness | Production OAuth, privacy/retention/deletion, backups/restores, operator instructions, license/source offer and cost evidence. Pending. |
 | 19 | Pilot acceptance | Neodym/Triangle real calls pass booking, transfer and fallback journeys. Required before handover. |
@@ -46,7 +46,7 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 
 2026-09-10: Notifications, calendar source colors, workspaces and browser handoff are implemented. Added a public in-app step-by-step tutorial at `/help`, linked from sign-in, onboarding, the dashboard and Workspaces. It explains current capabilities and limitations without creating external integrations.
 
-Next: live browser handoff and teammate privacy acceptance, then stable Vercel staging with a separate voice worker. Complete appointment lifecycle and Microsoft calendars before adding Teams presence. Validate personal Outlook, Microsoft 365 and mixed Google/Microsoft conflicts. Slack should start with selected-channel alerts, then recipient-approved handoff. See the [researched integration plan](INTEGRATION_PLAN.md) for permissions, privacy, costs and acceptance order. Gather Mike's provider documentation in parallel; see [phone integration sequence](TELEPHONY_PLAN.md).
+Next: apply migration `0008_curved_nebula`, configure Microsoft Entra and Slack, then live-test personal Outlook, Microsoft 365, mixed-provider conflicts, and a privacy-safe Slack alert. After that, accept browser handoff with a teammate and deploy stable staging with a separate voice worker. Teams presence and signed Slack transfer approval follow only after those basics pass.
 
 ## Later only if required
 

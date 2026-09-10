@@ -14,8 +14,8 @@ export class CalendarScopeMissingError extends Error {
 
 /** Lists every visible calendar. Read-only calendars can block availability;
  * only writable ones may be selected as the booking destination. */
-export async function listCalendars(accessToken: string): Promise<Omit<CalendarOption, "connectionId" | "accountEmail">[]> {
-  const calendars: Omit<CalendarOption, "connectionId" | "accountEmail">[] = [];
+export async function listCalendars(accessToken: string): Promise<Omit<CalendarOption, "connectionId" | "accountEmail" | "provider">[]> {
+  const calendars: Omit<CalendarOption, "connectionId" | "accountEmail" | "provider">[] = [];
   let pageToken: string | undefined;
   do {
     const params = new URLSearchParams({ maxResults: "250", fields: "nextPageToken,items(id,summary,timeZone,primary,accessRole)" });

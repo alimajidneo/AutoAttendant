@@ -3,7 +3,7 @@ import type { Slot } from "@receptionist/core/domain/scheduling.js";
 import type { AgentConfig } from "@receptionist/core/repositories/agents.js";
 import type { CallerRow } from "@receptionist/core/repositories/callers.js";
 import type { KnowledgeEntry } from "./prompt.js";
-import type { CalendarAccess } from "@receptionist/core/providers/googleAuth.js";
+import type { CalendarAccess } from "@receptionist/core/providers/calendarAccess.js";
 
 export type CallState = {
   wasBooked: boolean;

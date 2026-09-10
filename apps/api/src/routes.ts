@@ -14,6 +14,9 @@ import { calendar } from "./modules/calendar/route.js";
 import { telephony } from "./modules/telephony/route.js";
 import { agent } from "./modules/agent/route.js";
 import { calendarOAuthCallback } from "./modules/calendar/oauth-callback.js";
+import { microsoftOAuthCallback } from "./modules/calendar/microsoft-oauth-callback.js";
+import { slackOAuthCallback } from "./modules/slack/oauth-callback.js";
+import { slack } from "./modules/slack/route.js";
 
 import { transfers } from "./modules/transfers/route.js";
 import { workspaces } from "./modules/workspaces/route.js";
@@ -30,12 +33,15 @@ const admin = new Hono<AppEnv>()
   .route("/services", services)
   .route("/settings", settings)
   .route("/calendar", calendar)
+  .route("/slack", slack)
   .route("/phone", telephony)
   .route("/agent", agent);
 
 export const routes = new Hono()
   .route("/health", health)
   .route("/calendar/oauth", calendarOAuthCallback)
+  .route("/microsoft/oauth", microsoftOAuthCallback)
+  .route("/slack/oauth", slackOAuthCallback)
   .route("/onboarding", onboarding)
   .route("/workspaces", workspaces)
   .route("/transfers", transfers)

@@ -9,7 +9,7 @@ Updated 2026-09-10. This document separates code that exists from proposed addit
 | Use business context | The call prompt includes the business description, industry, services/prices/durations, hours, timezone, caller identity when known, and approved FAQ answers. It does not browse arbitrary files or websites. |
 | Answer questions | Reads the saved Knowledge FAQs in its prompt. Unknown questions can become dashboard escalations for an authorized person to answer. |
 | Collect booking details | Uses configurable intake questions, caller name and callback information. A general appointment does not require a declared service. |
-| Check and book | Checks selected Google calendars across connected accounts, together with business hours and booking limits. Writes bookings to the chosen calendar. |
+| Check and book | Checks selected Google and Microsoft calendars across connected accounts, together with business hours and booking limits. Writes bookings to the chosen provider calendar. |
 | Find/cancel bookings | Tools can look up upcoming appointments tied to the caller number and cancel an authorized matching booking. Caller ID is not strong identity proof; sensitive workflows need additional verification before handover. Rescheduling is not a complete supported journey yet. |
 | Recognize a returning caller | Can remember a supplied name against a caller record. This is not unrestricted long-term memory or permission to disclose prior calls. |
 | Request human help | Creates unanswered-question records. The browser test can request a directory-based handoff, requiring recipient acceptance and microphone connection. Real telephone transfer remains pending. |
