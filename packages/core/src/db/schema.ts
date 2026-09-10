@@ -6,6 +6,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uuid,
@@ -262,7 +263,10 @@ export const appointments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("appointments_agent_start_time_idx").on(table.agentId, table.startTime)]
+  (table) => [
+    index("appointments_agent_start_time_idx").on(table.agentId, table.startTime),
+    index("appointments_agent_updated_idx").on(table.agentId, table.updatedAt),
+  ]
 ).enableRLS();
 
 /** Dormant legacy storage retained so upgrades never destructively drop customer credentials. */
@@ -300,3 +304,10 @@ export const calendarConnections = pgTable(
     index("calendar_connections_agent_idx").on(table.agentId),
   ],
 ).enableRLS();
+
+/** Read receipts only; notification text stays in its original owner-scoped records. */
+export const notificationReads = pgTable("notification_reads", {
+  agentId: uuid("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  notificationId: text("notification_id").notNull(),
+  seenThrough: timestamp("seen_through", { withTimezone: true }).notNull(),
+}, table => [primaryKey({ columns: [table.agentId, table.notificationId] })]).enableRLS();

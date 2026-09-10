@@ -19,6 +19,7 @@ const okCalendar = () =>
   makeAgentDeps({
     calendarExternalId: "cal-1",
     getCalendarAccess: async () => ({
+      accounts: [],
       booking: { connectionId: "00000000-0000-4000-8000-000000000001", calendarId: "primary", token: "token-1" },
       conflicts: [{ connectionId: "00000000-0000-4000-8000-000000000001", calendarIds: ["primary"], token: "token-1" }],
     }),
@@ -65,6 +66,7 @@ describe("every tool returns a result to the model", () => {
   it("checks calendars from every connected Google account", async () => {
     const deps = okCalendar();
     deps.getCalendarAccess = async () => ({
+      accounts: [],
       booking: { connectionId: "connection-1", calendarId: "cal-1", token: "token-1" },
       conflicts: [
         { connectionId: "connection-1", calendarIds: ["cal-1", "cal-2"], token: "token-1" },
@@ -341,6 +343,7 @@ describe("cross-account scheduling privacy", () => {
     vi.setSystemTime(new Date("2026-09-08T12:00:00Z"));
     const deps = okCalendar();
     deps.getCalendarAccess = async () => ({
+      accounts: [],
       booking: { connectionId: "work", calendarId: "cal-1", token: "work-token" },
       conflicts: [
         { connectionId: "work", calendarIds: ["cal-1"], token: "work-token" },

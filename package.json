@@ -1,6 +1,6 @@
 {
   "name": "deskroute",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "private": true,
   "packageManager": "pnpm@10.34.5",
   "type": "module",
@@ -14,7 +14,7 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -F web lint",
     "test": "vitest run --project unit",
-    "test:int": "DATABASE_URL=postgresql://deskroute:deskroute@localhost:5433/deskroute_test pnpm -F @receptionist/core exec drizzle-kit migrate && vitest run --project int",
+    "test:int": "DATABASE_URL=postgresql://deskroute:deskroute@localhost:5433/deskroute_test pnpm -F @receptionist/core exec node tests/prepare-db.mjs && DATABASE_URL=postgresql://deskroute:deskroute@localhost:5433/deskroute_test pnpm -F @receptionist/core exec drizzle-kit migrate && vitest run --project int",
     "test:live": "vitest run --project live",
     "test:web": "pnpm -F web test",
     "db:generate": "pnpm -F @receptionist/core exec dotenv -e .env -- drizzle-kit generate",

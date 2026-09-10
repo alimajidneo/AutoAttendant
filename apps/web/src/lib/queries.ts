@@ -1,6 +1,7 @@
 import { apiClient } from './apiClient'
 import type {
   DashboardMetrics,
+  NotificationItem,
   EscalationItem,
   KnowledgeItem,
   CallListItem,
@@ -14,6 +15,7 @@ import type { Period } from './types'
 import type { AppSettings } from './settings-types'
 
 export const keys = {
+  notifications: ['notifications'] as const,
   /* Prefixes, so an invalidation meaning "every period" is written in these keys
      rather than a bare array that stops matching when the shape changes. */
   metricsAll: ['metrics'] as const,
@@ -31,6 +33,7 @@ export const keys = {
 }
 
 export const fetchers = {
+  notifications: () => apiClient.get<NotificationItem[]>('/admin/notifications').then(r => r.data),
   metrics: (period: Period) =>
     apiClient.get<DashboardMetrics>(`/admin/metrics?period=${period}`).then((r) => r.data),
 

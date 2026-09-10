@@ -1,246 +1,148 @@
-> **Current scope (2026-09-09):** [Delivery roadmap](docs/ROADMAP.md) — verify multiple Google/Microsoft calendars and privacy first, then company workspaces, employees and call routing. Workspace support is agreed, not yet implemented.
-
 # DeskRoute
 
-**Current development:** receptionist for USA customer handover using Supabase PostgreSQL, Supabase Auth, and LiveKit, with browser testing as the first milestone. Start with [SCOPE.md](SCOPE.md), [setup](docs/SETUP.md), and [decisions](docs/DECISIONS.md). Onboarding no longer requires a phone purchase. The upstream phone capabilities described below remain available for a later milestone.
+Neodym's AI receptionist for USA customer teams. The receptionist answers business questions, checks selected calendars across Google accounts, books appointments, and sends questions it cannot answer to the owner's dashboard.
 
-An AI receptionist for appointment-based local businesses. Customers call a real US phone number - DeskRoute answers, books appointments via Google Calendar, and escalates anything it can't handle to the business owner through an admin dashboard.
+**Version 1.0.21 · Updated 2026-09-10**
 
-Self-hosted and open source. One deployment runs one or more agents.
+This repository is under active development. Browser voice calls and Google booking have been tested. Human transfers, Microsoft calendars and shared company workspaces are still planned. The intended deployment is a Vercel website/HTTP API plus a separately hosted LiveKit voice worker.
 
-**[ARCHITECTURE.md](ARCHITECTURE.md)** describes the whole system: layout, the call path, the schema, the design system, and the reasoning behind every rule.
+- [Setup instructions](docs/SETUP.md)
+- [Ordered delivery roadmap](docs/ROADMAP.md)
+- [Calendar acceptance checklist and evidence](docs/CALENDAR_TESTING.md)
+- [Notifications and calendar source colors](docs/NOTIFICATIONS_AND_CALENDAR_SOURCES.md)
+- [Phone integration sequence](docs/TELEPHONY_PLAN.md)
+- [Architecture](ARCHITECTURE.md) · [Decisions](docs/DECISIONS.md) · [Vercel feasibility](docs/VERCEL_FEASIBILITY.md)
 
-## Features
+## Current functionality
 
-- **Real phone calls** - LiveKit Phone Numbers, no SIP trunk setup required
-- **Answers from context** - services, pricing, business details *and the whole knowledge base* baked into the system prompt at call start, so no tool call and no retrieval round trip
-- **Knowledge base** - question/answer pairs built from resolved escalations, inlined into the prompt at call start
-- **Real opening hours** - a weekly pattern with lunch closures, days you're shut, and one-off dates for holidays. Your agent answers "are you open Saturday?" without asking you
-- **Services with real durations** - each one has its own length, plus optional setup and cleanup time that blocks your calendar without the caller ever hearing about it
-- **Appointment booking that respects both** - the agent only offers times you're actually open, long enough for the service booked, and free on your calendar. It re-checks the moment before it books, so a slot taken mid-conversation doesn't become a double booking
-- **AI disclosure on every call** - callers are told they're speaking to an AI before anything else is said. Required by law in several US states, and not editable by the business
-- **Recording is the business's choice** - turn it off, or leave the `R2_*` variables unset, and nothing is stored. The disclosure stops claiming otherwise either way, and each call records which wording it played
-- **Bookings have a name on them** - the agent asks who is coming *when it books*, never while you're just asking a question. The name lands on the calendar entry, the appointment, and the caller's record for next time
-- **Escalation loop** - unanswerable questions flagged for admin review; resolved answers auto-populate the knowledge base
-- **Call recordings** - recorded calls get audio alongside the full transcript and AI-generated summary; transcript and summary are kept either way
-- **In-browser agent test** - talk to your agent live from the dashboard, no phone call. Nothing is recorded and no call is logged, but booking is real: a test session writes a genuine appointment and calendar event
-- **Admin dashboard** - the call log, a queue for answering escalations, a day-by-day view of what is booked, the knowledge base, and settings
-- **More than one agent per install** - every table is agent-scoped, so a second business, a second location or a second line is another row rather than another deployment
+- Supabase Auth for DeskRoute sign-in; separate OAuth connections for additional Google accounts.
+- Multiple Google accounts and multiple calendars per account. The owner chooses which calendars block availability and one destination for new bookings.
+- Business hours, exceptions, timezone, booking notice/horizon, services and general appointments.
+- Configurable receptionist instructions, FAQ knowledge and caller intake questions.
+- Browser voice testing through LiveKit; bookings made during a test are real Google Calendar events.
+- Calendar month grid and daily agenda, including personal events from the owner's explicitly selected calendars.
+- Google-account colors shared by every calendar from that account, with a named source legend below the calendar and source text on daily events.
+- Upcoming/ongoing bookings and Past appointments, classified by end time. History deletion removes the DeskRoute booking row while retaining its Google event.
+- In-app notification bell with unread count, record links and persistent read status across devices. Includes bookings, requests, cancellations, pending questions and failed calls.
+- Calls, transcripts, summaries, optional recordings, questions awaiting answers and FAQ management.
+- Light/dark themes, profile details and loading indicators.
 
+On **2026-09-10**, Ali reported the two-Google-account test was successful. Detailed failure, revocation, cross-owner and simultaneous-booking acceptance are separate checks; a successful basic test does not establish production readiness.
 
-## How It Works
+## Notifications
 
-1. Customer calls the business's US phone number
-2. LiveKit routes the call to the AI agent worker via SIP
-3. The dialled number is matched against `phone_numbers` to pick which agent answers. That agent builds a system prompt from its business context and speaks - the AI disclosure first, mentioning recording only when recording is on, then the business's own greeting
-4. STT → LLM → TTS pipeline handles the conversation; the audio turn detector decides when the caller has finished
-5. Pricing, opening hours and knowledge-base answers come straight from the system prompt - no tool calls needed
-6. Genuinely unknown questions are flagged for admin review
-7. Bookings: the agent asks what service and roughly when, the backend works out which slots actually exist from your hours and that service's length, and reads back two or three. The caller picks one, the agent takes their name, and it's confirmed into your calendar
-8. On hang-up: transcript extracted, summary generated, call record finalized
+Open the top-bar bell. Select a notification to mark it read and open its related page, or use **Mark all read** for the displayed unread items. **Refresh** checks for new activity.
 
+The feed shows the latest **50 records from the last 30 days**. It loads with the dashboard and refreshes when opened, explicitly refreshed, or affected by supported actions in the app. It does not continuously poll, send email/SMS, or request browser push permission. Unanswered questions remain available on the Questions page even after leaving this recent feed.
 
-## Versioning
+Read receipts are stored in PostgreSQL behind the authenticated API. The read request identifies the version displayed, so a cancellation arriving during the request remains unread. Notification text is derived from the original records rather than copied into a second event log. See [behavior, privacy and limitations](docs/NOTIFICATIONS_AND_CALENDAR_SOURCES.md).
 
-`major.minor.patch`, tracked in the root `package.json`. Currently **1.0.18**.
+## Google account and calendar selection
 
-## Screenshots
+1. Sign in to the DeskRoute account that owns the receptionist.
+2. Open **Settings → Connections → Google Calendar → Manage**.
+3. Use **Connect account** for another Gmail/Workspace identity. This does not change your DeskRoute login.
+4. Choose the **Booking calendar**, then enable all intended calendars under **Calendars that block free time**.
+5. Click **Save calendar settings**, return to Appointments, and refresh.
 
-**Home** - how the phone did this month, and every call it took
-<img src="screenshots/dashboard.png" alt="Home - call stats and recent call history" width="780">
+“0 calendars included” means the account is connected but none of its calendars is selected. Unselected calendars are excluded from display and conflict checks. Google-created events appear in the grid/agenda; Upcoming/Past lists hold receptionist bookings.
 
-**A call** - what it was about, in one line, then the whole transcript
-<img src="screenshots/call-details.png" alt="A call - summary and full transcript" width="780">
+Colors identify accounts, not appointment status. The legend remains present for selected calendars even in a month without events. Shared calendars selected through two connections are displayed once. The eight-color palette repeats beyond eight accounts; account names remain visible.
 
-**Escalations** - what your agent could not answer. Answer once, and it never asks again
-<img src="screenshots/escalation.png" alt="Escalations - questions the agent could not answer" width="780">
+## Run locally
 
-**Settings** - one row per setting: what it is and what it does on the left, the control on the right
-<img src="screenshots/settings.png" alt="Settings - services, phone number and Google Calendar" width="780">
-
-**Opening hours** - a weekly pattern with lunch closures and days you're shut, plus one-off dates for holidays
-<img src="screenshots/settings-hours.png" alt="Settings - opening hours, holidays and the booking window" width="780">
-
-**Your agent** - the disclosure it must say, then the phrases that repeat on every call
-<img src="screenshots/settings-agent.png" alt="Settings - the AI disclosure and the agent's phrases" width="780">
-
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| API server | Hono (Node.js, ESM) |
-| Database | Postgres 17 + Drizzle ORM |
-| Auth | Supabase Auth (Google sign-in) |
-| Voice pipeline | LiveKit Agents SDK |
-| STT | AssemblyAI universal-3-5-pro (LiveKit Inference) |
-| LLM | LiveKit Inference by default; OpenRouter via `LLM_PROVIDER` |
-| TTS | Cartesia Sonic 3.5 (LiveKit Inference) |
-| Noise cancellation | Krisp telephony model, SIP calls only |
-| Turn detection | LiveKit audio turn detector (`inference.TurnDetector`) |
-| Tests | Vitest + Docker `postgres:17-alpine` |
-| VAD | Silero |
-| Telephony | LiveKit Phone Numbers |
-| Calendar | Google Calendar API |
-| Recordings | Cloudflare R2 |
-| Frontend | React 19 + Vite + TypeScript |
-| Typeface | Host Grotesk, body weight 450 |
-| UI | Tailwind v4 + shadcn/ui on Base UI primitives |
-| Design tokens | Warm LCH ladder from one anchor plus a contrast dial, re-anchored per depth, with chroma proportional to lightness; laws and contrast floors enforced by test |
-| Data fetching | TanStack Query v5 |
-
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 22+
-- [LiveKit Cloud](https://cloud.livekit.io) project with a US phone number purchased and a SIP dispatch rule configured
-- [Supabase](https://supabase.com) project with Google sign-in enabled; follow [setup](docs/SETUP.md)
-- [Cloudflare R2](https://developers.cloudflare.com/r2/) bucket, only if you want call recordings
-- [OpenRouter](https://openrouter.ai) API key, only when `LLM_PROVIDER=openrouter`
-- [Docker](https://www.docker.com) for the development and test databases
-
-### Install
+Requires Node.js 22+, pnpm, a configured Supabase project and the credentials described in [SETUP.md](docs/SETUP.md). A phone number is not required for browser testing. R2 is optional for recordings; OpenRouter is optional when selected as the model provider.
 
 ```bash
-git clone https://github.com/PrabhatMattoo/DeskRoute.git
-cd DeskRoute
+git clone https://github.com/alimajidneo/AutoAttendant.git
+cd AutoAttendant
 pnpm install
 ```
 
-A pnpm workspace. `apps/api`, `apps/voice` and `apps/web` are the three processes; `packages/core` holds the database, repositories, providers and domain logic they share; `packages/shared` holds the types the browser needs too.
+Copy the package-specific `.env.example` files and fill the values locally. Keep secrets out of Git. Follow the setup guide for Supabase and the Google OAuth callback; calendar connection uses `/api/calendar/oauth/callback` on the API origin.
 
-### Environment
-
-Each package owns the variables it reads, and every one ships an `.env.example` beside it. Copy each to `.env` and fill it in.
-
-**`apps/api/.env`** and **`apps/voice/.env`** share the first block:
-
-```env
-DATABASE_URL=                  # postgresql://deskroute:deskroute@localhost:5432/deskroute
-LIVEKIT_URL=                   # wss://your-project.livekit.cloud
-LIVEKIT_API_KEY=
-LIVEKIT_API_SECRET=
-SUPABASE_URL=
-SUPABASE_PUBLISHABLE_KEY=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-TOKEN_ENCRYPTION_KEY=
-
-# Recording storage. Set all four, or none to run without recording.
-R2_ACCOUNT_ID=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET_NAME=
-```
-
-**`apps/api/.env`** adds:
-
-```env
-PORT=8080
-DASHBOARD_ORIGINS=             # comma-separated; defaults to http://localhost:5173
-PUBLIC_API_URL=http://localhost:8080 # public API origin used by Google Calendar OAuth
-                               # any localhost port is accepted when a localhost origin is listed
-```
-
-**`apps/voice/.env`** adds:
-
-```env
-LLM_PROVIDER=                  # "livekit" (default) or "openrouter"
-LLM_MODEL=                     # id in the selected provider's format, e.g. google/gemini-3.5-flash
-SUMMARY_LLM_MODEL=             # model for post-call summaries (can match LLM_MODEL)
-OPENROUTER_API_KEY=            # required when LLM_PROVIDER=openrouter
-OPENROUTER_BASE_URL=           # https://openrouter.ai/api/v1
-```
-
-**`packages/core/.env`** holds `DATABASE_URL` alone, for `drizzle-kit`.
-
-**`apps/web/.env.local`**
-```env
-VITE_SUPABASE_URL=
-VITE_SUPABASE_PUBLISHABLE_KEY=
-VITE_API_URL=http://localhost:8080/api
-```
-
-### Database
+Apply committed migrations before starting an updated API:
 
 ```bash
-pnpm db:generate   # generate a migration from schema changes
-pnpm db:migrate    # apply to the database in DATABASE_URL
+pnpm db:migrate
 ```
 
-The chain runs against any empty Postgres, and `packages/core/tests/migrations.int.test.ts` proves it on a throwaway database.
+Migration `0006_spooky_rhino` adds notification read receipts and an appointment-update index. Existing accounts and calendar connections remain in place. Migration `0004` expects Supabase's `auth.users` for legacy account import; the local integration test runner supplies an empty fixture for plain PostgreSQL.
 
-### Tests
+Run in separate terminals:
 
 ```bash
-docker compose up -d   # dev Postgres on 5432, throwaway test Postgres on 5433
-pnpm test              # unit + agent tests (no DB, no network)
-pnpm test:int          # repository tests against the test Postgres
-pnpm test:live         # real Google Calendar; needs apps/voice/.env
-pnpm test:web          # the design-token contract
-pnpm typecheck         # tsc --noEmit across every package
+pnpm dev:api        # http://localhost:8080
+pnpm dev:web        # http://localhost:5173
+pnpm dev:voice      # needed for browser/telephone voice calls
 ```
 
-`test:live` is the only suite that runs against real credentials. It reads the development database to find an agent with a connected calendar, gets that agent's Google token the same way a live call does, and books and cancels one clearly-labelled event to prove the padded block is actually reserved — because if an event covers only the appointment and not its buffers, freeBusy reports the setup and cleanup free and the next caller is offered them. It writes nothing to the database, and skips with a reason if no calendar is connected. Point it at a specific agent with `LIVE_AGENT_ID`.
+Or use `pnpm dev` for all three. Do not start duplicate servers on the same ports. Stop a process with Ctrl+C before restarting it.
 
-The web suite is the colour contract rather than component tests. One surface is given, the stage, and every other colour is a departure from it, so the suite asserts *relationships* rather than values: the anchor holds still as contrast moves, surfaces and controls travel in opposite directions, ink mixes toward the pole instead of stepping a fixed distance, chroma moves in proportion to lightness, no line is ever lighter than what it edges, every overlay carries an edge, nothing anywhere is smaller than 14px, and every pair clears its floor **on the ground it actually lands on**.
+## Stack and deployment
 
-Break a law in `index.css` and the suite goes red. That is the point of it.
+| Component | Technology / role |
+| --- | --- |
+| Website | React, Vite, TypeScript, Tailwind, TanStack Query |
+| HTTP API | Hono on Node.js |
+| Database | Supabase PostgreSQL with Drizzle migrations and repositories |
+| Sign-in | Supabase Auth |
+| Calendar integrations | Google OAuth + Google Calendar API; Microsoft planned |
+| Voice worker | LiveKit Agents, configurable STT/LLM/TTS |
+| Recordings | Optional Cloudflare R2 |
+| Telephony | LiveKit SIP/phone-number integration; Mike's provider discovery and real-call acceptance pending |
+| Deployment target | Vercel website/API, separate persistent worker |
 
-### Run
+Private records are scoped to the authenticated receptionist owner. Database RLS is enabled and the browser uses the authenticated API; Supabase's unused Data API stays disabled. Shared workspaces must add explicit member permissions and availability sharing before exposing any employee data.
+
+## Verification
 
 ```bash
-pnpm dev            # runs all three below at once via concurrently
+pnpm test          # mocked backend/voice tests; no paid calls
+pnpm typecheck
+pnpm lint
+pnpm build
+pnpm test:web
 
-# …or run them in separate terminals:
-pnpm dev:api        # API server → http://localhost:8080
-pnpm dev:voice      # LiveKit worker - keep running alongside the API
-pnpm dev:web        # Admin dashboard → http://localhost:5173
+docker compose up -d test-db
+pnpm test:int      # disposable local PostgreSQL only
 ```
 
+`pnpm test:live` uses real credentials and writes Google Calendar test events; it is separate from the above checks. The integration runner refuses a non-local or differently named test database before creating fixtures or clearing test records.
 
-## API Reference
+See [verification evidence](docs/NOTIFICATIONS_AND_CALENDAR_SOURCES.md#verification) for this release. Five existing web design-contract failures conflict with the current approved colors/theme and sign-in width; they are documented and have not been disabled.
 
-Public:
+## Remaining delivery work
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/health` | Liveness check |
-| POST | `/api/onboarding` | Create agent + purchase phone number |
-| GET | `/api/onboarding/phone/search?areaCode=415` | Search available numbers (`areaCode` optional) |
+1. Complete rescheduling, invitations, external time-change synchronization and simultaneous-booking protection.
+2. Test remaining calendar privacy/failure cases and add Microsoft calendar support.
+3. Add company workspaces, employee ownership and explicit availability sharing.
+4. Add departments, approved transfer destinations and fallback rules.
+5. Integrate Mike's phone system and test inbound calls, assisted transfers, no-answer and hang-up behavior.
+6. Add Slack transfer approvals after phone transfers work.
+7. Deploy stable staging, finish production OAuth and verify privacy, backups and actual provider costs.
 
-Admin - `Authorization: Bearer <supabase_access_token>` required:
+Provider discovery and a small telephone connectivity test can proceed before the complete team-routing product. See [the phone integration sequence](docs/TELEPHONY_PLAN.md). Do not port the customer's main number during early testing.
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/admin/metrics?period=30d` | KPI counts |
-| GET | `/api/admin/calls` | Paginated call history |
-| GET | `/api/admin/calls/:id` | Call detail with transcript |
-| GET | `/api/admin/calls/:id/recording` | Presigned recording URL |
-| GET | `/api/admin/escalations?status=pending` | Escalation list |
-| POST | `/api/admin/escalations/:id/resolve` | Resolve + add to knowledge base |
-| GET | `/api/admin/knowledge` | Knowledge base items |
-| DELETE | `/api/admin/knowledge/:id` | Delete knowledge item |
-| GET | `/api/admin/appointments` | Appointment list |
-| GET | `/api/admin/services` | Services, in display order |
-| POST | `/api/admin/services` | Add a service |
-| PATCH | `/api/admin/services/:id` | Update a service |
-| DELETE | `/api/admin/services/:id` | Remove a service |
-| GET | `/api/admin/calendar/list` | Calendars the connected Google account can write to |
-| PATCH | `/api/admin/calendar` | Choose which calendar holds appointments |
-| DELETE | `/api/admin/calendar` | Disconnect the calendar |
-| GET | `/api/admin/settings` | Agent settings, opening hours, booking window and recording |
-| PATCH | `/api/admin/settings` | Update settings, hours or booking window |
-| GET | `/api/admin/phone/search?areaCode=415` | Search available numbers (`areaCode` optional) |
-| POST | `/api/admin/phone/provision` | Purchase phone number |
-| DELETE | `/api/admin/phone` | Release phone number |
-| POST | `/api/admin/agent/test` | Create a browser test session (room + join token) |
+## API additions
 
+All `/api/admin/*` endpoints require a valid DeskRoute session and an owned receptionist.
 
-## License
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/admin/notifications` | Latest 50 owner-scoped notifications from 30 days |
+| POST | `/api/admin/notifications/read` | Mark up to 50 displayed notification versions read |
+| GET | `/api/admin/appointments` | DeskRoute booking records (currently capped at 100) |
+| GET | `/api/admin/appointments/calendar?timeMin=…&timeMax=…` | Selected Google events and account/calendar sources; at most 45 days |
+| POST | `/api/admin/appointments/sync` | Reconcile deleted Google events and refresh bookings |
+| DELETE | `/api/admin/appointments/:id` | Cancel booking and remove its Google event |
+| DELETE | `/api/admin/appointments/history/:id` | Delete an ended DeskRoute booking, retaining Google event |
+| GET | `/api/admin/calendar/list` | Connected Google accounts and available calendars |
+| PATCH | `/api/admin/calendar` | Save booking destination and conflict selection |
+| DELETE | `/api/admin/calendar/:connectionId` | Disconnect one account |
 
-[AGPL-3.0](LICENSE) © 2026 Prabhat Mattoo
+Other API modules cover onboarding, settings, calls, questions, knowledge, services, phone provisioning and browser voice sessions. Their routes are defined in `apps/api/src/routes.ts`.
 
-Self-host it freely. If you run a modified version as a network service, section 13 requires that its users can obtain the source of your changes. The dashboard carries a Source link in its sidebar for exactly that; point it at your own fork if you modify it.
+## License and upstream
+
+[AGPL-3.0](LICENSE). Original DeskRoute © 2026 Prabhat Mattoo; [upstream project](https://github.com/PrabhatMattoo/DeskRoute). This repository contains Neodym's modifications; [the corresponding source is available here](https://github.com/alimajidneo/AutoAttendant).

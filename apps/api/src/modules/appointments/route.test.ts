@@ -37,6 +37,7 @@ app.onError((_error, c) => c.json({ error: "failed" }, 500));
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getAgentCalendarAccess.mockResolvedValue({
+    accounts: [{ connectionId: "connection-1", accountEmail: "first@example.test", colorIndex: 0 }],
     booking: { connectionId: "connection-1", calendarId: "cal-1", token: "token-1" },
     conflicts: [{ connectionId: "connection-1", calendarIds: ["cal-1"], token: "token-1" }],
   });
@@ -132,7 +133,7 @@ describe("calendar view", () => {
     );
 
     expect(response.status).toBe(200);
-    expect((await response.json())[0]?.title).toBe("Dentist");
+    expect((await response.json()).events[0]?.title).toBe("Dentist");
     expect(mocks.listCalendarEvents).toHaveBeenCalledWith(
       "token-1",
       "cal-1",
@@ -223,7 +224,10 @@ describe("past appointment history deletion", () => {
 
 describe("multiple-account calendar display", () => {
   it("reads every selected calendar across accounts and reads shared calendars only once", async () => {
-    mocks.getAgentCalendarAccess.mockResolvedValue({ conflicts: [
+    mocks.getAgentCalendarAccess.mockResolvedValue({ accounts: [
+      { connectionId: "connection-1", accountEmail: "first@example.test", colorIndex: 0 },
+      { connectionId: "connection-2", accountEmail: "second@example.test", colorIndex: 1 },
+    ], conflicts: [
       { connectionId: "connection-1", token: "token-1", calendarIds: ["cal-1", "shared"] },
       { connectionId: "connection-2", token: "token-2", calendarIds: ["cal-2", "shared"] },
     ] });
@@ -232,6 +236,22 @@ describe("multiple-account calendar display", () => {
     expect(response.status).toBe(200);
     expect(mocks.listCalendarEvents).toHaveBeenCalledTimes(3);
     expect(mocks.listCalendarEvents).toHaveBeenCalledWith("token-2", "cal-2", "2026-09-01T00:00:00.000Z", "2026-10-01T00:00:00.000Z");
-    expect((await response.json()).map((event: { calendarId: string }) => event.calendarId)).toEqual(["cal-1", "shared", "cal-2"]);
+    const body = await response.json();
+    expect(body.events.map((event: { calendarId: string }) => event.calendarId)).toEqual(["cal-1", "shared", "cal-2"]);
+    expect(body.sources.find((source: { calendarId: string }) => source.calendarId === "cal-2")).toMatchObject({
+      connectionId: "connection-2", accountEmail: "second@example.test", colorIndex: 1,
+    });
+    expect(JSON.stringify(body)).not.toContain("token-");
+  });
+});
+
+
+describe("calendar source legend", () => {
+  it("returns selected sources even when the displayed month has no events", async () => {
+    mocks.listCalendarEvents.mockResolvedValue([]);
+    const response = await app.request("/appointments/calendar?timeMin=2026-09-01&timeMax=2026-10-01");
+    const body = await response.json();
+    expect(body.events).toEqual([]);
+    expect(body.sources).toEqual([{ connectionId: "connection-1", accountEmail: "first@example.test", colorIndex: 0, calendarId: "cal-1", calendarName: "cal-1" }]);
   });
 });

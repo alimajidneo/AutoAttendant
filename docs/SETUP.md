@@ -430,3 +430,14 @@ Use the dashboard browser test, allow microphone access, and make a short test c
 | Worker rejects model configuration | `LLM_MODEL` and `SUMMARY_LLM_MODEL` need verified IDs before startup. |
 
 When reporting an error, send its text with credentials removed and say which command or screen produced it. For current development, finish Supabase section 2 first. Customer handover additionally requires verified Supabase Auth, calendar token renewal, US inbound calling and transfers, customer isolation, deployment/restart checks, recovery procedures, and an accurate operating-cost record. These checks are not yet complete.
+
+
+## Notification center and source colors (1.0.21)
+
+Run `pnpm db:migrate` before starting the updated API. Migration `0006_spooky_rhino` creates `notification_reads` with RLS and an appointment-update index. No new environment variables or service account are required. Restart `pnpm dev:api` and refresh the web page.
+
+The top-bar bell opens the notification center; read status persists across devices. It refreshes when opened or manually refreshed, without background polling. See [notification behavior and tests](NOTIFICATIONS_AND_CALENDAR_SOURCES.md).
+
+Calendar event colors now identify Google accounts. Below the calendar, the source legend lists account email addresses and selected calendar names. If an account shows zero included calendars, turn on its calendar in Connections and save. Connecting an account alone does not enable its calendars.
+
+For SIM/mobile-number versus SIP/phone-system setup and when to start telephone testing, follow [TELEPHONY_PLAN.md](TELEPHONY_PLAN.md).

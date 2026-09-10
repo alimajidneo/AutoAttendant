@@ -7,7 +7,7 @@ export type CalendarConnectionRow = typeof calendarConnections.$inferSelect;
 export function listCalendarConnections(agentId: string) {
   return db.select().from(calendarConnections)
     .where(eq(calendarConnections.agentId, agentId))
-    .orderBy(calendarConnections.createdAt);
+    .orderBy(calendarConnections.createdAt, calendarConnections.id);
 }
 
 export async function getCalendarConnection(agentId: string, id: string) {

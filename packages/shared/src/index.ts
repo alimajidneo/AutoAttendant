@@ -276,3 +276,32 @@ export interface BusinessSettings {
   calendarExternalId: string | null;
   calendarPayload: CalendarPayload | null;
 }
+
+
+export interface NotificationItem {
+  id: string;
+  kind: "booking" | "cancellation" | "request" | "question" | "call-error";
+  title: string;
+  description: string;
+  occurredAt: string;
+  href: string;
+  read: boolean;
+}
+
+export interface NotificationReadInput {
+  id: string;
+  occurredAt: string;
+}
+
+export interface CalendarAgendaSource {
+  connectionId: string;
+  accountEmail: string;
+  calendarId: string;
+  calendarName: string;
+  colorIndex: number;
+}
+
+export interface CalendarAgenda {
+  events: CalendarAgendaEvent[];
+  sources: CalendarAgendaSource[];
+}

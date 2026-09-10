@@ -1,12 +1,12 @@
 # Google calendar acceptance — first delivery gate
 
-Scope and order: [ROADMAP.md](ROADMAP.md). Last reviewed 2026-09-09.
+Scope and order: [ROADMAP.md](ROADMAP.md). Last reviewed 2026-09-10.
 
 ## Evidence and current limits
 
 - Historical manual evidence: Google sign-in, onboarding, a browser voice call and one real calendar booking worked. This is not proof of two-account scheduling.
 - Read-only database check on 2026-09-09: two DeskRoute owners; one has two connected Google accounts and one explicitly selected conflict calendar; the other has no connected accounts. Connecting the second account does not automatically select its calendars for display or availability checks. No calendar event data was read or changed by this check.
-- Multi-Google-account live acceptance: pending. Use one DeskRoute login and connect a second Google account through Connections; do not sign out and create a second DeskRoute user.
+- User-reported evidence on 2026-09-10: the two-Google-account test was successful. This confirms the reported basic multi-account workflow; detailed revocation, race and cross-owner tests remain separate. Use one DeskRoute login and connect a second Google account through Connections; do not sign out and create a second DeskRoute user.
 - Google event invitations and rescheduling are not implemented. The event-creation payload has no attendee email. Do not promise email invitations or call the appointment lifecycle complete.
 - Reconciliation verifies deletion before marking a local appointment cancelled. Moving an event outside its original date window no longer counts as deletion, but its new date is not yet copied into the local appointment.
 - Booking does a fresh conflict recheck but is not yet protected against two simultaneous callers racing the event write, or a retry after an uncertain provider write. A reservation/idempotency design and integration tests remain release work.

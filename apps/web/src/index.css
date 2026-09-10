@@ -697,3 +697,24 @@
 .test-agent-viz .lk-audio-bar[data-lk-highlighted="true"] {
   opacity: 1;
 }
+
+
+/* Account colors apply equally to bookings and personal events. */
+.calendar-source-blue { --calendar-color: var(--accent-ink); }
+.calendar-source-violet { --calendar-color: var(--violet); }
+.calendar-source-green { --calendar-color: var(--success); }
+.calendar-source-amber { --calendar-color: var(--warning); }
+.calendar-source-pink { --calendar-color: #be2873; }
+.calendar-source-teal { --calendar-color: #087c84; }
+.calendar-source-orange { --calendar-color: #b8500a; }
+.calendar-source-slate { --calendar-color: #52657d; }
+.dark .calendar-source-pink { --calendar-color: #ff91c4; }
+.dark .calendar-source-teal { --calendar-color: #5cdbd4; }
+.dark .calendar-source-orange { --calendar-color: #ffb374; }
+.dark .calendar-source-slate { --calendar-color: #b4c8e0; }
+.calendar-event-chip {
+  color: var(--calendar-color);
+  border-color: var(--calendar-color);
+  background: color-mix(in srgb, var(--calendar-color) 12%, var(--card));
+}
+.calendar-source-dot { background: var(--calendar-color); }

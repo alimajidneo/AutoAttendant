@@ -43,6 +43,13 @@
       "when": 1788929666309,
       "tag": "0005_third_morgan_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789011990800,
+      "tag": "0006_spooky_rhino",
+      "breakpoints": true
     }
   ]
 }

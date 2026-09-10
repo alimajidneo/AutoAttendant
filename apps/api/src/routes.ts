@@ -15,8 +15,11 @@ import { telephony } from "./modules/telephony/route.js";
 import { agent } from "./modules/agent/route.js";
 import { calendarOAuthCallback } from "./modules/calendar/oauth-callback.js";
 
+import { notifications } from "./modules/notifications/route.js";
+
 const admin = new Hono<AppEnv>()
   .use("*", authenticate, requireAgent)
+  .route("/notifications", notifications)
   .route("/metrics", metrics)
   .route("/calls", calls)
   .route("/escalations", escalations)

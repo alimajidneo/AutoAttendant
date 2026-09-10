@@ -1,3 +1,4 @@
+import type { CalendarAgendaSource } from "@receptionist/shared";
 import { Hono } from "hono";
 import type { AppEnv } from "../../types.js";
 import {
@@ -50,13 +51,22 @@ export const appointments = new Hono<AppEnv>()
     const access = await getAgentCalendarAccess(agent.id, agent.calendarExternalId, agent.calendarPayload);
     if (!access) return c.json({ error: "Reconnect Google Calendar" }, 409);
     const calendars = new Map<string, string>();
+    const sources: CalendarAgendaSource[] = [];
     for (const group of access.conflicts) {
-      for (const calendarId of group.calendarIds) if (!calendars.has(calendarId)) calendars.set(calendarId, group.token);
+      const account = access.accounts.find(item => item.connectionId === group.connectionId);
+      if (!account) return c.json({ error: "Calendar account unavailable" }, 409);
+      for (const calendarId of group.calendarIds) {
+        if (calendars.has(calendarId)) continue;
+        calendars.set(calendarId, group.token);
+        const reference = agent.calendarPayload?.conflictCalendars?.find(item => item.connectionId === group.connectionId && item.id === calendarId);
+        sources.push({ ...account, calendarId, calendarName: reference?.summary
+          ?? (calendarId === agent.calendarExternalId ? agent.calendarPayload?.summary : undefined) ?? calendarId });
+      }
     }
     const results = await Promise.all([...calendars].map(([calendarId, token]) =>
       listCalendarEvents(token, calendarId, timeMin.toISOString(), timeMax.toISOString()),
     ));
-    return c.json(results.flat());
+    return c.json({ events: results.flat(), sources });
   })
   .post("/sync", async (c) => {
     const agentId = c.get("agentId");

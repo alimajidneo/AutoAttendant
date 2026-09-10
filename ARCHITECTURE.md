@@ -347,3 +347,10 @@ Google credentials travel in request headers or POST bodies, not tokeninfo query
 Calendar reads are time-bounded. Missing calendars, per-calendar errors and malformed busy intervals are failures, not free time. Calendar lists follow pagination. Cancellation uses the connection saved with the appointment even after the booking destination changes. Reconciliation checks an absent event by ID before assuming deletion; it does not yet synchronize moved times.
 
 The dashboard uses a five-minute stale time, at most one query retry and no focus-triggered refetch. Production defaults to `/api`; dashboard aggregation, deployment adapters and measured invocation budgets remain pending. See `docs/CALENDAR_TESTING.md` for evidence and remaining booking/privacy limitations.
+
+
+## Notifications and calendar sources (1.0.21)
+
+The notification module derives a bounded recent feed from owner-scoped appointments, pending escalations and failed calls. `notification_reads` stores only owner, notification identity and the displayed timestamp; a status-specific appointment identity makes cancellations unread even within the same millisecond. RLS stays enabled without browser policies. Reads refresh on explicit interaction instead of polling. Details and limits: [notifications/source behavior](docs/NOTIFICATIONS_AND_CALENDAR_SOURCES.md).
+
+Calendar agenda responses include selected source metadata alongside events. The existing connection read supplies account email and an ordinal color index; no provider credentials are serialized and no extra Google metadata request is needed for the legend. Calendar source identity is independent of booking status.

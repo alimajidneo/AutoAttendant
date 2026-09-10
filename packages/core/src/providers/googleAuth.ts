@@ -108,11 +108,13 @@ async function tokenForConnection(agentId: string, row: CalendarConnectionRow): 
 
 export async function getCalendarConnectionTokens(agentId: string, selectedIds?: ReadonlySet<string>) {
   const rows = await listCalendarConnections(agentId);
-  return Promise.all(rows.filter(row => !selectedIds || selectedIds.has(row.id))
-    .map(async row => ({ row, token: await tokenForConnection(agentId, row) })));
+  return Promise.all(rows.map((row, colorIndex) => ({ row, colorIndex }))
+    .filter(({ row }) => !selectedIds || selectedIds.has(row.id))
+    .map(async ({ row, colorIndex }) => ({ row, colorIndex, token: await tokenForConnection(agentId, row) })));
 }
 
 export type CalendarAccess = {
+  accounts: Array<{ connectionId: string; accountEmail: string; colorIndex: number }>;
   booking: { connectionId: string; calendarId: string; token: string };
   conflicts: Array<{ connectionId: string; calendarIds: string[]; token: string }>;
 };
@@ -147,6 +149,7 @@ export async function getAgentCalendarAccess(
   });
   if (conflicts.some(item => !item)) return null;
   return {
+    accounts: rows.map(({ row, colorIndex }) => ({ connectionId: row.id, accountEmail: row.accountEmail, colorIndex })),
     booking: { connectionId: bookingConnectionId, calendarId: bookingCalendarId, token: bookingToken },
     conflicts: conflicts as CalendarAccess["conflicts"],
   };

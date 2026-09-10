@@ -126,7 +126,7 @@ export async function cancelAppointmentById(
 ): Promise<AppointmentRow | null> {
   const rows = await db
     .update(appointments)
-    .set({ status: "cancelled" })
+    .set({ status: "cancelled", updatedAt: new Date() })
     .where(and(eq(appointments.id, appointmentId), eq(appointments.agentId, agentId)))
     .returning();
   return rows[0] ?? null;

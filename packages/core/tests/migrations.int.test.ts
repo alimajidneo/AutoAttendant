@@ -48,6 +48,8 @@ describe("migration chain", () => {
     const pool = new Pool({ connectionString: url.toString(), max: 1 });
 
     try {
+      await pool.query('CREATE SCHEMA auth');
+      await pool.query('CREATE TABLE auth.users (id uuid PRIMARY KEY, email text)');
       await migrate(drizzle(pool), { migrationsFolder: MIGRATIONS_FOLDER });
 
       const tables = await drizzle(pool).execute(sql`
@@ -58,6 +60,7 @@ describe("migration chain", () => {
       expect(names).toEqual(
         expect.arrayContaining([
           "agents",
+          "notification_reads",
           "appointments",
           "callers",
           "calls",

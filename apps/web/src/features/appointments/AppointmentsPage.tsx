@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Ban, CalendarCheck2, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { AppointmentItem, CalendarAgendaEvent } from '@receptionist/shared'
+import type { AppointmentItem, CalendarAgendaEvent, CalendarAgenda } from '@receptionist/shared'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -16,6 +16,7 @@ import { formatPhone, formatTime, dayKey } from '@/lib/formatters'
 import { appointmentStatusConfig } from '@/lib/status-config'
 import { apiClient } from '@/lib/apiClient'
 import { cn } from '@/lib/utils'
+import { calendarSourceClass, groupCalendarSources } from './calendar-sources'
 import { calendarEventKey, eventsForDays, splitAppointments } from './appointment-groups'
 
 const DAY_MS = 86_400_000
@@ -61,18 +62,6 @@ function appointmentDateTime(appointment: AppointmentItem, zone?: string): strin
   return `${date} · ${formatTime(appointment.startTime, zone)}`
 }
 
-const EVENT_TONES = [
-  { chip: 'border-success bg-success-subtle text-success', bar: 'bg-success' },
-  { chip: 'border-violet bg-violet-subtle text-violet', bar: 'bg-violet' },
-  { chip: 'border-warning bg-warning-subtle text-warning', bar: 'bg-warning' },
-] as const
-
-function eventTone(event: CalendarAgendaEvent, isAppointment: boolean) {
-  if (isAppointment) return { chip: 'border-primary bg-primary-subtle text-accent-ink', bar: 'bg-primary' }
-  const hash = [...event.calendarId].reduce((sum, character) => sum + character.charCodeAt(0), 0)
-  return EVENT_TONES[hash % EVENT_TONES.length]!
-}
-
 export default function AppointmentsPage() {
   const zone = useAgentZone()
   const queryClient = useQueryClient()
@@ -105,13 +94,16 @@ export default function AppointmentsPage() {
   const calendarQuery = useQuery({
     queryKey: calendarKey,
     queryFn: () => apiClient
-      .get<CalendarAgendaEvent[]>('/admin/appointments/calendar', { params: range })
+      .get<CalendarAgenda>('/admin/appointments/calendar', { params: range })
       .then((response) => response.data),
     retry: false,
   })
 
   const appointments = useMemo(() => appointmentsQuery.data ?? [], [appointmentsQuery.data])
-  const events = useMemo(() => calendarQuery.data ?? [], [calendarQuery.data])
+  const events = useMemo(() => calendarQuery.data?.events ?? [], [calendarQuery.data])
+  const sources = useMemo(() => calendarQuery.data?.sources ?? [], [calendarQuery.data])
+  const sourceByCalendar = useMemo(() => new Map(sources.map(source => [source.calendarId, source])), [sources])
+  const sourceAccounts = useMemo(() => groupCalendarSources(sources), [sources])
   const appointmentByEventId = useMemo(
     () => new Map(appointments.flatMap(item => item.externalEventId && item.externalCalendarId
       ? [[calendarEventKey({ id: item.externalEventId, calendarId: item.externalCalendarId }), item] as const] : [])),
@@ -133,6 +125,7 @@ export default function AppointmentsPage() {
       .then((response) => response.data),
     onSuccess: ({ appointments: latestAppointments }) => {
       queryClient.setQueryData<AppointmentItem[]>(keys.appointments, latestAppointments)
+      void queryClient.invalidateQueries({ queryKey: keys.notifications })
     },
     onError: () => toast.error('Appointment sync failed. Check the calendar connection and try again.'),
     onSettled: async (result, error) => {
@@ -152,6 +145,7 @@ export default function AppointmentsPage() {
       )
       await calendarQuery.refetch()
       await queryClient.invalidateQueries({ queryKey: keys.metricsAll })
+      void queryClient.invalidateQueries({ queryKey: keys.notifications })
       toast.success('Appointment cancelled')
     },
     onError: () => toast.error('Could not cancel the appointment in Google Calendar. Nothing was changed.'),
@@ -161,6 +155,7 @@ export default function AppointmentsPage() {
     mutationFn: (id: string) => apiClient.delete(`/admin/appointments/history/${id}`),
     onSuccess: (_response, id) => {
       queryClient.setQueryData<AppointmentItem[]>(keys.appointments, (current = []) => current.filter(item => item.id !== id))
+      void queryClient.invalidateQueries({ queryKey: keys.notifications })
       toast.success('Past appointment deleted from DeskRoute')
     },
     onError: () => toast.error('Could not delete this past appointment. Refresh and try again.'),
@@ -257,7 +252,7 @@ export default function AppointmentsPage() {
                           key={calendarEventKey(event)}
                           className={cn(
                             'block truncate rounded border-l-2 px-1 py-0.5 text-[10px] leading-4 sm:text-xs',
-                            eventTone(event, appointmentByEventId.has(calendarEventKey(event))).chip,
+                            'calendar-event-chip', calendarSourceClass(sourceByCalendar.get(event.calendarId)?.colorIndex ?? 0),
                           )}
                         >
                           <span className="hidden sm:inline">{eventTime(event, zone)} </span>{event.title}
@@ -269,6 +264,22 @@ export default function AppointmentsPage() {
                 )
               })}
             </div>
+          )}
+
+          {sourceAccounts.length > 0 && (
+            <section aria-label="Calendar sources" className="border-t border-border bg-muted/20 px-4 py-3 sm:px-5">
+              <h3 className="text-sm font-semibold text-foreground">Calendar sources</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Each color identifies a Google account. Only your selected calendars are shown.</p>
+              <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
+                {sourceAccounts.map(account => <li key={account.connectionId} className="flex min-w-0 items-start gap-2">
+                  <span aria-hidden="true" className={cn('calendar-source-dot mt-1 size-3 shrink-0 rounded-full', calendarSourceClass(account.colorIndex))} />
+                  <div className="min-w-0">
+                    <p className="break-all text-sm font-semibold text-foreground">{account.accountEmail}</p>
+                    <p className="break-words text-sm text-muted-foreground">{account.calendars.join(' · ')}</p>
+                  </div>
+                </li>)}
+              </ul>
+            </section>
           )}
 
           <div className="border-t border-border p-4 sm:p-5">
@@ -283,16 +294,17 @@ export default function AppointmentsPage() {
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {selectedEvents.map((event) => {
                   const appointment = appointmentByEventId.get(calendarEventKey(event))
-                  const tone = eventTone(event, appointmentByEventId.has(calendarEventKey(event)))
+                  const source = sourceByCalendar.get(event.calendarId)
                   return (
                     <div key={calendarEventKey(event)} className="flex min-w-0 items-center gap-3 rounded-lg bg-muted/65 px-3 py-2.5">
                       <span className={cn(
                         'h-9 w-1 shrink-0 rounded-full',
-                        tone.bar,
+                        'calendar-source-dot', calendarSourceClass(source?.colorIndex ?? 0),
                       )} />
                       <div className="min-w-0">
                         <p className="truncate font-medium text-foreground">{event.title}</p>
-                        <p className="text-xs text-muted-foreground">{eventTime(event, zone)}</p>
+                        <p className="text-sm text-muted-foreground">{eventTime(event, zone)}{appointment ? ' · DeskRoute booking' : ''}</p>
+                        {source && <p className="mt-1 break-words text-sm text-muted-foreground">{source.calendarName} · {source.accountEmail}</p>}
                       </div>
                       {appointment && appointment.status !== 'cancelled' && !(appointment.endTime && Date.parse(appointment.endTime) <= now) && (
                         <Button

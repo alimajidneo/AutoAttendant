@@ -1,16 +1,14 @@
 import { Link } from 'react-router-dom'
-import { Bell, Moon, Sun } from 'lucide-react'
+import { Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/features/auth/useAuth'
 import { useTheme } from '@/hooks/useTheme'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { userAvatarUrl } from '@/lib/user-profile'
 
-interface TopBarProps {
-  pendingCount: number
-}
+import { NotificationCenter } from '@/features/notifications/NotificationCenter'
 
-export function TopBar({ pendingCount }: TopBarProps) {
+export function TopBar() {
   const { user } = useAuth()
   const { theme, setTheme } = useTheme()
   const avatarUrl = userAvatarUrl(user)
@@ -37,18 +35,7 @@ export function TopBar({ pendingCount }: TopBarProps) {
         >
           {theme === 'dark' ? <Sun /> : <Moon />}
         </Button>
-        <Button
-          render={<Link to="/escalations" />}
-          variant="ghost"
-          size="icon"
-          className="relative rounded-full"
-          aria-label={pendingCount ? `${pendingCount} questions need attention` : 'No questions need attention'}
-        >
-          <Bell />
-          {pendingCount > 0 && (
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-destructive ring-2 ring-stage" />
-          )}
-        </Button>
+        <NotificationCenter />
         <Link
           to="/settings?tab=account"
           className="ml-1 flex items-center gap-2 rounded-full p-1 pr-2 text-sm font-medium hover:bg-sunk-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

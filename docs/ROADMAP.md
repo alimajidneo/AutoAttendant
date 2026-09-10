@@ -18,8 +18,8 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 
 | Step | Task | Acceptance / current status |
 | --- | --- | --- |
-| 1 | Connect two distinct Google accounts | Both appear under one DeskRoute login; reconnect is idempotent. Implemented; live multi-account acceptance pending. |
-| 2 | Cross-account conflict checks | A busy event in either selected account blocks the requested time; genuinely free 11 AM works. Automated cross-account/exact-time regressions pass; live acceptance pending. |
+| 1 | Connect two distinct Google accounts | Both appear under one DeskRoute login; reconnect is idempotent. Implemented; Ali reported the two-account test successful on 2026-09-10. |
+| 2 | Cross-account conflict checks | A busy event in either selected account blocks the requested time; genuinely free 11 AM works. Automated cross-account/exact-time regressions pass; basic two-account test reported successful; detailed boundary checks remain. |
 | 3 | Appointment lifecycle | Chosen destination, invitation, rescheduling, cancellation and external changes verified. Booking/cancellation, end-time-based Past appointments and owner-scoped history deletion exist; invitations, rescheduling and race-safe booking remain incomplete. |
 | 4 | Privacy and failure handling | Ownership enforced even on cached credentials; browser-bound OAuth; missing/revoked/malformed calendar data blocks booking; no provider secrets/event details in errors. Hardening implemented with passing regression tests; live acceptance and narrower scopes pending. |
 | 5 | Microsoft calendar connections | Personal Outlook and work Microsoft 365 tested with appropriate permissions/admin approval. Not implemented. |
@@ -40,7 +40,9 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 
 ## Current work batch
 
-Steps 1–4: inspect and fix calendar ownership, OAuth browser binding, credential renewal, exact-time/cross-account conflict handling and appointment cancellation. Add offline regression evidence and an explicit live-test guide. Do not mark real-account checks passed from mocks.
+2026-09-10: Ali reported the two-Google-account test successful. Add persistent in-app notifications and account-colored calendar sources with a legend; update README and delivery documentation in the same commit. See [notifications/source behavior](NOTIFICATIONS_AND_CALENDAR_SOURCES.md).
+
+Next functional work: appointment rescheduling/invitations and remaining boundary/privacy tests, then Microsoft. Gather Mike's provider details now; a small inbound telephone connectivity test may proceed before workspaces, while a shared team-routing pilot requires employee ownership and permissions. See [phone integration sequence](TELEPHONY_PLAN.md).
 
 ## Later only if required
 
@@ -48,4 +50,4 @@ Actual iCloud account support, Teams/SMS/WhatsApp, voice cloning, advanced routi
 
 ## Evidence
 
-Record automated checks, manual outcomes, side effects and unresolved failures in [CALENDAR_TESTING.md](CALENDAR_TESTING.md). On 2026-09-09, 211 unit/agent tests, typecheck, web lint and web build passed; five existing web design-contract failures remain. Eight appointment grouping tests also pass. The read-only database check found two connected Google accounts under one DeskRoute owner, but only one explicitly selected conflict calendar. Selection/display guidance has been clarified; live cross-account event/conflict acceptance is still pending. Calendar-dependent work pauses at the live acceptance gate; independent code/documentation fixes may continue.
+Record automated checks, manual outcomes, side effects and unresolved failures in [CALENDAR_TESTING.md](CALENDAR_TESTING.md). On 2026-09-09, 211 unit/agent tests, typecheck, web lint and web build passed; five existing web design-contract failures remain. Eight appointment grouping tests also pass. The read-only database check found two connected Google accounts under one DeskRoute owner, but only one explicitly selected conflict calendar. Selection/display guidance has been clarified; Ali subsequently reported the two-account test successful on 2026-09-10; detailed boundary acceptance remains separate. Proceed to appointment lifecycle and Microsoft work while preserving the remaining failure/privacy acceptance gates.
