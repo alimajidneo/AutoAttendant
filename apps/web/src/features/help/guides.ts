@@ -58,7 +58,7 @@ export const guides: Guide[] = [
       { title: 'Listen to a test', detail: 'Start a new browser test after saving. Ask a known question, an unknown question and a general appointment request. Check that the receptionist collects the intended details.' },
     ],
     outcome: 'The receptionist has approved business knowledge and a clear booking intake.',
-    notes: [{ title: 'Where do I change the voice or model?', detail: 'The speech voice and model are currently configured by the installation administrator. Those controls are not yet available in Settings. Changing instructions does not change the underlying voice provider.' }],
+    notes: [{ title: 'Can it record or summarize calls?', detail: 'Normal calls support saved transcripts and a short summary based on the transcript. Audio recording is optional and needs configured storage. Browser tests skip saved call histories, summaries and audio recordings. The agent does not currently analyze uploaded audio files.' }, { title: 'How do I give it more context?', detail: 'Use Settings → Business for your description and Knowledge → Add FAQ for approved answers. A dedicated business context editor and reviewed document imports are planned; files on your computer are not automatically available to the agent.' }, { title: 'Where do I change the voice or model?', detail: 'The speech voice and model are currently configured by the installation administrator. Those controls are not yet available in Settings. Changing instructions does not change the underlying voice provider.' }],
   },
   {
     id: 'calendars', title: 'Connect Google calendars', audience: 'Workspace owner',
@@ -84,7 +84,7 @@ export const guides: Guide[] = [
       { title: 'Open Appointments', detail: 'Use the month controls to find a date and select its day to view the agenda. The workspace owner also sees events from selected external calendars, identified by their source colors.' },
       { title: 'Review upcoming and past bookings', detail: 'Upcoming appointments include bookings that have not ended. After the appointment’s end time it belongs in Past appointments. Calendar event display and these booking lists serve different purposes.' },
       { title: 'Cancel an upcoming booking', detail: 'Choose Cancel on the DeskRoute appointment, review the confirmation and confirm. This removes the linked Google event and keeps the booking marked as cancelled.' },
-      { title: 'Delete a past booking', detail: 'In Past appointments, choose Delete and review the confirmation. It removes the linked Google event and the DeskRoute appointment record. Separate call records are not deleted by this action.' },
+      { title: 'Delete a past booking', detail: 'Choose Delete beside the past DeskRoute booking in the daily agenda or in Past appointments, then review the confirmation. It removes the linked Google event and the DeskRoute appointment record. Separate call records are not deleted by this action.' },
       { title: 'Refresh after outside changes', detail: 'If you changed Google Calendar directly, choose Refresh calendar. If deletion fails, keep the record, check the original connected account and retry after restoring access.' },
     ],
     outcome: 'Your upcoming bookings and past history are easier to manage, with linked calendar deletions handled together.',

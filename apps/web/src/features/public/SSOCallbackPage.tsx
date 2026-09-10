@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { RouteSkeleton } from '@/layout/RouteSkeleton'
 import { supabase } from '@/lib/supabase'
 
 // React StrictMode can mount twice; an authorization code can only be used once.
@@ -25,7 +26,8 @@ export default function SSOCallbackPage() {
       .catch((err: Error) => { if (active) setError(err.message) })
     return () => { active = false }
   }, [navigate])
-  return <main className="mx-auto max-w-md p-8">
-    {error ? <><p role="alert">{error}</p><Link className="underline" to="/">Return to DeskRoute</Link></> : <p>Completing sign-in…</p>}
+  if (!error) return <RouteSkeleton label="Completing sign-in…" />
+  return <main className="mx-auto max-w-narrow p-8">
+    <p role="alert">{error}</p><Link className="underline" to="/">Return to DeskRoute</Link>
   </main>
 }

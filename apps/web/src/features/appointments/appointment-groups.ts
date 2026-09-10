@@ -14,6 +14,10 @@ export function calendarEventKey(event: Pick<CalendarAgendaEvent, 'calendarId' |
   return JSON.stringify([event.calendarId, event.id])
 }
 
+export function appointmentCalendarEventKey(appointment: AppointmentItem) {
+  return calendarEventKey({ id: appointment.externalEventId ?? appointment.id, calendarId: appointment.externalCalendarId ?? 'workspace' })
+}
+
 export function eventsForDays(events: CalendarAgendaEvent[], days: string[], zone?: string) {
   const grouped = new Map<string, CalendarAgendaEvent[]>()
   const unique = new Map(events.map(event => [calendarEventKey(event), event]))

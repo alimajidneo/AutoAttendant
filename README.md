@@ -2,10 +2,11 @@
 
 Neodym's AI receptionist for USA customer teams. The receptionist answers business questions, checks selected calendars across Google accounts, books appointments, and sends questions it cannot answer to the owner's dashboard.
 
-**Version 1.0.23 · Updated 2026-09-10**
+**Version 1.0.24 · Updated 2026-09-10**
 
 This repository is under active development. Browser voice calls and Google booking have been tested. Personal/team workspaces and browser handoff are implemented; two-person audio acceptance, Microsoft calendars and telephone transfer remain pending. The intended deployment is a Vercel website/HTTP API plus a separately hosted LiveKit voice worker.
 
+- [Agent capabilities and context plan](docs/AGENT_CONTEXT_AND_CAPABILITIES.md)
 - [Slack and Microsoft integration plan](docs/INTEGRATION_PLAN.md)
 - [Setup instructions](docs/SETUP.md)
 - [Ordered delivery roadmap](docs/ROADMAP.md)
@@ -30,12 +31,12 @@ Microsoft calendar, Slack and Teams integrations are still planned; see the [int
 - Browser voice testing through LiveKit; bookings made during a test are real Google Calendar events.
 - Calendar month grid and daily agenda, including personal events from the owner's explicitly selected calendars.
 - Google-account colors shared by every calendar from that account, with a named source legend below the calendar and source text on daily events.
-- Upcoming/ongoing bookings and Past appointments, classified by end time. Deleting a past booking removes its linked Google event and DeskRoute history.
+- Upcoming/ongoing bookings and Past appointments, classified by end time. Delete a past DeskRoute booking from either the daily agenda or Past appointments; its linked Google event and DeskRoute history are removed. Pending calendar reads are cancelled before updating every cached month.
 - In-app notification bell with unread count, record links and persistent read status across devices. Includes bookings, requests, cancellations, pending questions and failed calls.
 - Calls, transcripts, summaries, optional recordings, questions awaiting answers and FAQ management.
 - Personal/team workspaces, explicit email-bound invitations, owner/manager/member access and configurable teammate departments/availability.
 - Browser handoff requests with recipient acceptance, manual inbox refresh and restricted LiveKit room tokens.
-- Light/dark themes, profile details and loading indicators.
+- Light/dark themes, profile details and loading indicators centered in the viewport or dashboard content area.
 
 On **2026-09-10**, Ali reported the two-Google-account test was successful. Detailed failure, revocation, cross-owner and simultaneous-booking acceptance are separate checks; a successful basic test does not establish production readiness.
 
@@ -57,7 +58,13 @@ Read receipts are stored in PostgreSQL behind the authenticated API. The read re
 
 “0 calendars included” means the account is connected but none of its calendars is selected. Unselected calendars are excluded from display and conflict checks. Google-created events appear in the grid/agenda; Upcoming/Past lists hold receptionist bookings.
 
+When Google names a calendar after its account email, the legend and daily event source show that email once. Distinct secondary calendar names remain visible.
+
 Colors identify accounts, not appointment status. The legend remains present for selected calendars even in a month without events. Shared calendars selected through two connections are displayed once. The eight-color palette repeats beyond eight accounts; account names remain visible.
+
+## Hosted operation
+
+Customers will use the deployed website without terminal commands. The intended setup is Vercel web/API plus a managed LiveKit voice worker, deployed through an operator-controlled release process. This is not deployed yet. See [running without local terminals](docs/VERCEL_FEASIBILITY.md#running-without-local-terminals).
 
 ## Run locally
 

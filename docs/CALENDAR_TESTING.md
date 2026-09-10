@@ -124,3 +124,14 @@ pnpm test:web
 `pnpm test` runs mocked unit/agent tests. It is not provider or browser acceptance. `pnpm test:int` and `pnpm test:live` are separate suites; do not run them as a shortcut. The existing live suite creates Google events and does not prove multi-account acceptance.
 
 Record each manual result as pass/fail, the step number and the visible error. Do not paste passwords, tokens, private event titles or personal calendar screenshots into the test log.
+
+
+## 2026-09-10: past booking deletion and source labels (1.0.24)
+
+- Added Delete to the daily agenda for an ended DeskRoute booking, including manager-visible bookings without an external event ID. Past appointments retains the same confirmation/action.
+- After successful server deletion, cancel pending appointment/calendar reads and remove the event from all cached months using calendar plus event identity. Mark those queries stale for the next visit; an old pending response cannot restore the removed item. Preserve events with the same ID in another calendar. Block overlapping manual refresh and deletion from the page controls.
+- Preserve the server's reconnect guidance for conflict errors. Calendar-only events with no DeskRoute booking are not given a destructive appointment action.
+- Show the account email once when the primary calendar's name is the same email. Keep distinct secondary calendar names and account colors.
+- Six new web regressions pass. Overall: 242 unit/API/voice tests pass; web tests are 61 passing and the same five pre-existing design-contract failures. Typecheck, lint and production build pass, with the existing large-bundle warning.
+- Isolated browser verification used the real AppointmentsPage with a temporary in-memory API adapter: Delete confirmation removed the month-grid chip, daily agenda entry and past row; cancelling confirmation preserved the booking. Desktop/light and 390px/dark layouts checked. Temporary verification files removed. No real Google events were deleted during these checks; the user's specific live-calendar issue still needs acceptance in their signed-in session.
+- Loading geometry verified in the browser: full-page center at (640, 360) in a 1280×720 viewport; content-area center at y=392 below a 64px header. Sign-in completion uses the same centered component.

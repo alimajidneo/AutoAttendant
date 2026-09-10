@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { isAxiosError } from 'axios'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Ban, CalendarCheck2, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, RefreshCw, Trash2 } from 'lucide-react'
@@ -16,8 +17,9 @@ import { formatPhone, formatTime, dayKey } from '@/lib/formatters'
 import { appointmentStatusConfig } from '@/lib/status-config'
 import { apiClient } from '@/lib/apiClient'
 import { cn } from '@/lib/utils'
-import { calendarSourceClass, groupCalendarSources } from './calendar-sources'
-import { calendarEventKey, eventsForDays, splitAppointments } from './appointment-groups'
+import { calendarSourceClass, calendarSourceLabel, groupCalendarSources } from './calendar-sources'
+import { appointmentCalendarEventKey, calendarEventKey, eventsForDays, splitAppointments } from './appointment-groups'
+import { removeAppointmentFromCache } from './appointment-cache'
 
 const DAY_MS = 86_400_000
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -93,8 +95,8 @@ export default function AppointmentsPage() {
   const calendarKey = ['appointments', 'calendar', range.timeMin, range.timeMax] as const
   const calendarQuery = useQuery({
     queryKey: calendarKey,
-    queryFn: () => apiClient
-      .get<CalendarAgenda>('/admin/appointments/calendar', { params: range })
+    queryFn: ({ signal }) => apiClient
+      .get<CalendarAgenda>('/admin/appointments/calendar', { params: range, signal })
       .then((response) => response.data),
     retry: false,
   })
@@ -105,8 +107,7 @@ export default function AppointmentsPage() {
   const sourceByCalendar = useMemo(() => new Map(sources.map(source => [source.calendarId, source])), [sources])
   const sourceAccounts = useMemo(() => groupCalendarSources(sources), [sources])
   const appointmentByEventId = useMemo(
-    () => new Map(appointments.flatMap(item => item.externalEventId && item.externalCalendarId
-      ? [[calendarEventKey({ id: item.externalEventId, calendarId: item.externalCalendarId }), item] as const] : [])),
+    () => new Map(appointments.map(item => [appointmentCalendarEventKey(item), item])),
     [appointments],
   )
   const eventsByDay = useMemo(() => eventsForDays(events, days, zone), [events, days, zone])
@@ -152,18 +153,18 @@ export default function AppointmentsPage() {
   })
 
   const removeHistory = useMutation({
-    mutationFn: (id: string) => apiClient.delete(`/admin/appointments/history/${id}`),
-    onSuccess: (_response, id) => {
-      const removed = appointments.find(item => item.id === id)
-      if (removed?.externalEventId) queryClient.setQueriesData<CalendarAgenda>({ queryKey: ['appointments', 'calendar'] }, current => current ? {
-        ...current, events: current.events.filter(event => event.id !== removed.externalEventId || event.calendarId !== removed.externalCalendarId),
-      } : current)
-      queryClient.setQueryData<AppointmentItem[]>(keys.appointments, (current = []) => current.filter(item => item.id !== id))
+    mutationFn: (appointment: AppointmentItem) => apiClient.delete(`/admin/appointments/history/${appointment.id}`),
+    onSuccess: async (_response, removed) => {
+      await removeAppointmentFromCache(queryClient, removed)
       void queryClient.invalidateQueries({ queryKey: keys.notifications })
-      void calendarQuery.refetch()
+      void queryClient.invalidateQueries({ queryKey: keys.metricsAll })
       toast.success('Past appointment deleted from DeskRoute and its calendar')
     },
-    onError: () => toast.error('Could not delete this past appointment. Refresh and try again.'),
+    onError: (error) => {
+      const detail = isAxiosError<{ error?: string }>(error) && error.response?.status === 409
+        ? error.response.data.error : undefined
+      toast.error(detail || 'Could not delete this past appointment. Check the original Google account connection and try again.')
+    },
   })
 
   function moveMonth(amount: number) {
@@ -178,7 +179,7 @@ export default function AppointmentsPage() {
         title="Appointments"
         description="Appointments and events from the Google calendars you have selected."
         actions={
-          <Button variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
+          <Button variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending || removeHistory.isPending || cancel.isPending}>
             <RefreshCw className={cn(refresh.isPending && 'animate-spin')} />
             <span className="hidden sm:inline">Refresh calendar</span>
             <span className="sm:hidden">Refresh</span>
@@ -280,7 +281,7 @@ export default function AppointmentsPage() {
                   <span aria-hidden="true" className={cn('calendar-source-dot mt-1 size-3 shrink-0 rounded-full', calendarSourceClass(account.colorIndex))} />
                   <div className="min-w-0">
                     <p className="break-all text-sm font-semibold text-foreground">{account.accountEmail}</p>
-                    <p className="break-words text-sm text-muted-foreground">{account.calendars.join(' · ')}</p>
+                    {account.calendars.length > 0 && <p className="break-words text-sm text-muted-foreground">{account.calendars.join(' · ')}</p>}
                   </div>
                 </li>)}
               </ul>
@@ -301,7 +302,7 @@ export default function AppointmentsPage() {
                   const appointment = appointmentByEventId.get(calendarEventKey(event))
                   const source = sourceByCalendar.get(event.calendarId)
                   return (
-                    <div key={calendarEventKey(event)} className="flex min-w-0 items-center gap-3 rounded-lg bg-muted/65 px-3 py-2.5">
+                    <div key={calendarEventKey(event)} className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg bg-muted/65 px-3 py-2.5">
                       <span className={cn(
                         'h-9 w-1 shrink-0 rounded-full',
                         'calendar-source-dot', calendarSourceClass(source?.colorIndex ?? 0),
@@ -309,14 +310,18 @@ export default function AppointmentsPage() {
                       <div className="min-w-0">
                         <p className="truncate font-medium text-foreground">{event.title}</p>
                         <p className="text-sm text-muted-foreground">{eventTime(event, zone)}{appointment ? ' · DeskRoute booking' : ''}</p>
-                        {source && <p className="mt-1 break-words text-sm text-muted-foreground">{source.calendarName} · {source.accountEmail}</p>}
+                        {source && <p className="mt-1 break-words text-sm text-muted-foreground">{calendarSourceLabel(source)}</p>}
                       </div>
-                      {appointment && appointment.status !== 'cancelled' && !(appointment.endTime && Date.parse(appointment.endTime) <= now) && (
+                      {appointment && appointment.endTime && Date.parse(appointment.endTime) <= now ? (
+                        <Button variant="destructive" size="sm" className="ml-auto shrink-0" disabled={refresh.isPending || removeHistory.isPending} onClick={() => setDeleting(appointment)} aria-label={`Delete past ${appointment.service} appointment from calendar`}>
+                          <Trash2 /> Delete
+                        </Button>
+                      ) : appointment && appointment.status !== 'cancelled' && (
                         <Button
                           variant="destructive"
                           size="sm"
                           className="ml-auto"
-                          onClick={() => setCancelling(appointment)}
+                          disabled={refresh.isPending || cancel.isPending} onClick={() => setCancelling(appointment)}
                         >
                           <Trash2 /> Cancel
                         </Button>
@@ -379,7 +384,7 @@ export default function AppointmentsPage() {
                     size="sm"
                     aria-label={`Cancel ${appointment.service} appointment`}
                     title="Cancel appointment"
-                    onClick={() => setCancelling(appointment)}
+                    disabled={refresh.isPending || cancel.isPending} onClick={() => setCancelling(appointment)}
                   ><Trash2 /> Cancel</Button>
                 </div>
               </div>
@@ -404,7 +409,7 @@ export default function AppointmentsPage() {
                 <p className="mt-1 text-sm text-muted-foreground">{appointmentDateTime(appointment, zone)} · {appointment.callerName ?? 'Name not given'}</p>
               </div>
               {appointment.status === 'confirmed' ? <span className="rounded-md bg-success-subtle px-2 py-1 text-sm font-medium text-success">Ended</span> : <StatusBadge value={appointment.status} config={appointmentStatusConfig} />}
-              <Button variant="destructive" size="sm" onClick={() => setDeleting(appointment)} aria-label={`Delete past ${appointment.service} appointment`}><Trash2 /> Delete</Button>
+              <Button variant="destructive" size="sm" disabled={refresh.isPending || removeHistory.isPending} onClick={() => setDeleting(appointment)} aria-label={`Delete past ${appointment.service} appointment`}><Trash2 /> Delete</Button>
             </div>
           ))}
         </div>
@@ -417,7 +422,7 @@ export default function AppointmentsPage() {
         description={deleting ? `${deleting.service} will be permanently removed from DeskRoute history. Its linked Google Calendar event will also be deleted.` : undefined}
         confirmLabel="Delete past appointment"
         variant="destructive"
-        onConfirm={async () => { if (deleting) await removeHistory.mutateAsync(deleting.id) }}
+        onConfirm={async () => { if (deleting) await removeHistory.mutateAsync(deleting) }}
       />
 
       <ConfirmDialog

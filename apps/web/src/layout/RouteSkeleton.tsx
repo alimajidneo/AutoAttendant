@@ -1,11 +1,10 @@
 import { LoadingIndicator } from '@/components/ui/loading-indicator'
-import { PageContainer } from './PageContainer'
+import { cn } from '@/lib/utils'
 
-/** One clear loading state for authentication and lazy routes. */
-export function RouteSkeleton() {
+export function RouteSkeleton({ fullScreen = true, label = 'Loading DeskRoute' }: { fullScreen?: boolean; label?: string }) {
   return (
-    <PageContainer>
-      <LoadingIndicator label="Loading DeskRoute" />
-    </PageContainer>
+    <div className={cn('flex w-full flex-1 items-center justify-center p-6', fullScreen ? 'min-h-dvh' : 'min-h-56')}>
+      <LoadingIndicator label={label} />
+    </div>
   )
 }

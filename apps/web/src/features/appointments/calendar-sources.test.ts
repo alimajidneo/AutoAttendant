@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calendarSourceClass, groupCalendarSources } from './calendar-sources'
+import { calendarSourceClass, calendarSourceLabel, groupCalendarSources } from './calendar-sources'
 describe('calendar account colors and legend', () => {
   const sources = [
     { connectionId: 'first', accountEmail: 'first@example.test', colorIndex: 0, calendarId: 'one', calendarName: 'Work' },
@@ -18,5 +18,23 @@ describe('calendar account colors and legend', () => {
   })
   it('preserves source order when event order changes', () => {
     expect(groupCalendarSources([...sources].reverse()).map(x => x.connectionId)).toEqual(['first', 'second'])
+  })
+})
+
+describe('calendar source text', () => {
+  const source = { connectionId: 'account', accountEmail: 'owner@example.test', colorIndex: 0, calendarId: 'primary', calendarName: 'owner@example.test' }
+  it('shows the email once when Google uses it as the calendar name', () => {
+    expect(groupCalendarSources([source])[0].calendars).toEqual([])
+    expect(calendarSourceLabel(source)).toBe('owner@example.test')
+  })
+  it('keeps meaningful secondary calendar names beneath the account', () => {
+    const secondary = { ...source, calendarId: 'team', calendarName: 'Team demos' }
+    expect(groupCalendarSources([source, secondary])[0].calendars).toEqual(['Team demos'])
+    expect(calendarSourceLabel(secondary)).toBe('Team demos · owner@example.test')
+  })
+  it('ignores case and whitespace in duplicate email labels', () => {
+    const primary = { ...source, calendarName: ' OWNER@example.test ' }
+    expect(groupCalendarSources([primary])[0].calendars).toEqual([])
+    expect(calendarSourceLabel(primary)).toBe(source.accountEmail)
   })
 })

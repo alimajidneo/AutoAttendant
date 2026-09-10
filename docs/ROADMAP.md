@@ -42,6 +42,8 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 
 ## Current work batch
 
+2026-09-10 follow-up: Center route loading, add past-booking deletion to the calendar agenda, protect deletion cache updates from stale reads and deduplicate email/calendar labels. Document [current agent capabilities and the staged context plan](AGENT_CONTEXT_AND_CAPABILITIES.md). Context starts with workspace-scoped editable business notes and a published preview; document imports and deeper analysis remain later work. Hosted operation must pass tests with all local terminals stopped.
+
 2026-09-10: Notifications, calendar source colors, workspaces and browser handoff are implemented. Added a public in-app step-by-step tutorial at `/help`, linked from sign-in, onboarding, the dashboard and Workspaces. It explains current capabilities and limitations without creating external integrations.
 
 Next: live browser handoff and teammate privacy acceptance, then stable Vercel staging with a separate voice worker. Complete appointment lifecycle and Microsoft calendars before adding Teams presence. Validate personal Outlook, Microsoft 365 and mixed Google/Microsoft conflicts. Slack should start with selected-channel alerts, then recipient-approved handoff. See the [researched integration plan](INTEGRATION_PLAN.md) for permissions, privacy, costs and acceptance order. Gather Mike's provider documentation in parallel; see [phone integration sequence](TELEPHONY_PLAN.md).

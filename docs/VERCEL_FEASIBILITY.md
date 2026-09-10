@@ -82,3 +82,15 @@ Vercel deployment is accepted only after the public HTTPS installation passes si
 - [Vercel Function limits](https://vercel.com/docs/functions/limitations)
 - [Supabase Postgres connection modes](https://supabase.com/docs/guides/database/connecting-to-postgres)
 - [LiveKit agent deployment](https://docs.livekit.io/deploy/agents/quickstart/)
+
+## Running without local terminals
+
+Updated 2026-09-10. The `pnpm dev:*` commands are the developer workflow, not the customer workflow. Hosted deployment is still pending.
+
+1. Finish the Vercel HTTP entrypoint/routing and build configuration. Connect the GitHub repository, set server secrets in the deployment environment and publish the static web build. Vercel can build and deploy automatically from Git pushes. Customers only open the HTTPS application URL. [Vercel Git deployments](https://vercel.com/docs/git).
+2. Package the voice worker for LiveKit Cloud (or one managed container host if chosen after cost verification). The host runs its production start command, manages the process and replaces failed instances. Add health checks and startup validation. It must not depend on a laptop terminal or Vercel request lifetime. [LiveKit agent deployment](https://docs.livekit.io/deploy/agents/).
+3. Configure stable production authentication/calendar callbacks, public URLs and the shared database connection settings. Keep separate staging credentials and explicit production configuration.
+4. Set deploy-time checks, logs, health alerts and a rollback process. A process restarting does not guarantee a call already in progress survives; test that failure and the caller fallback explicitly.
+5. Shut down all local development processes and test sign-in, calendar access, booking and browser handoff from two other devices. This is the acceptance criterion for independence from the developer's computer.
+
+For local work, the existing root `pnpm dev` starts API, web and voice together in one terminal. It still runs locally and stops when that process/computer stops. Do not present it as deployment. No new paid hosting was activated by documenting this plan.

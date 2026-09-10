@@ -187,7 +187,7 @@ export default function AppLayout() {
       <SidebarInset className="stage-float my-2.5 mr-3 overflow-hidden">
         <div className="flex flex-col flex-1 overflow-auto">
           <TopBar />
-          <Suspense fallback={<RouteSkeleton />}>
+          <Suspense fallback={<RouteSkeleton fullScreen={false} />}>
             <Outlet />
           </Suspense>
         </div>
