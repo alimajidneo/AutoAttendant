@@ -2,10 +2,11 @@
 
 Neodym's AI receptionist for USA customer teams. The receptionist answers business questions, checks selected calendars across Google accounts, books appointments, and sends questions it cannot answer to the owner's dashboard.
 
-**Version 1.0.22 · Updated 2026-09-10**
+**Version 1.0.23 · Updated 2026-09-10**
 
 This repository is under active development. Browser voice calls and Google booking have been tested. Personal/team workspaces and browser handoff are implemented; two-person audio acceptance, Microsoft calendars and telephone transfer remain pending. The intended deployment is a Vercel website/HTTP API plus a separately hosted LiveKit voice worker.
 
+- [Slack and Microsoft integration plan](docs/INTEGRATION_PLAN.md)
 - [Setup instructions](docs/SETUP.md)
 - [Ordered delivery roadmap](docs/ROADMAP.md)
 - [Calendar acceptance checklist and evidence](docs/CALENDAR_TESTING.md)
@@ -13,6 +14,12 @@ This repository is under active development. Browser voice calls and Google book
 - [Workspaces, invitations and browser handoff](docs/WORKSPACES_AND_TRANSFERS.md)
 - [Phone integration sequence](docs/TELEPHONY_PLAN.md)
 - [Architecture](ARCHITECTURE.md) · [Decisions](docs/DECISIONS.md) · [Vercel feasibility](docs/VERCEL_FEASIBILITY.md)
+
+## In-app tutorial
+
+Open **Help & tutorial** in the sidebar, or visit `/help` on your DeskRoute website. The tutorial is also linked from sign-in, onboarding and Workspaces. Nine searchable guides explain setup, roles/privacy, hours, FAQs/intake, multiple Google accounts, appointments, notifications and browser call/handoff testing. Each guide has numbered steps, expected results and troubleshooting. Help is available before sign-in and adds no application API queries.
+
+Microsoft calendar, Slack and Teams integrations are still planned; see the [integration sequence and official documentation](docs/INTEGRATION_PLAN.md).
 
 ## Current functionality
 

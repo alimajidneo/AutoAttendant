@@ -8,6 +8,7 @@ import { RouteSkeleton } from '@/layout/RouteSkeleton'
 import { ErrorFallback } from '@/layout/ErrorFallback'
 import { NotFound } from '@/layout/NotFound'
 
+const Help = lazy(() => import('@/features/help/HelpPage'))
 const SignIn = lazy(() => import('@/features/public/SignInPage'))
 const SSOCallback = lazy(() => import('@/features/public/SSOCallbackPage'))
 const Home = lazy(() => import('@/features/home/HomePage'))
@@ -32,6 +33,7 @@ export default function App() {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <Routes>
+        <Route path="/help" element={<Suspense fallback={<RouteSkeleton />}><Help /></Suspense>} />
         <Route path="/workspaces" element={<ProtectedRoute><Suspense fallback={<RouteSkeleton />}><Workspaces /></Suspense></ProtectedRoute>} />
         <Route
           path="/sign-in"

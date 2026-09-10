@@ -6,7 +6,7 @@ Agreed with Ali on 2026-09-09. Neodym builds the product; Neodym or Triangle is 
 
 ## Product and constraints
 
-A company receptionist identifies the caller's purpose and intended employee, checks permitted calendars, and books, requests a transfer, or takes a message. Test calendar fundamentals before implementing workspaces and employee routing.
+A company receptionist identifies the caller's purpose and intended employee, checks permitted calendars, and books, requests a transfer, or takes a message. Validate calendar fundamentals before expanding employee scheduling and telephone routing.
 
 - Supabase PostgreSQL and Auth, Drizzle, existing React/Hono app and LiveKit. Keep credentials server-side and the unused Supabase Data API disabled.
 - Eventual Vercel Pro website and HTTP API, with a separately hosted LiveKit worker. No persistent worker inside a request function.
@@ -42,9 +42,9 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 
 ## Current work batch
 
-2026-09-10: Ali reported the two-Google-account test successful. Add persistent in-app notifications and account-colored calendar sources with a legend; update README and delivery documentation in the same commit. See [notifications/source behavior](NOTIFICATIONS_AND_CALENDAR_SOURCES.md).
+2026-09-10: Notifications, calendar source colors, workspaces and browser handoff are implemented. Added a public in-app step-by-step tutorial at `/help`, linked from sign-in, onboarding, the dashboard and Workspaces. It explains current capabilities and limitations without creating external integrations.
 
-Next: live browser handoff acceptance, stable Vercel staging with a separate worker, and teammate privacy tests. Then finish appointment lifecycle and Microsoft. Gather Mike's provider details now; a small inbound telephone connectivity test may proceed before workspaces, while a shared team-routing pilot requires employee ownership and permissions. See [phone integration sequence](TELEPHONY_PLAN.md).
+Next: live browser handoff and teammate privacy acceptance, then stable Vercel staging with a separate voice worker. Complete appointment lifecycle and Microsoft calendars before adding Teams presence. Validate personal Outlook, Microsoft 365 and mixed Google/Microsoft conflicts. Slack should start with selected-channel alerts, then recipient-approved handoff. See the [researched integration plan](INTEGRATION_PLAN.md) for permissions, privacy, costs and acceptance order. Gather Mike's provider documentation in parallel; see [phone integration sequence](TELEPHONY_PLAN.md).
 
 ## Later only if required
 

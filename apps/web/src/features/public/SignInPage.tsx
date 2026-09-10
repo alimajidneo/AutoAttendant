@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { AudioWaveform, Moon, Sun } from 'lucide-react'
 import { useAuth } from '@/features/auth/useAuth'
 import { signInWithGoogle } from '@/lib/supabase'
@@ -78,6 +78,7 @@ export default function SignInPage() {
           <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
             New customers can create their DeskRoute account through the same secure Google sign-in.
           </p>
+          <Link to="/help" className="mt-4 block text-center text-sm font-semibold text-primary">New here? Read the setup tutorial</Link>
           {error && <p role="alert" className="mt-4 rounded-lg bg-destructive-subtle px-3 py-2 text-sm text-destructive">Could not open Google sign-in. Please try again.</p>}
         </section>
       </div>

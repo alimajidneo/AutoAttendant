@@ -11,6 +11,7 @@ import {
   Settings as SettingsIcon,
   CircleCheck,
   LogOut,
+  CircleHelp,
 } from 'lucide-react'
 import { AudioWaveform } from 'lucide-react'
 import { keys, fetchers } from '@/lib/queries'
@@ -47,6 +48,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/calls',         label: 'Calls',         icon: PhoneCall },
   { to: '/appointments',  label: 'Appointments', icon: Calendar },
   { to: '/escalations',   label: 'Questions',     icon: AlertCircle },
+  { to: '/help',          label: 'Help & tutorial', icon: CircleHelp },
   { to: '/knowledge',     label: 'Knowledge',    icon: BookOpen },
 ]
 

@@ -74,6 +74,7 @@ export default function OnboardingPage() {
         </div>
 
         <Link to="/workspaces" className="font-semibold text-primary">Have an invitation? Join a workspace</Link>
+        <Link to="/help" className="mt-3 block text-sm font-semibold text-primary">Setup tutorial</Link>
 
         <section className="flex flex-col gap-6">
           <h2 className="text-base font-semibold tracking-tight text-foreground">
