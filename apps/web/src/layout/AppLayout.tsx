@@ -54,7 +54,9 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
 ]
 
 const MEMBER_NAV_ITEMS: NavItem[] = [
-  { to: '/', label: 'Home', icon: Home, end: true },
+  { to: '/', label: 'Dashboard', icon: Home, end: true },
+  { to: '/calls', label: 'Calls', icon: PhoneCall },
+  { to: '/appointments', label: 'Appointments', icon: Calendar },
   { to: '/workspaces', label: 'Workspace', icon: Building2 },
   { to: '/help', label: 'Help & tutorial', icon: CircleHelp },
 ]

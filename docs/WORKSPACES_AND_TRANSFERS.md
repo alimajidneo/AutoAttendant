@@ -1,6 +1,6 @@
 # Workspaces and browser handoff
 
-Updated 2026-09-11 for v1.0.26. The workspace page now includes team/account summaries, clearer member cards, an owner-only connected-calendar inventory and a separate member home. It preserves existing account and calendar IDs. Browser handoff is implemented and covered by mocked API/worker and database checks; a two-person live microphone acceptance test is still required.
+Updated 2026-09-11 for v1.0.27. The workspace page includes team/account summaries, clearer member cards, an owner-only connected-calendar inventory and a real member dashboard. It preserves existing account and calendar IDs. Browser handoff is implemented and covered by mocked API/worker and database checks; a two-person live microphone acceptance test is still required.
 
 ## Upgrade and restart
 
@@ -17,11 +17,11 @@ The migration is forward-only. Do not roll back to an older API after applying t
 - **Team:** create a separate receptionist and explicitly invite people. Creating a team never copies personal bookings, connected accounts, private calendar events or FAQ content into it.
 - **Owner:** a manager who can invite, revoke invitations, change member roles and remove other members. Owner transfer and workspace deletion are intentionally not available in this first version.
 - **Manager:** configure the shared receptionist, opening hours, business, FAQ, services and routing directory; view and manage that workspace's business bookings, calls and questions.
-- **Member:** view the teammate directory, edit their own name/department/transfer availability and accept a browser transfer addressed to them. Members cannot read business calls, bookings, transcripts, notifications or settings through manager endpoints.
+- **Member:** view the dashboard, shared call-log summaries and DeskRoute booking calendar; edit their own name/department/transfer availability; and accept a browser transfer addressed to them. Members cannot open transcripts/recordings, mutate appointment history, manage notifications, or read/change settings.
 
-The DeskRoute logo and Home button lead managers to the business dashboard and members to a limited home with their role, team size, transfer status and incoming-transfer controls. Manager navigation is not rendered for members.
+The DeskRoute logo, Home button and **Open dashboard** action lead every member to the selected workspace dashboard. A member sees appointment counts, upcoming bookings, recent call-log rows and incoming-transfer controls. Their sidebar includes Dashboard, Calls, Appointments, Workspace and Help. Manager configuration navigation is not rendered for members.
 
-A workspace currently has one receptionist and one owner-managed set of Google or Microsoft connections. The workspace page shows the owner each provider account and its available calendar count. Only the owner may manage these connections or view their addresses and external personal event details; other managers see DeskRoute bookings in the calendar. Personal availability is not automatically shared between a user's workspaces. Employee-owned calendar sharing and cross-company scheduling remain separate work.
+A workspace currently has one receptionist and one owner-managed set of Google or Microsoft connections. The workspace page shows the owner each provider account and its available calendar count. Only the owner may manage these connections or view their addresses and external personal event details. Other managers and members see shared DeskRoute bookings in the calendar, not the owner's personal events. Personal availability is not automatically shared between a user's workspaces. Employee-owned calendar sharing and cross-company scheduling remain separate work.
 
 Managers see verified member account addresses for access administration. Members see their own address and colleagues' chosen display names, departments and availability without receiving colleagues' private account addresses.
 
@@ -73,7 +73,7 @@ The deployment adapter/rewrite configuration and hosted environment are still a 
 
 ## Verification
 
-Unit/API tests cover selected-workspace authorization, member restrictions, owner calendar access, verified-email invitations, transfer token scope, expiration/caller absence and past-event deletion failures. Local PostgreSQL tests cover invitation races, role protection, removal, per-member read receipts, routing ownership, expired requests, RLS and upgrade preservation. UI inspection uses disposable local fixtures with the production components; it is not proof of real cross-device audio or real Google deletion.
+Unit/API tests cover selected-workspace authorization, member call/appointment read access, manager-only call detail and appointment mutations, owner calendar privacy, verified-email invitations, transfer token scope, expiration/caller absence and past-event deletion failures. Local PostgreSQL tests cover invitation races, role protection, removal, per-member read receipts, routing ownership, expired requests, RLS and upgrade preservation. UI inspection uses disposable local fixtures with the production components; it is not proof of real cross-device audio or real Google deletion.
 
 
-Release checks: 242 unit/API/voice tests and 44 PostgreSQL integration tests passed. Type checking, lint and production web build passed. Light/dark and mobile workspace layouts were inspected with disposable UI fixtures. Web design contracts retain the same five pre-existing failures (55 passing); the checks were not weakened. The configured Supabase upgrade preserved existing account workspaces, calendar connections and booking records. No real call or Google event deletion was performed during automated validation.
+Release checks: 261 unit/API/voice tests and 44 PostgreSQL integration tests passed. Type checking, lint and production web build passed. Web design contracts retain the same five pre-existing failures (61 passing); the checks were not weakened. No real call or Google event deletion was performed during automated validation. The member portal still needs a two-account browser acceptance check because automated tests do not hold a customer's Supabase login.

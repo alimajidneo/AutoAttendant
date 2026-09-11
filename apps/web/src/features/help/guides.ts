@@ -29,11 +29,11 @@ export const guides: Guide[] = [
       { title: 'Open Workspaces', detail: 'Use Switch beside the business name at the top of the dashboard. Select an existing workspace or enter a name, type and timezone under Create a workspace.' },
       { title: 'Invite a teammate as the owner', detail: 'In a team workspace, enter the exact email your colleague will use to sign in and select Member or Manager. Create the invitation and copy its code. Share it privately with that colleague; DeskRoute does not email it for you.' },
       { title: 'Accept the invitation', detail: 'Your colleague signs in with the invited email, opens Workspaces, pastes the code under Join a workspace and chooses Join workspace. Codes expire after seven days and work once.' },
-      { title: 'Choose the right role', detail: 'A member can edit their own routing profile and receive transfers addressed to them. A manager can configure the receptionist and see shared business records. Only the owner manages invitations, roles and calendar connections.' },
+      { title: 'Choose the right role', detail: 'A member can view the workspace dashboard, call-log summaries and DeskRoute booking calendar, edit their own routing profile, and receive transfers addressed to them. A manager can also configure the receptionist, open transcripts and recordings, and manage records. Only the owner manages invitations, roles and calendar connections.' },
       { title: 'Check the selected workspace', detail: 'Before changing settings or testing a call, check the business name. Switching workspaces reloads its data in that browser tab. A new workspace starts separately; your personal calendars are not automatically copied into it.' },
     ],
     outcome: 'Each teammate can use their own login to access the intended workspace.',
-    notes: [{ title: 'Who can see personal calendar events?', detail: 'Only the workspace owner can view external calendar event details. Managers can see DeskRoute bookings. Membership does not grant access to someone’s private calendar. Sharing an employee’s own availability with several workspaces is still planned.' }],
+    notes: [{ title: 'Who can see personal calendar events?', detail: 'Only the workspace owner can view events from the owner-connected external calendars. Managers and members can see shared DeskRoute bookings. Membership does not grant access to someone’s private calendar. Sharing an employee’s own availability with several workspaces is still planned.' }],
   },
   {
     id: 'hours', title: 'Hours and timezones', audience: 'Owner or manager',

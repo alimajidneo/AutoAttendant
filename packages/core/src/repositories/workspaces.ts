@@ -5,7 +5,7 @@ import { agents, workspaces, workspaceMembers as members, workspaceInvites as in
 
 export async function listWorkspaces(userId: string) {
   return db.select({ id: workspaces.agentId, name: agents.businessName, kind: workspaces.kind,
-    ownerUserId: workspaces.ownerUserId, role: members.role, userId: members.userId })
+    ownerUserId: workspaces.ownerUserId, role: members.role, userId: members.userId, timezone: agents.timezone })
     .from(members).innerJoin(workspaces, eq(members.agentId, workspaces.agentId))
     .innerJoin(agents, eq(agents.id, workspaces.agentId)).where(eq(members.userId, userId)).orderBy(agents.createdAt);
 }

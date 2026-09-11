@@ -22,14 +22,21 @@ import { transfers } from "./modules/transfers/route.js";
 import { workspaces } from "./modules/workspaces/route.js";
 import { notifications } from "./modules/notifications/route.js";
 
-const admin = new Hono<AppEnv>()
+// Calls and appointments are shared operational records. Every verified member
+// may read their workspace's lists; each module protects its own manager-only
+// detail and mutation routes. The remaining administration surface stays
+// behind the manager check.
+const memberAdmin = new Hono<AppEnv>()
+  .use("*", authenticate, requireAgent)
+  .route("/calls", calls)
+  .route("/appointments", appointments);
+
+const managerAdmin = new Hono<AppEnv>()
   .use("*", authenticate, requireAgent, requireManager)
   .route("/notifications", notifications)
   .route("/metrics", metrics)
-  .route("/calls", calls)
   .route("/escalations", escalations)
   .route("/knowledge", knowledge)
-  .route("/appointments", appointments)
   .route("/services", services)
   .route("/settings", settings)
   .route("/calendar", calendar)
@@ -45,6 +52,7 @@ export const routes = new Hono()
   .route("/onboarding", onboarding)
   .route("/workspaces", workspaces)
   .route("/transfers", transfers)
-  .route("/admin", admin);
+  .route("/admin", memberAdmin)
+  .route("/admin", managerAdmin);
 
 export type AppRoutes = typeof routes;

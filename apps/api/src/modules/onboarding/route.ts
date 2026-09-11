@@ -26,7 +26,7 @@ export const onboarding = new Hono<AppEnv>()
     const selected = c.req.header("X-Workspace-Id");
     const current = selected ? workspaces.find(item => item.id === selected) : workspaces[0];
     return c.json({ onboarded: !!current, role: current?.role, workspaceOwner: current?.ownerUserId === auth.id,
-      workspaceId: current?.id, hasWorkspaces: workspaces.length > 0 });
+      workspaceId: current?.id, timezone: current?.timezone, hasWorkspaces: workspaces.length > 0 });
   })
   .get("/phone/search", async (c) => {
     const auth = c.get("authUser");

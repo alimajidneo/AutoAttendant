@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../../types.js";
 import { listCalls, getCallById } from "@receptionist/core/repositories/calls.js";
 import { getPresignedRecordingUrl } from "@receptionist/core/providers/storage.js";
+import { requireManager } from "../../middleware/auth.js";
 
 export const calls = new Hono<AppEnv>()
   .get("/", async (c) => {
@@ -9,12 +10,12 @@ export const calls = new Hono<AppEnv>()
     const offset = Number(c.req.query("offset") ?? 0);
     return c.json(await listCalls(c.get("agentId"), limit, offset));
   })
-  .get("/:id", async (c) => {
+  .get("/:id", requireManager, async (c) => {
     const call = await getCallById(c.req.param("id"), c.get("agentId"));
     if (!call) return c.json({ error: "Call not found" }, 404);
     return c.json(call);
   })
-  .get("/:id/recording", async (c) => {
+  .get("/:id/recording", requireManager, async (c) => {
     const callId = c.req.param("id");
     const call = await getCallById(callId, c.get("agentId"));
     if (!call) return c.json({ error: "Call not found" }, 404);

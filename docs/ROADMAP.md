@@ -27,8 +27,8 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 | 5 | Microsoft calendar connections | Delegated personal Outlook and work Microsoft 365 OAuth, listing, booking, cancellation, refresh-token rotation, and external-delete sync are implemented. Live account/admin-policy acceptance remains. |
 | 6 | Mixed-provider availability | Google and Microsoft busy ranges are combined in the booking path. Live recurrence, all-day, DST, revocation, and race acceptance remain. |
 | 7 | Thomas's calendar inventory | Identify all five actual providers, permissions and restrictions. Apple Calendar is a client, not proof that iCloud integration is needed. Awaiting inventory. |
-| 8 | Workspaces | Separate personal/team workspaces, tab-local switching, member home, verified account directory, owner calendar-account inventory and email-bound invitations implemented. Teammate live acceptance pending. |
-| 9 | Workspace privacy and roles | Owner/manager/member permissions and isolated business data implemented; owner-only external calendar details. Employee-owned availability sharing remains pending. |
+| 8 | Workspaces | Separate personal/team workspaces, tab-local switching, member operational dashboard, verified account directory, owner calendar-account inventory and email-bound invitations implemented. Teammate live acceptance pending. |
+| 9 | Workspace privacy and roles | Owner/manager/member permissions and isolated business data implemented. Members can read shared call-log summaries and DeskRoute bookings; transcripts, recordings, mutations, settings and owner external events stay protected. Employee-owned availability sharing remains pending. |
 | 10 | Employees and routing | Member profiles, departments, manual availability and browser handoff requests implemented. Employee booking destinations, phone numbers, presence and transfer hours remain pending. |
 | 11 | Cross-workspace scheduling | A booking for an employee in one company blocks the other without revealing details; prevent simultaneous cross-workspace booking. Pending. |
 | 12 | Receptionist behavior | Approved FAQ answers, configurable intake, general appointments, honest message fallback. Existing features require full journey acceptance. |
@@ -43,6 +43,8 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 ## Current work batch
 
 2026-09-10 follow-up: Center route loading, add past-booking deletion to the calendar agenda, protect deletion cache updates from stale reads and deduplicate email/calendar labels. Document [current agent capabilities and the staged context plan](AGENT_CONTEXT_AND_CAPABILITIES.md). Context starts with workspace-scoped editable business notes and a published preview; document imports and deeper analysis remain later work. Hosted operation must pass tests with all local terminals stopped.
+
+2026-09-11: The member portal now includes a dashboard, read-only workspace call logs and the shared DeskRoute appointment calendar. External personal calendar events remain owner-only; linking each employee's own availability still requires the planned permission-based ownership upgrade.
 
 2026-09-10: Notifications, calendar source colors, workspaces and browser handoff are implemented. Added a public in-app step-by-step tutorial at `/help`, linked from sign-in, onboarding, the dashboard and Workspaces. It explains current capabilities and limitations without creating external integrations.
 

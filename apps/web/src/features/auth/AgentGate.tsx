@@ -23,7 +23,10 @@ export function AgentGate() {
 
   if (isError) return <p className="p-6">Unable to load your workspace. Refresh to retry.</p>
   if (data?.role === 'member') {
-    return location.pathname === '/' ? <Outlet /> : <Navigate to="/" replace />
+    const memberPath = location.pathname === '/'
+      || location.pathname === '/calls'
+      || location.pathname === '/appointments'
+    return memberPath ? <Outlet /> : <Navigate to="/" replace />
   }
   if (!data?.onboarded && data?.hasWorkspaces) return <Navigate to="/workspaces" replace />
 

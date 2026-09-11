@@ -38,11 +38,22 @@ const app = new Hono<AppEnv>()
   .use("*", async (c, next) => {
     c.set("agentId", "agent-1");
     c.set("workspaceOwner", true);
+    c.set("workspaceRole", "manager");
     c.set("authUser", { id: "owner-1" } as never);
     await next();
   })
   .route("/appointments", appointments);
 app.onError((_error, c) => c.json({ error: "failed" }, 500));
+
+const memberApp = new Hono<AppEnv>()
+  .use("*", async (c, next) => {
+    c.set("agentId", "agent-1");
+    c.set("workspaceOwner", false);
+    c.set("workspaceRole", "member");
+    c.set("authUser", { id: "member-1" } as never);
+    await next();
+  })
+  .route("/appointments", appointments);
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -151,6 +162,24 @@ describe("calendar view", () => {
       "2026-09-01T00:00:00.000Z",
       "2026-10-01T00:00:00.000Z",
     );
+  });
+
+  it("lets a member read shared bookings without exposing owner calendar events", async () => {
+    mocks.listAppointments.mockResolvedValue([{ id: "shared", service: "Demo", status: "confirmed",
+      startTime: new Date("2026-09-10T15:00:00Z"), endTime: new Date("2026-09-10T16:00:00Z") }]);
+    const response = await memberApp.request(
+      "/appointments/calendar?timeMin=2026-09-01T00:00:00.000Z&timeMax=2026-10-01T00:00:00.000Z",
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ events: [{ title: "Demo", calendarId: "workspace" }], sources: [] });
+    expect(mocks.getAgentCalendarAccess).not.toHaveBeenCalled();
+    expect(mocks.listCalendarEvents).not.toHaveBeenCalled();
+  });
+
+  it("keeps appointment mutations manager-only", async () => {
+    expect((await memberApp.request("/appointments/shared", { method: "DELETE" })).status).toBe(403);
+    expect((await memberApp.request("/appointments/sync", { method: "POST" })).status).toBe(403);
+    expect(mocks.cancelAppointmentById).not.toHaveBeenCalled();
   });
 });
 

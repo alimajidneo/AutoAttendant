@@ -67,6 +67,8 @@ function appointmentDateTime(appointment: AppointmentItem, zone?: string): strin
 export default function AppointmentsPage() {
   const zone = useAgentZone()
   const queryClient = useQueryClient()
+  const { data: session } = useQuery({ queryKey: keys.session, queryFn: fetchers.session, staleTime: Infinity })
+  const memberOnly = session?.role === 'member'
   const [now, setNow] = useState(() => Date.now())
   const today = dayKey(new Date(now).toISOString(), zone)
   const [month, setMonth] = useState(() => today.slice(0, 7))
@@ -173,24 +175,39 @@ export default function AppointmentsPage() {
     setSelectedDay(`${next}-01`)
   }
 
+  async function refreshMemberView() {
+    const [bookingResult, calendarResult] = await Promise.all([appointmentsQuery.refetch(), calendarQuery.refetch()])
+    if (bookingResult.isError || calendarResult.isError) toast.error('Could not refresh workspace appointments.')
+    else toast.success('Workspace appointments are up to date')
+  }
+
   return (
     <PageContainer>
       <PageHeader
         title="Appointments"
-        description="Appointments and events from the Google and Microsoft calendars you have selected."
+        description={memberOnly
+          ? 'Shared receptionist appointments for this workspace. Private external calendar events remain visible only to their owner.'
+          : 'Appointments and events from the Google and Microsoft calendars you have selected.'}
         actions={
-          <Button variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending || removeHistory.isPending || cancel.isPending}>
-            <RefreshCw className={cn(refresh.isPending && 'animate-spin')} />
+          <Button variant="outline" onClick={() => memberOnly ? void refreshMemberView() : refresh.mutate()} disabled={memberOnly ? appointmentsQuery.isFetching || calendarQuery.isFetching : refresh.isPending || removeHistory.isPending || cancel.isPending}>
+            <RefreshCw className={cn((memberOnly ? appointmentsQuery.isFetching || calendarQuery.isFetching : refresh.isPending) && 'animate-spin')} />
             <span className="hidden sm:inline">Refresh calendar</span>
             <span className="sm:hidden">Refresh</span>
           </Button>
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-primary-subtle px-4 py-3">
-        <p className="text-sm text-foreground">Missing an event? Select its calendar in Connections, save, then refresh this page.</p>
-        <Link to="/settings?tab=connections&manageCalendars=1" className="text-sm font-semibold text-accent-ink underline underline-offset-4">Manage calendars</Link>
-      </div>
+      {memberOnly ? (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-border bg-primary-subtle px-4 py-3">
+          <CalendarDays className="mt-0.5 size-5 shrink-0 text-primary" />
+          <p className="text-sm text-foreground">This calendar contains DeskRoute bookings shared with the workspace. Connecting each employee's private availability is a separate permission-based feature.</p>
+        </div>
+      ) : (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-primary-subtle px-4 py-3">
+          <p className="text-sm text-foreground">Missing an event? Select its calendar in Connections, save, then refresh this page.</p>
+          <Link to="/settings?tab=connections&manageCalendars=1" className="text-sm font-semibold text-accent-ink underline underline-offset-4">Manage calendars</Link>
+        </div>
+      )}
 
       <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Appointment summary">
         {appointmentStats.map(({ label, value, icon: Icon, tone, line }) => (
@@ -291,9 +308,7 @@ export default function AppointmentsPage() {
           <div className="border-t border-border p-4 sm:p-5">
             <h3 className="font-semibold text-foreground">{dateLabel(selectedDay)}</h3>
             {calendarQuery.isError ? (
-              <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                Calendar events are unavailable. Check Calendars under Settings → Connections.
-              </p>
+              <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">Calendar events are unavailable. Refresh and try again.</p>
             ) : selectedEvents.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">Nothing scheduled on this calendar.</p>
             ) : (
@@ -312,11 +327,11 @@ export default function AppointmentsPage() {
                         <p className="text-sm text-muted-foreground">{eventTime(event, zone)}{appointment ? ' · DeskRoute booking' : ''}</p>
                         {source && <p className="mt-1 break-words text-sm text-muted-foreground">{calendarSourceLabel(source)}</p>}
                       </div>
-                      {appointment && appointment.endTime && Date.parse(appointment.endTime) <= now ? (
+                      {!memberOnly && appointment && appointment.endTime && Date.parse(appointment.endTime) <= now ? (
                         <Button variant="destructive" size="sm" className="ml-auto shrink-0" disabled={refresh.isPending || removeHistory.isPending} onClick={() => setDeleting(appointment)} aria-label={`Delete past ${appointment.service} appointment from calendar`}>
                           <Trash2 /> Delete
                         </Button>
-                      ) : appointment && appointment.status !== 'cancelled' && (
+                      ) : !memberOnly && appointment && appointment.status !== 'cancelled' && (
                         <Button
                           variant="destructive"
                           size="sm"
@@ -379,13 +394,13 @@ export default function AppointmentsPage() {
                       </dl>
                     )}
                   </div>
-                  <Button
+                  {!memberOnly && <Button
                     variant="destructive"
                     size="sm"
                     aria-label={`Cancel ${appointment.service} appointment`}
                     title="Cancel appointment"
                     disabled={refresh.isPending || cancel.isPending} onClick={() => setCancelling(appointment)}
-                  ><Trash2 /> Cancel</Button>
+                  ><Trash2 /> Cancel</Button>}
                 </div>
               </div>
             ))}
@@ -396,7 +411,9 @@ export default function AppointmentsPage() {
       <section className="mt-5 overflow-hidden rounded-2xl border border-border bg-card shadow-sm" data-ground="card" aria-label="Past appointments">
         <div className="border-b border-border px-4 py-4 sm:px-5">
           <h2 className="text-base font-semibold text-foreground">Past appointments <span className="ml-2 text-sm text-muted-foreground">{past.length}</span></h2>
-          <p className="mt-1 text-sm text-muted-foreground">Appointments move here after their end time. Deleting one also removes its linked provider event.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{memberOnly
+            ? 'Appointments move here after their end time. A manager can remove workspace history.'
+            : 'Appointments move here after their end time. Deleting one also removes its linked provider event.'}</p>
         </div>
         <div className="divide-y divide-border px-4 sm:px-5">
           {appointmentsQuery.isLoading ? <Skeleton className="my-4 h-16" /> : appointmentsQuery.isError ? (
@@ -409,7 +426,7 @@ export default function AppointmentsPage() {
                 <p className="mt-1 text-sm text-muted-foreground">{appointmentDateTime(appointment, zone)} · {appointment.callerName ?? 'Name not given'}</p>
               </div>
               {appointment.status === 'confirmed' ? <span className="rounded-md bg-success-subtle px-2 py-1 text-sm font-medium text-success">Ended</span> : <StatusBadge value={appointment.status} config={appointmentStatusConfig} />}
-              <Button variant="destructive" size="sm" disabled={refresh.isPending || removeHistory.isPending} onClick={() => setDeleting(appointment)} aria-label={`Delete past ${appointment.service} appointment`}><Trash2 /> Delete</Button>
+              {!memberOnly && <Button variant="destructive" size="sm" disabled={refresh.isPending || removeHistory.isPending} onClick={() => setDeleting(appointment)} aria-label={`Delete past ${appointment.service} appointment`}><Trash2 /> Delete</Button>}
             </div>
           ))}
         </div>

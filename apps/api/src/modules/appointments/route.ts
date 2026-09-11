@@ -17,12 +17,13 @@ import {
 } from "@receptionist/core/providers/calendarProvider.js";
 import { getAgentById } from "@receptionist/core/repositories/agents.js";
 import { notifySlack } from "@receptionist/core/providers/slack.js";
+import { requireManager } from "../../middleware/auth.js";
 
 const DAY_MS = 86_400_000;
 
 export const appointments = new Hono<AppEnv>()
   .get("/", async (c) => c.json(await listAppointments(c.get("agentId"))))
-  .delete("/history/:appointmentId", async (c) => {
+  .delete("/history/:appointmentId", requireManager, async (c) => {
     const agentId = c.get("agentId");
     const id = c.req.param("appointmentId");
     const appointment = await getAppointmentById(id, agentId);
@@ -93,7 +94,7 @@ export const appointments = new Hono<AppEnv>()
     ));
     return c.json({ events: results.flat(), sources });
   })
-  .post("/sync", async (c) => {
+  .post("/sync", requireManager, async (c) => {
     const agentId = c.get("agentId");
     const rows = await listConfirmedAppointmentsForSync(agentId);
     if (rows.length === 0) {
@@ -166,7 +167,7 @@ export const appointments = new Hono<AppEnv>()
       appointments: await listAppointments(agentId),
     });
   })
-  .delete("/:appointmentId", async (c) => {
+  .delete("/:appointmentId", requireManager, async (c) => {
     const agentId = c.get("agentId");
     const appointmentId = c.req.param("appointmentId");
     const appointment = await getAppointmentById(appointmentId, agentId);

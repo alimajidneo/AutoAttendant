@@ -64,7 +64,7 @@ function columns(zone: string | undefined): Column<CallListItem>[] {
   ]
 }
 
-export function CallsTable({ compact = false }: { compact?: boolean }) {
+export function CallsTable({ compact = false, allowDetails = true }: { compact?: boolean; allowDetails?: boolean }) {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const zone = useAgentZone()
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useCallsQuery()
@@ -112,8 +112,10 @@ export function CallsTable({ compact = false }: { compact?: boolean }) {
         columns={columns(zone)}
         groups={groups}
         rowKey={(c) => c.id}
-        href={(c) => `/calls/${c.id}`}
-        rowLabel={(c) => c.summary || 'Call detail'}
+        {...(allowDetails ? {
+          href: (c: CallListItem) => `/calls/${c.id}`,
+          rowLabel: (c: CallListItem) => c.summary || 'Call detail',
+        } : {})}
       />
       {!compact && hasNextPage && (
         <div ref={sentinelRef} className="flex items-center justify-center py-3">

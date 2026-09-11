@@ -91,7 +91,7 @@ function WorkspaceDetails({ workspace }: { workspace: Workspace }) {
   const team = members.data ?? []
   const available = team.filter(member => member.available).length
   return <div className="grid gap-5">
-    <section className={panel}><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">{workspace.name}</h2><p className="mt-1 text-sm text-muted-foreground">{workspace.kind === 'personal' ? 'Private workspace for your own receptionist.' : 'Shared receptionist. Managers manage business records; members manage their own availability.'}</p></div>{workspace.role === 'manager' && <Button onClick={() => openWorkspace(workspace.id)}>Open dashboard<ArrowRight /></Button>}</div>
+    <section className={panel}><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">{workspace.name}</h2><p className="mt-1 text-sm text-muted-foreground">{workspace.kind === 'personal' ? 'Private workspace for your own receptionist.' : 'Shared receptionist. Members can read calls and appointments; managers control settings and records.'}</p></div><Button onClick={() => openWorkspace(workspace.id)}>Open dashboard<ArrowRight /></Button></div>
       <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"><ShieldCheck className="size-4 shrink-0" />Calendar connections and personal event details are visible only to the owner.</p>
     </section>
     <div className="grid gap-3 sm:grid-cols-3">

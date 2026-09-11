@@ -1,4 +1,4 @@
-> **Current scope (2026-09-09):** [Delivery roadmap](docs/ROADMAP.md) — verify multiple Google/Microsoft calendars and privacy first, then company workspaces, employees and call routing. Workspace support is agreed, not yet implemented.
+> **Current scope (2026-09-11):** [Delivery roadmap](docs/ROADMAP.md) — Google multi-account calendars, company workspaces and a privacy-scoped member dashboard are implemented. Employee-owned calendar availability, live Microsoft acceptance and telephone routing remain.
 
 # Receptionist for USA customer handover
 
