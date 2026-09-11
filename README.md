@@ -2,9 +2,9 @@
 
 Neodym's AI receptionist for USA customer teams. The receptionist answers business questions, checks selected Google and Microsoft calendars, books appointments, and sends follow-ups to the dashboard and an optional Slack channel.
 
-**Version 1.0.27 · Updated 2026-09-11**
+**Version 1.0.28 · Updated 2026-09-11**
 
-This repository is under active development. Browser voice calls and Google booking have been tested. Microsoft Calendar and selected-channel Slack alerts are implemented and await live account acceptance. Teams presence, two-person audio acceptance, and telephone transfer remain pending. The intended deployment is a Vercel website/HTTP API plus a separately hosted LiveKit voice worker.
+This repository is under active development. Browser voice calls and Google booking have been tested. Microsoft Calendar and selected-channel Slack alerts are implemented and await live account acceptance. The Vercel website/API adapter is ready; hosted provider configuration and acceptance remain. Teams presence, two-person audio acceptance, telephone transfer, and managed LiveKit worker deployment remain pending.
 
 - [Agent capabilities and context plan](docs/AGENT_CONTEXT_AND_CAPABILITIES.md)
 - [Slack and Microsoft integration plan](docs/INTEGRATION_PLAN.md)
@@ -65,7 +65,7 @@ Colors identify accounts, not appointment status. The legend remains present for
 
 ## Hosted operation
 
-Customers will use the deployed website without terminal commands. The intended setup is Vercel web/API plus a managed LiveKit voice worker, deployed through an operator-controlled release process. This is not deployed yet. See [running without local terminals](docs/VERCEL_FEASIBILITY.md#running-without-local-terminals).
+Customers will use the deployed website without terminal commands. The repository can now deploy its Vite website and Hono API as one Vercel project; the persistent voice worker still needs a managed LiveKit deployment. This is not deployed yet. Follow the [step-by-step Vercel setup](docs/SETUP.md#10-deploy-the-website-and-api-to-vercel) and [running without local terminals](docs/VERCEL_FEASIBILITY.md#running-without-local-terminals).
 
 ## Run locally
 

@@ -1,4 +1,4 @@
-> **Integration update (2026-09-10):** Apply migration `0008_curved_nebula`, configure the Microsoft and Slack credentials in sections 8 and 9, then restart API and voice. Existing users, workspaces, Google accounts, calendars, and appointments are preserved.
+> **Deployment update (2026-09-11):** Version 1.0.28 adds the Vercel website/API entrypoint and routing. Follow section 10 to import the GitHub repository, add hosted environment values, and register the stable HTTPS callbacks. The persistent voice worker is deployed separately.
 
 > **Current work (2026-09-09):** Follow [ROADMAP.md](ROADMAP.md) for the agreed calendar-first scope and [CALENDAR_TESTING.md](CALENDAR_TESTING.md) for the multiple-account acceptance steps. Google connection setup now uses a short-lived HttpOnly browser cookie and PKCE; restart the API and voice worker after updating, then start a fresh connection from DeskRoute. No new credentials or database migration are required by this hardening batch.
 
@@ -88,7 +88,7 @@ This guide contains no invented credentials or proposed environment variables. R
 
 ### Latest code verification
 
-Latest automated result for the integration batch: 255 unit/API/voice tests and 44 disposable PostgreSQL integration tests pass. Typecheck, lint, and production build pass. The complete migration chain passed locally, and migration `0008_curved_nebula` was applied successfully to the configured Supabase development database. Web tests remain 61 passing with the same five pre-existing design-contract failures. Live Microsoft and Slack acceptance remains. Real Google sign-in, two Google accounts, browser voice, and a Calendar booking were manually verified earlier.
+Latest automated result before the Vercel deployment adapter: 261 unit/API/voice tests and 44 disposable PostgreSQL integration tests pass. Typecheck, lint, and production build pass. The complete migration chain passed locally. Web tests remain 61 passing with the same five pre-existing design-contract failures. Live Microsoft and Slack acceptance remains. Real Google sign-in, two Google accounts, browser voice, and a Calendar booking were manually verified earlier.
 
 ## 1. Find and edit the environment files
 
@@ -509,6 +509,86 @@ The first Slack integration sends privacy-minimal notifications to one owner-sel
 Booking, request, cancellation, caller-question, and call-error alerts are event-driven; DeskRoute does not poll Slack or Teams in the background. The messages do not include a caller's name, phone number, transcript, recording, calendar event title, or appointment time. This reduces disclosure in a shared channel.
 
 For production, add the deployed HTTPS Slack callback, update `PUBLIC_API_URL`, and configure Slack app distribution for customer workspaces. Each DeskRoute workspace stores one encrypted Slack installation and its own selected channel. Disconnecting Slack deletes the local credential immediately and requests Slack token revocation.
+
+## 10. Deploy the website and API to Vercel
+
+Use GitHub integration for this deployment. Vercel will build the committed repository and automatically deploy later pushes to `main`. Use a Neodym-owned Vercel team for a durable staging or customer deployment. A personal Vercel account is acceptable for a temporary colleague test, but transfer the project to the intended business owner before customer handover.
+
+The repository already contains `vercel.json` and `api/index.ts`. Vercel hosts the Vite website and short Hono API requests. It does not host the persistent LiveKit voice worker.
+
+### 10A. Import the GitHub repository
+
+1. Make sure the latest `main` branch is present at [alimajidneo/AutoAttendant](https://github.com/alimajidneo/AutoAttendant).
+2. Open [Vercel New Project](https://vercel.com/new) and sign in with GitHub.
+3. When GitHub asks which repositories Vercel may access, grant access to `alimajidneo/AutoAttendant`. Repository-only access is sufficient.
+4. In Vercel, select the intended account/team scope and choose **Import** beside `AutoAttendant`.
+5. Choose a stable project name. Record the exact production domain Vercel shows; all OAuth providers must later use that exact HTTPS origin.
+6. Leave **Root Directory** at the repository root. Do not choose `apps/web`; doing that excludes the root `api` function and workspace packages.
+7. Keep **Framework Preset** as **Vite**. The committed configuration supplies these settings:
+   - Install command: `pnpm install --frozen-lockfile`
+   - Build command: `pnpm build`
+   - Output directory: `apps/web/dist`
+8. Do not add a database migration to the build command. Apply versioned migrations separately with `pnpm db:migrate` before deploying code that requires them.
+
+### 10B. Add the first deployment environment
+
+In the import page, expand **Environment Variables**. Copy actual values from the existing local environment files or the provider dashboards. Never paste them into GitHub, source files, build logs, or chat.
+
+Add these variables to **Production**:
+
+| Variable | Exact source/action |
+| --- | --- |
+| `DATABASE_URL` | Supabase **Connect → Transaction pooler** URI on port 6543. Insert the real database password and URL-encode reserved password characters. |
+| `DATABASE_POOL_MAX` | Enter `1` for the Vercel function. |
+| `LIVEKIT_URL` | Copy the existing project URL from `apps/api/.env`. |
+| `LIVEKIT_API_KEY` | Copy the existing LiveKit API key from `apps/api/.env`. |
+| `LIVEKIT_API_SECRET` | Copy the existing LiveKit API secret from `apps/api/.env`. |
+| `SUPABASE_URL` | Copy the existing Supabase project URL from `apps/api/.env`. |
+| `SUPABASE_PUBLISHABLE_KEY` | Copy the existing Supabase publishable key from `apps/api/.env`. |
+| `VITE_SUPABASE_URL` | Use the same Supabase project URL. This value is intentionally browser-visible. |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Use the same Supabase publishable key. This value is intentionally browser-visible. |
+| `GOOGLE_CLIENT_ID` | Copy the existing Google OAuth web-client ID from `apps/api/.env`. |
+| `GOOGLE_CLIENT_SECRET` | Copy the current Google OAuth client secret from `apps/api/.env`. |
+| `TOKEN_ENCRYPTION_KEY` | Copy the existing 64-character key from `apps/api/.env`; changing it would make stored provider tokens unreadable. |
+
+Leave `VITE_API_URL` unset. Production uses same-origin `/api`, which avoids a separate API domain and routine browser preflight requests.
+
+Add Microsoft and Slack variables only if those integrations are being tested on this deployment. Add all four `R2_*` variables or none; a partial recording configuration is rejected. Do not add `PORT`; Vercel supplies the serverless runtime.
+
+1. Select **Deploy**.
+2. Wait for the build to finish and copy the exact production URL from the completed deployment.
+3. Open the production URL followed by `/api/health`. A JSON health response confirms that the function is running.
+4. In **Project Settings → Environment Variables**, add `PUBLIC_API_URL` with the exact HTTPS production origin, without `/api` or a trailing slash.
+5. Add `DASHBOARD_ORIGINS` with that same origin. Same-origin operation does not need CORS, but this keeps the allowed origin explicit for future browser clients.
+6. Open **Deployments**, use the menu on the latest production deployment, and choose **Redeploy**. Vercel environment changes affect new deployments only.
+
+Preview deployments need their own environment scope. Do not place production secrets into Preview until there is a deliberate preview-data policy. Stable OAuth testing should use the production domain of this staging project, because every changing preview domain would need another callback entry.
+
+### 10C. Register the deployed URLs
+
+Complete these steps using the exact production URL copied from Vercel:
+
+1. In Supabase, open **Authentication → URL Configuration**.
+2. Set **Site URL** to the deployed origin for this staging project.
+3. Add the deployed origin followed by `/auth/callback` to **Redirect URLs**. Keep the localhost callback for local development.
+4. In Google Cloud, open `deskroute-dev` → **Google Auth Platform → Clients → DeskRoute Web**.
+5. Add the deployed origin followed by `/api/calendar/oauth/callback` under **Authorized redirect URIs**. Keep Supabase's `/auth/v1/callback` and the localhost Calendar callback.
+6. If the Google application is still in **Testing**, add every colleague's Google address under **Audience → Test users**. Unlisted customer accounts cannot authorize the application until the production consent and verification work is complete.
+7. If Slack is enabled, open the DeskRoute Slack app → **OAuth & Permissions → Redirect URLs** and add the deployed origin followed by `/api/slack/oauth/callback`.
+8. If Microsoft is enabled later, add the deployed origin followed by `/api/microsoft/oauth/callback` as a **Web** redirect URI in the Entra app registration.
+9. Redeploy once more if any Vercel environment values changed.
+
+### 10D. Test the hosted application
+
+1. Open the Vercel URL in a private browser window and sign in.
+2. Confirm onboarding/settings, workspace switching, member dashboard, call logs, and appointments load.
+3. Connect a Google test account, select its calendars, and verify events and availability.
+4. Create and delete a DeskRoute appointment and confirm the linked Google event follows it.
+5. Invite the colleague and have them accept in their own DeskRoute account. Verify they see member-safe calls and the shared DeskRoute calendar without owner-only external event details.
+6. For an immediate browser voice test, keep `pnpm dev:voice` running on the development computer with the same LiveKit and database configuration. The worker makes an outbound connection, so the colleague can use the hosted browser while it runs.
+7. Deploy `apps/voice` to LiveKit Cloud before testing without the development computer. The website/API deployment alone cannot answer a voice session.
+
+Git pushes to `main` will create later production deployments automatically. Check Vercel's deployment logs after each push. Use a branch/preview only after its data and OAuth callback policy is defined.
 
 ## Troubleshooting
 

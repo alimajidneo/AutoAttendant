@@ -2,7 +2,7 @@ import { z } from "zod";
 import { parseEnv } from "@receptionist/core/env.js";
 
 const envSchema = z.object({
-  PORT: z.coerce.number().int().positive(),
+  PORT: z.coerce.number().int().positive().default(8080),
   /** Anything not listed gets no access-control-allow-origin header at all. */
   DASHBOARD_ORIGINS: z
     .string()

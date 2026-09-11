@@ -1,4 +1,4 @@
-> **Implementation update 2026-09-09:** Production API requests now default to `/api`; React Query uses a five-minute stale time, no focus refetch and at most one retry. Authenticated API responses send private/no-store, so shared infrastructure cannot cache one owner's data for another. Dashboard aggregation, Vercel entrypoint/configuration, hosted pooling and deployment acceptance below remain pending. Calendar OAuth is browser-bound without a session database or polling. See [ROADMAP.md](ROADMAP.md).
+> **Implementation update 2026-09-11 (1.0.28):** The repository now has a root Vercel configuration and a serverless Hono entrypoint. Production browser requests use same-origin `/api`; React Query uses a five-minute stale time, no focus refetch and at most one retry. Authenticated API responses send `private, no-store`. The production build and entrypoint typecheck pass locally. Connecting Vercel, setting hosted secrets, hosted pooling, dashboard aggregation, OAuth callback registration, and live acceptance remain.
 
 # Vercel deployment feasibility
 
@@ -18,18 +18,18 @@ The supported hosted topology is:
 | Database and authentication | Supabase |
 | Calendar | Google Calendar API |
 
-This preserves the development architecture. It requires a deployment adapter and production configuration, not an application rewrite.
+This preserves the development architecture. The deployment adapter is implemented in `api/index.ts` and `vercel.json`; provider configuration and hosted acceptance still have to be completed.
 
-## Required repository work
+## Deployment status
 
-1. Split the Hono application export from the local Node listener. Local development continues to use `@hono/node-server`; the Vercel entrypoint default-exports the same Hono app.
-2. Add a root Vercel configuration that builds `apps/web`, publishes `apps/web/dist`, routes `/api/*` to the Hono function, and sends other paths to the Vite SPA entrypoint.
-3. Keep the API and website on one origin. The browser should use `/api` in production, eliminating cross-origin preflight requests and a separate public API domain.
-4. Use Supabase's transaction pooler on port 6543 for Vercel Functions. Keep the direct or session-pooler URL for migrations and persistent local processes. Set the Vercel API pool to a small limit and do not run migrations during a Vercel build.
-5. Select a Vercel Function region near the production Supabase region and the US customer. Region selection must use the actual production project location.
-6. Store server credentials only in Vercel encrypted environment variables. Only the Supabase URL and publishable browser key use the `VITE_` prefix.
-7. Configure a stable HTTPS staging domain and the final customer domain in Supabase redirect URLs and Google OAuth. Set API `PUBLIC_API_URL` to its stable public origin and authorize `${PUBLIC_API_URL}/api/calendar/oauth/callback` in Google. Preview deployment URLs are not production OAuth callbacks.
-8. Package and deploy `apps/voice` separately through LiveKit Cloud with the same database, Google, LiveKit, and encryption configuration.
+1. **Implemented:** the local listener and reusable Hono application are separate; `api/index.ts` exports the application for Vercel.
+2. **Implemented:** `vercel.json` builds the monorepo from its root, publishes `apps/web/dist`, routes `/api/*` to one Node.js function, and routes website paths to the Vite SPA.
+3. **Implemented:** the production browser defaults to same-origin `/api`, avoiding a separate API origin and normal CORS preflights.
+4. **Configure in Vercel:** use Supabase's transaction pooler on port 6543 and set `DATABASE_POOL_MAX=1`. Keep the direct or session-pooler URL for migrations and persistent local processes. Never run migrations during a Vercel build.
+5. **Configure after import:** select a Vercel Function region near the production Supabase region and the US customer. Use the actual project locations.
+6. **Configure before deployment:** store server credentials only in Vercel environment variables. Only the Supabase URL and publishable browser key use the `VITE_` prefix.
+7. **Configure after assigning the stable domain:** add that HTTPS origin to Supabase and the Google, Slack, and Microsoft OAuth callback lists. Preview URLs are unsuitable for stable OAuth testing.
+8. **Separate next task:** package and deploy `apps/voice` through LiveKit Cloud with the same database, provider, LiveKit, and encryption configuration.
 
 ## Invocation budget
 
@@ -44,7 +44,7 @@ The current authenticated dashboard issues six distinct API requests after a col
 
 React Query deduplicates repeated settings consumers, but each distinct HTTP request still invokes the Vercel API function. Failed requests may also be retried.
 
-Before deployment, reduce the dashboard to two requests:
+The next invocation-reduction change is to reduce the dashboard to two requests:
 
 1. One cached onboarding/session request.
 2. One authenticated dashboard request containing settings summary, metrics, pending-question count, today's appointments, and recent calls.
@@ -85,9 +85,9 @@ Vercel deployment is accepted only after the public HTTPS installation passes si
 
 ## Running without local terminals
 
-Updated 2026-09-10. The `pnpm dev:*` commands are the developer workflow, not the customer workflow. Hosted deployment is still pending.
+Updated 2026-09-11. The `pnpm dev:*` commands are the developer workflow, not the customer workflow. The Vercel adapter and build configuration are ready; the hosted deployment is pending.
 
-1. Finish the Vercel HTTP entrypoint/routing and build configuration. Connect the GitHub repository, set server secrets in the deployment environment and publish the static web build. Vercel can build and deploy automatically from Git pushes. Customers only open the HTTPS application URL. [Vercel Git deployments](https://vercel.com/docs/git).
+1. Connect the GitHub repository to Vercel, set the environment variables, and publish the prepared website/API build. Vercel then deploys automatically from Git pushes. Customers only open the HTTPS application URL. Follow [the detailed Vercel steps](SETUP.md#10-deploy-the-website-and-api-to-vercel). [Vercel Git deployments](https://vercel.com/docs/git).
 2. Package the voice worker for LiveKit Cloud (or one managed container host if chosen after cost verification). The host runs its production start command, manages the process and replaces failed instances. Add health checks and startup validation. It must not depend on a laptop terminal or Vercel request lifetime. [LiveKit agent deployment](https://docs.livekit.io/deploy/agents/).
 3. Configure stable production authentication/calendar callbacks, public URLs and the shared database connection settings. Keep separate staging credentials and explicit production configuration.
 4. Set deploy-time checks, logs, health alerts and a rollback process. A process restarting does not guarantee a call already in progress survives; test that failure and the caller fallback explicitly.
