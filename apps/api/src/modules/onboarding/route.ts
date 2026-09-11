@@ -55,6 +55,7 @@ export const onboarding = new Hono<AppEnv>()
     try {
       const agent = await createAgent({
         authUserId: auth.id,
+        authEmail: auth.email_confirmed_at ? auth.email : undefined,
         businessName: name,
         personaName: agentProfile?.name,
         greeting: agentProfile?.greeting,

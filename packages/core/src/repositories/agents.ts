@@ -86,6 +86,7 @@ export async function createAgent(input: {
   industry: string;
   timezone: string;
   authUserId: string;
+  authEmail?: string;
   description?: string;
   personaName?: string;
   greeting?: string;
@@ -97,9 +98,11 @@ export async function createAgent(input: {
   maxAdvanceDays?: number;
 }): Promise<AgentConfig> {
   return db.transaction(async tx => {
-    const [agent] = await tx.insert(agents).values(input).returning(agentFields);
+    const { authEmail, ...agentInput } = input;
+    const [agent] = await tx.insert(agents).values(agentInput).returning(agentFields);
     await tx.insert(workspaces).values({ agentId: agent!.id, ownerUserId: input.authUserId, kind: "personal" });
-    await tx.insert(workspaceMembers).values({ agentId: agent!.id, userId: input.authUserId, role: "manager" });
+    await tx.insert(workspaceMembers).values({ agentId: agent!.id, userId: input.authUserId,
+      email: authEmail?.toLowerCase() ?? "", role: "manager" });
     return agent!;
   });
 }

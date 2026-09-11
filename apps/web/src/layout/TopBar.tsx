@@ -12,7 +12,9 @@ import { NotificationCenter } from '@/features/notifications/NotificationCenter'
 
 export function TopBar() {
   const { user } = useAuth()
-  const { data: settings } = useQuery({ queryKey: keys.settings, queryFn: fetchers.settings })
+  const { data: session } = useQuery({ queryKey: keys.session, queryFn: fetchers.session, staleTime: Infinity })
+  const memberOnly = session?.role === 'member'
+  const { data: settings } = useQuery({ queryKey: keys.settings, queryFn: fetchers.settings, enabled: !memberOnly })
   const { theme, setTheme } = useTheme()
   const avatarUrl = userAvatarUrl(user)
   const name = user?.user_metadata.full_name || user?.email || 'Account'
@@ -39,11 +41,11 @@ export function TopBar() {
         >
           {theme === 'dark' ? <Sun /> : <Moon />}
         </Button>
-        <NotificationCenter />
+        {!memberOnly && <NotificationCenter />}
         <Link
-          to="/settings?tab=account"
+          to={memberOnly ? '/workspaces' : '/settings?tab=account'}
           className="ml-1 flex items-center gap-2 rounded-full p-1 pr-2 text-sm font-medium hover:bg-sunk-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={`Open ${name} account settings`}
+          aria-label={memberOnly ? `Open ${name} workspace` : `Open ${name} account settings`}
         >
           {avatarUrl ? (
             <img src={avatarUrl} alt="" className="size-8 rounded-full object-cover" />

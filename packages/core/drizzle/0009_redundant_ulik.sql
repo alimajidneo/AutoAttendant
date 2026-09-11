@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_members" ADD COLUMN "email" text DEFAULT '' NOT NULL;

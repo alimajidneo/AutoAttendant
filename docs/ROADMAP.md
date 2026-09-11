@@ -27,7 +27,7 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 | 5 | Microsoft calendar connections | Delegated personal Outlook and work Microsoft 365 OAuth, listing, booking, cancellation, refresh-token rotation, and external-delete sync are implemented. Live account/admin-policy acceptance remains. |
 | 6 | Mixed-provider availability | Google and Microsoft busy ranges are combined in the booking path. Live recurrence, all-day, DST, revocation, and race acceptance remain. |
 | 7 | Thomas's calendar inventory | Identify all five actual providers, permissions and restrictions. Apple Calendar is a client, not proof that iCloud integration is needed. Awaiting inventory. |
-| 8 | Workspaces | Separate personal/team workspaces, tab-local switching and email-bound invitations implemented. Teammate live acceptance pending. |
+| 8 | Workspaces | Separate personal/team workspaces, tab-local switching, member home, verified account directory, owner calendar-account inventory and email-bound invitations implemented. Teammate live acceptance pending. |
 | 9 | Workspace privacy and roles | Owner/manager/member permissions and isolated business data implemented; owner-only external calendar details. Employee-owned availability sharing remains pending. |
 | 10 | Employees and routing | Member profiles, departments, manual availability and browser handoff requests implemented. Employee booking destinations, phone numbers, presence and transfer hours remain pending. |
 | 11 | Cross-workspace scheduling | A booking for an employee in one company blocks the other without revealing details; prevent simultaneous cross-workspace booking. Pending. |

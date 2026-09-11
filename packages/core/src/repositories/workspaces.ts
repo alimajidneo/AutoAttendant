@@ -10,6 +10,11 @@ export async function listWorkspaces(userId: string) {
     .innerJoin(agents, eq(agents.id, workspaces.agentId)).where(eq(members.userId, userId)).orderBy(agents.createdAt);
 }
 
+export async function saveVerifiedMemberEmail(userId: string, verifiedEmail: string) {
+  await db.update(members).set({ email: verifiedEmail.toLowerCase() })
+    .where(and(eq(members.userId, userId), sql`${members.email} IS DISTINCT FROM ${verifiedEmail.toLowerCase()}`));
+}
+
 export async function workspaceAccess(agentId: string, userId: string) {
   const [row] = await db.select({ role: members.role, ownerUserId: workspaces.ownerUserId, kind: workspaces.kind })
     .from(members).innerJoin(workspaces, eq(workspaces.agentId, members.agentId))
@@ -17,14 +22,14 @@ export async function workspaceAccess(agentId: string, userId: string) {
   return row ?? null;
 }
 
-export async function createWorkspace(userId: string, name: string, timezone: string, kind: "personal" | "team") {
+export async function createWorkspace(userId: string, email: string, name: string, timezone: string, kind: "personal" | "team") {
   return db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
     const owned = await tx.select().from(workspaces).where(eq(workspaces.ownerUserId, userId));
     if (owned.length >= 10) return null;
     const [agent] = await tx.insert(agents).values({ businessName: name, timezone }).returning({ id: agents.id });
     await tx.insert(workspaces).values({ agentId: agent!.id, ownerUserId: userId, kind });
-    await tx.insert(members).values({ agentId: agent!.id, userId, role: "manager" });
+    await tx.insert(members).values({ agentId: agent!.id, userId, email: email.toLowerCase(), role: "manager" });
     return agent!;
   });
 }
@@ -79,7 +84,7 @@ export async function acceptInvite(userId: string, verifiedEmail: string, code: 
     const [invite] = await tx.select().from(invites).where(and(eq(invites.tokenHash, hash(code)),
       eq(invites.email, verifiedEmail.toLowerCase()), isNull(invites.consumedAt), gt(invites.expiresAt, new Date()))).for("update");
     if (!invite) return null;
-    await tx.insert(members).values({ agentId: invite.agentId, userId, role: invite.role }).onConflictDoNothing();
+    await tx.insert(members).values({ agentId: invite.agentId, userId, email: verifiedEmail.toLowerCase(), role: invite.role }).onConflictDoNothing();
     await tx.update(invites).set({ consumedAt: new Date() }).where(eq(invites.id, invite.id));
     return { id: invite.agentId };
   });

@@ -1,4 +1,4 @@
-import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowRight, BookOpen, CalendarPlus, CircleHelp, Clock3, PhoneCall } from 'lucide-react'
 import { PageContainer } from '@/layout/PageContainer'
@@ -16,6 +16,7 @@ import { SetupChecklist, SetupBanner } from './SetupChecklist'
 import { setupItems } from './setup-items'
 import { useAuth } from '@/features/auth/useAuth'
 import { useAgentZone } from '@/hooks/useAgentZone'
+import { MemberHomePage } from '@/features/workspaces/MemberHomePage'
 
 function isPeriod(v: string | null): v is Period {
   return v === 'today' || v === '7d' || v === '30d'
@@ -37,7 +38,7 @@ function HomeSkeleton() {
   )
 }
 
-export default function HomePage() {
+function ManagerHomePage() {
   const [params] = useSearchParams()
   const qc = useQueryClient()
   const { user } = useAuth()
@@ -159,4 +160,9 @@ export default function HomePage() {
       </div>
     </PageContainer>
   )
+}
+
+export default function HomePage() {
+  const { data: session } = useQuery({ queryKey: keys.session, queryFn: fetchers.session, staleTime: Infinity })
+  return session?.role === 'member' ? <MemberHomePage /> : <ManagerHomePage />
 }

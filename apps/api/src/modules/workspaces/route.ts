@@ -12,12 +12,18 @@ const creation = z.object({ name: z.string().trim().min(1).max(100), kind: z.enu
 
 export const workspaces = new Hono<AppEnv>()
   .use("*", authenticate)
-  .get("/", async c => c.json(await repo.listWorkspaces(c.get("authUser").id)))
+  .get("/", async c => {
+    const user = c.get("authUser");
+    if (user.email && user.email_confirmed_at) await repo.saveVerifiedMemberEmail(user.id, user.email);
+    return c.json(await repo.listWorkspaces(user.id));
+  })
   .post("/", async c => {
     const parsed = creation.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ error: "Enter a workspace name and valid timezone" }, 400);
     const { name, timezone, kind } = parsed.data;
-    const result = await repo.createWorkspace(c.get("authUser").id, name, timezone, kind);
+    const user = c.get("authUser");
+    if (!user.email || !user.email_confirmed_at) return c.json({ error: "Verify your email before creating a workspace" }, 403);
+    const result = await repo.createWorkspace(user.id, user.email, name, timezone, kind);
     return result ? c.json(result, 201) : c.json({ error: "Workspace limit reached" }, 409);
   })
   .post("/join", async c => {
@@ -33,7 +39,15 @@ export const workspaces = new Hono<AppEnv>()
     if (!z.string().uuid().safeParse(id).success || !await repo.workspaceAccess(id!, c.get("authUser").id)) return c.json({ error: "Workspace access denied" }, 403);
     await next();
   })
-  .get("/:id/members", async c => c.json(await repo.listMembers(c.req.param("id"))))
+  .get("/:id/members", async c => {
+    const user = c.get("authUser");
+    const access = await repo.workspaceAccess(c.req.param("id"), user.id);
+    const rows = await repo.listMembers(c.req.param("id"));
+    return c.json(rows.map(member => ({
+      ...member,
+      email: access?.role === "manager" || member.userId === user.id ? member.email : "",
+    })));
+  })
   .patch("/:id/members/:userId", async c => {
     const parsed = memberPatch.safeParse(await c.req.json());
     if (!parsed.success || !Object.keys(parsed.data).length) return c.json({ error: "Choose valid member settings" }, 400);

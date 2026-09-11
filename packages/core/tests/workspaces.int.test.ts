@@ -9,7 +9,7 @@ import { listNotifications, markNotificationsRead } from "../src/repositories/no
 import { makeAppointment } from "./factories.js";
 
 async function team() {
-  const workspace = (await createWorkspace("owner", "Team", "America/New_York", "team"))!;
+  const workspace = (await createWorkspace("owner", "owner@example.test", "Team", "America/New_York", "team"))!;
   const invite = (await createInvite(workspace.id, "owner", "member@example.test", "member"))!;
   await acceptInvite("member", "member@example.test", invite.code);
   return workspace;
@@ -24,7 +24,7 @@ describe("workspace boundaries", () => {
     expect(await createInvite(personal.id, "owner", "new@example.test", "member")).toBeNull();
   });
   it("binds a single-use invitation to its email and stores only its hash", async () => {
-    const workspace = (await createWorkspace("owner", "Team", "UTC", "team"))!;
+    const workspace = (await createWorkspace("owner", "owner@example.test", "Team", "UTC", "team"))!;
     const invite = (await createInvite(workspace.id, "owner", "Person@example.test", "manager"))!;
     const [row] = await db.select().from(workspaceInvites);
     expect(JSON.stringify(row)).not.toContain(invite.code);
@@ -32,6 +32,7 @@ describe("workspace boundaries", () => {
     const results = await Promise.all([acceptInvite("person", "person@example.test", invite.code), acceptInvite("person", "person@example.test", invite.code)]);
     expect(results.filter(Boolean)).toHaveLength(1);
     expect((await workspaceAccess(workspace.id, "person"))?.role).toBe("manager");
+    expect((await db.select().from(workspaceMembers).where(eq(workspaceMembers.userId, "person")))[0]?.email).toBe("person@example.test");
   });
   it("rejects expired, revoked and member-created invitations", async () => {
     const workspace = await team();

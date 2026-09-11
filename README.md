@@ -2,7 +2,7 @@
 
 Neodym's AI receptionist for USA customer teams. The receptionist answers business questions, checks selected Google and Microsoft calendars, books appointments, and sends follow-ups to the dashboard and an optional Slack channel.
 
-**Version 1.0.25 · Updated 2026-09-10**
+**Version 1.0.26 · Updated 2026-09-11**
 
 This repository is under active development. Browser voice calls and Google booking have been tested. Microsoft Calendar and selected-channel Slack alerts are implemented and await live account acceptance. Teams presence, two-person audio acceptance, and telephone transfer remain pending. The intended deployment is a Vercel website/HTTP API plus a separately hosted LiveKit voice worker.
 
@@ -35,7 +35,7 @@ Microsoft Calendar and basic Slack alerts are available under **Settings → Con
 - Upcoming/ongoing bookings and Past appointments, classified by end time. Delete a past DeskRoute booking from either the daily agenda or Past appointments; its linked provider event and DeskRoute history are removed. Pending calendar reads are cancelled before updating every cached month.
 - In-app notification bell with unread count, record links and persistent read status across devices. Includes bookings, requests, cancellations, pending questions and failed calls.
 - Calls, transcripts, summaries, optional recordings, questions awaiting answers and FAQ management.
-- Personal/team workspaces, explicit email-bound invitations, owner/manager/member access and configurable teammate departments/availability.
+- Personal/team workspaces, a privacy-safe member home, explicit email-bound invitations, owner/manager/member access and configurable teammate departments/availability.
 - Browser handoff requests with recipient acceptance, manual inbox refresh and restricted LiveKit room tokens.
 - Light/dark themes, profile details and loading indicators centered in the viewport or dashboard content area.
 
@@ -85,7 +85,7 @@ Apply committed migrations before starting an updated API:
 pnpm db:migrate
 ```
 
-Migration `0008_curved_nebula` adds the encrypted, workspace-scoped Slack installation. Earlier migrations add workspaces and independent calendar connections. Existing workspaces, Google accounts, and appointments remain in place.
+Migration `0009_redundant_ulik` records verified workspace-member emails for the team directory. Existing members backfill their own address when they next open Workspaces. Migration `0008_curved_nebula` adds the encrypted, workspace-scoped Slack installation. Earlier migrations add workspaces and independent calendar connections. Existing workspaces, Google accounts, and appointments remain in place.
 
 Run in separate terminals:
 
@@ -165,7 +165,7 @@ All `/api/admin/*` endpoints require a valid DeskRoute session and manager membe
 | GET | `/api/admin/slack/oauth/start` | Begin a browser-bound Slack installation |
 | POST | `/api/admin/slack/test` | Send one explicit test message to the saved channel |
 
-`/api/workspaces` provides listing, creation, email-bound invitation acceptance and membership management. `/api/transfers` provides a member-scoped inbox and acceptance tokens. See [workspace guide](docs/WORKSPACES_AND_TRANSFERS.md).
+`/api/workspaces` provides listing, creation, verified-email invitation acceptance and membership management. Managers see member account addresses; members see only their own address. `/api/transfers` provides a member-scoped inbox and acceptance tokens. See [workspace guide](docs/WORKSPACES_AND_TRANSFERS.md).
 
 Other API modules cover onboarding, settings, calls, questions, knowledge, services, phone provisioning and browser voice sessions. Their routes are defined in `apps/api/src/routes.ts`.
 

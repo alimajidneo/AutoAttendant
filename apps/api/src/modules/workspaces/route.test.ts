@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ getUser: vi.fn(), listWorkspaces: vi.fn(), createWorkspace: vi.fn(),
   workspaceAccess: vi.fn(), listMembers: vi.fn(), updateMember: vi.fn(), removeMember: vi.fn(),
-  createInvite: vi.fn(), acceptInvite: vi.fn(), listInvites: vi.fn(), revokeInvite: vi.fn() }));
+  createInvite: vi.fn(), acceptInvite: vi.fn(), listInvites: vi.fn(), revokeInvite: vi.fn(), saveVerifiedMemberEmail: vi.fn() }));
 vi.mock("@receptionist/core/providers/supabase.js", () => ({ supabase: { auth: { getUser: mocks.getUser } } }));
 vi.mock("@receptionist/core/repositories/workspaces.js", () => mocks);
 import { workspaces } from "./route.js";
@@ -28,6 +28,20 @@ describe("workspace HTTP authorization", () => {
   it("does not reveal invitation emails to members", async () => {
     expect((await workspaces.request(`/${id}/invites`, { headers })).status).toBe(403);
     expect(mocks.listInvites).not.toHaveBeenCalled();
+  });
+  it("shows member emails to managers and only the current email to members", async () => {
+    mocks.listMembers.mockResolvedValue([
+      { userId: "member", email: "member@example.test", role: "member" },
+      { userId: "owner", email: "owner@example.test", role: "manager" },
+    ]);
+    let response = await workspaces.request(`/${id}/members`, { headers });
+    expect(await response.json()).toEqual([
+      expect.objectContaining({ userId: "member", email: "member@example.test" }),
+      expect.objectContaining({ userId: "owner", email: "" }),
+    ]);
+    mocks.workspaceAccess.mockResolvedValue({ role: "manager", ownerUserId: "owner", kind: "team" });
+    response = await workspaces.request(`/${id}/members`, { headers });
+    expect((await response.json()).map((item: { email: string }) => item.email)).toEqual(["member@example.test", "owner@example.test"]);
   });
   it("binds acceptance to verified Auth email, never body or metadata", async () => {
     mocks.acceptInvite.mockResolvedValue({ id });

@@ -1,11 +1,11 @@
 # Workspaces and browser handoff
 
-Updated 2026-09-10 for v1.0.22. This is the first shared-workspace implementation. It preserves existing account and calendar IDs. Browser handoff is implemented and covered by mocked API/worker and database checks; a two-person live microphone acceptance test is still required.
+Updated 2026-09-11 for v1.0.26. The workspace page now includes team/account summaries, clearer member cards, an owner-only connected-calendar inventory and a separate member home. It preserves existing account and calendar IDs. Browser handoff is implemented and covered by mocked API/worker and database checks; a two-person live microphone acceptance test is still required.
 
 ## Upgrade and restart
 
 1. Stop the API and voice worker with Ctrl+C in their terminals.
-2. From the repository root, run `pnpm db:migrate`. Migration `0007_square_darwin` creates workspace membership, invitations and browser-transfer requests. It turns each existing authenticated receptionist into a personal workspace owned by the same user, and assigns existing notification read receipts to that owner. Calendar credentials and bookings keep their existing IDs and encryption context.
+2. From the repository root, run `pnpm db:migrate`. Migration `0007_square_darwin` creates workspace membership, invitations and browser-transfer requests. Migration `0009_redundant_ulik` adds verified member account addresses. Existing members backfill their own address when they next open Workspaces. Calendar credentials and bookings keep their existing IDs and encryption context.
 3. Run `pnpm dev:api`, `pnpm dev:web` and `pnpm dev:voice` in separate terminals. Do not start a duplicate web server if it is already running.
 4. Reload DeskRoute. The top bar shows the current business and **Switch**. Click it to open **Workspaces**.
 
@@ -19,7 +19,11 @@ The migration is forward-only. Do not roll back to an older API after applying t
 - **Manager:** configure the shared receptionist, opening hours, business, FAQ, services and routing directory; view and manage that workspace's business bookings, calls and questions.
 - **Member:** view the teammate directory, edit their own name/department/transfer availability and accept a browser transfer addressed to them. Members cannot read business calls, bookings, transcripts, notifications or settings through manager endpoints.
 
-A workspace currently has one receptionist and one owner-managed set of Google connections. The owner can connect multiple Google accounts as before. Only the owner may manage these connections or view external personal event details; other managers see DeskRoute bookings in the calendar. Personal availability is not automatically shared between a user's workspaces. Employee-owned calendar sharing and cross-company scheduling remain separate work.
+The DeskRoute logo and Home button lead managers to the business dashboard and members to a limited home with their role, team size, transfer status and incoming-transfer controls. Manager navigation is not rendered for members.
+
+A workspace currently has one receptionist and one owner-managed set of Google or Microsoft connections. The workspace page shows the owner each provider account and its available calendar count. Only the owner may manage these connections or view their addresses and external personal event details; other managers see DeskRoute bookings in the calendar. Personal availability is not automatically shared between a user's workspaces. Employee-owned calendar sharing and cross-company scheduling remain separate work.
+
+Managers see verified member account addresses for access administration. Members see their own address and colleagues' chosen display names, departments and availability without receiving colleagues' private account addresses.
 
 ## Create and join a team
 
