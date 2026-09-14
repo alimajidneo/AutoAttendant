@@ -6,7 +6,7 @@ import { removeAppointmentFromCache } from './appointment-cache'
 const item: AppointmentItem = {
   id: 'booking', service: 'Demo', callerName: null, callerPhone: null,
   status: 'confirmed', startTime: '2026-09-01T09:00:00Z', endTime: '2026-09-01T09:30:00Z',
-  externalEventId: 'event', externalCalendarId: 'calendar-a', bookingDetails: [], createdAt: '2026-08-31T00:00:00Z',
+  externalEventId: 'event', externalCalendarId: 'calendar-a', bookingDetails: [], createdAt: '2026-08-31T00:00:00Z', updatedAt: '2026-08-31T00:00:00Z',
 }
 const event: CalendarAgendaEvent = {
   id: 'event', calendarId: 'calendar-a', title: 'Demo', allDay: false,

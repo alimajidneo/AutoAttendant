@@ -4,8 +4,14 @@ import { z } from "zod";
  * Reads `process.env` only. Files are a development convenience loaded by each
  * app's dev script with `--env-file`, and by `env_file:` in Docker Compose.
  */
-const coreEnvSchema = z
+export const coreEnvSchema = z
   .object({
+    CALCOM_API_BASE_URL: z.string().regex(/^https:\/\/api\.cal\.com\/v2\/?$/, "Use https://api.cal.com/v2").default("https://api.cal.com/v2").transform(() => "https://api.cal.com/v2"),
+    CRON_SECRET: z.string().min(32).optional(),
+    CALCOM_WEBHOOK_SECRET: z.string().min(32).optional(),
+    RETELL_WORKSPACE_ID: z.string().uuid().optional(),
+    RETELL_AGENT_ID: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/).optional(),
+    RETELL_API_KEY: z.string().min(1).optional(),
     DATABASE_URL: z.string().min(1),
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(20).default(3),
     LIVEKIT_URL: z.string().min(1),

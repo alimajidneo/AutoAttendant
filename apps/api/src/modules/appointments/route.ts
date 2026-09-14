@@ -1,7 +1,11 @@
+import { z } from 'zod';
+import { reconcileCalcomAppointment } from '@receptionist/core/repositories/calcom.js';
+import { isCalcomAppointment, cancelCalcomAppointment, readCalcomAppointment } from '@receptionist/core/providers/calcom-appointments.js';
 import type { CalendarAgendaSource } from "@receptionist/shared";
 import { Hono } from "hono";
 import type { AppEnv } from "../../types.js";
 import {
+  reconcileEmployeeAppointmentNotCreated,
   cancelAppointmentById,
   getAppointmentById,
   listAppointments,
@@ -28,14 +32,23 @@ export const appointments = new Hono<AppEnv>()
     const id = c.req.param("appointmentId");
     const appointment = await getAppointmentById(id, agentId);
     if (!appointment) return c.json({ error: "Appointment not found" }, 404);
+    if (appointment.employeeId && appointment.status === "requested") {
+      return c.json({ error: "Booking is in progress or requires provider reconciliation. Generic cancellation and deletion are blocked." }, 409);
+    }
     if (!appointment.endTime || appointment.endTime.getTime() > Date.now()) {
       return c.json({ error: "Only appointments whose end time has passed can be deleted from history" }, 409);
     }
-    if (appointment.externalEventId) {
+    if (appointment.externalEventId && isCalcomAppointment(appointment)) {
+      await cancelCalcomAppointment(agentId, appointment);
+    } else if (appointment.externalEventId) {
       if (!appointment.externalCalendarId) return c.json({ error: "The original calendar is missing. Reconnect it before deleting." }, 409);
       const agent = await getAgentById(agentId);
       const connectionId = appointment.externalCalendarConnectionId ?? agent?.calendarPayload?.bookingConnectionId;
-      const credential = connectionId ? await getCalendarCredential(agentId, connectionId) : null;
+      const credential = connectionId
+        ? appointment.employeeId
+          ? await getCalendarCredential(agentId, connectionId, appointment.employeeId)
+          : await getCalendarCredential(agentId, connectionId)
+        : null;
       if (!credential) return c.json({ error: "Reconnect the appointment's calendar account before deleting." }, 409);
       await deleteProviderCalendarEvent(
         credential.provider,
@@ -48,6 +61,22 @@ export const appointments = new Hono<AppEnv>()
       return c.json({ error: "Appointment changed. Refresh and try again." }, 409);
     }
     return c.json({ deleted: true, appointmentId: id });
+  })
+  .post("/:appointmentId/reconcile-calcom", requireManager, async c => {
+    const body = z.object({ bookingUid: z.string().min(1).max(200).optional() }).strict().safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'Invalid reconciliation request' }, 400);
+    const row = await reconcileCalcomAppointment(c.get('agentId'), c.req.param('appointmentId'), body.data.bookingUid);
+    return row ? c.json({ status: row.status, appointmentId: row.id }) : c.json({ error: 'Current provider state could not be reconciled. Check the booking UID and original interval.' }, 409);
+  })
+  .post("/:appointmentId/reconcile-not-created", requireManager, async (c) => {
+    const body: unknown = await c.req.json().catch(() => null);
+    if (!body || typeof body !== "object" || Array.isArray(body)
+      || Object.keys(body).length !== 1 || !("providerChecked" in body) || body.providerChecked !== true) {
+      return c.json({ error: "Confirm that you checked the provider calendar and no event exists: {providerChecked:true}" }, 400);
+    }
+    const row = await reconcileEmployeeAppointmentNotCreated(c.get("agentId"), c.req.param("appointmentId"));
+    if (!row) return c.json({ error: "Reconciliation requires an unresolved write or an in-flight write older than 24 hours. Refresh and check the provider calendar." }, 409);
+    return c.json({ cancelled: true, appointmentId: row.id });
   })
   .get("/calendar", async (c) => {
     const timeMin = new Date(c.req.query("timeMin") ?? "");
@@ -103,8 +132,11 @@ export const appointments = new Hono<AppEnv>()
 
     const agent = await getAgentById(agentId);
 
+    const calcomRows = rows.filter(isCalcomAppointment);
+    const calcomStates = await Promise.all(calcomRows.map(async row => ({ row, ...(await readCalcomAppointment(agentId, row)) })));
     const byCalendar = new Map<string, typeof rows>();
     for (const row of rows) {
+      if (isCalcomAppointment(row)) continue;
       if (!row.externalCalendarId || !row.externalEventId || !row.startTime || !row.endTime) continue;
       const connectionId = row.externalCalendarConnectionId ?? agent?.calendarPayload?.bookingConnectionId;
       if (!connectionId) return c.json({ error: "Reconnect the appointment's calendar account before refreshing" }, 409);
@@ -148,6 +180,11 @@ export const appointments = new Hono<AppEnv>()
     );
 
     const cancelledIds: string[] = [];
+    for (const { row, booking } of calcomStates) {
+      if (booking.status === 'cancelled' || booking.status === 'rejected') {
+        if (await cancelAppointmentById(row.id, agentId)) cancelledIds.push(row.id);
+      }
+    }
     for (const [groupKey, group] of byCalendar) {
       const live = liveByCalendar.get(groupKey)!;
       for (const row of group) {
@@ -172,16 +209,23 @@ export const appointments = new Hono<AppEnv>()
     const appointmentId = c.req.param("appointmentId");
     const appointment = await getAppointmentById(appointmentId, agentId);
     if (!appointment) return c.json({ error: "Appointment not found" }, 404);
+    if (appointment.employeeId && appointment.status === "requested") {
+      return c.json({ error: "Booking is in progress or requires provider reconciliation. Generic cancellation and deletion are blocked." }, 409);
+    }
     if (appointment.status === "cancelled") return c.json({ cancelled: true, appointmentId });
 
-    if (appointment.externalEventId) {
+    if (appointment.externalEventId && isCalcomAppointment(appointment)) {
+      await cancelCalcomAppointment(agentId, appointment);
+    } else if (appointment.externalEventId) {
       if (!appointment.externalCalendarId) {
         return c.json({ error: "This appointment has no saved calendar. Refresh the connection and try again." }, 409);
       }
       const agent = await getAgentById(agentId);
       const connectionId = appointment.externalCalendarConnectionId ?? agent?.calendarPayload?.bookingConnectionId;
       const credential = connectionId
-        ? await getCalendarCredential(agentId, connectionId)
+        ? appointment.employeeId
+          ? await getCalendarCredential(agentId, connectionId, appointment.employeeId)
+          : await getCalendarCredential(agentId, connectionId)
         : null;
       if (!credential) return c.json({ error: "Reconnect the calendar account before cancelling" }, 409);
       await deleteProviderCalendarEvent(

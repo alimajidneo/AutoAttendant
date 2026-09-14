@@ -24,7 +24,7 @@ Recorded 2026-09-08.
 
 LiveKit's free plan is an allowance, not unlimited free speech inference. Review the project usage page before tests. Self-hosting media alone would still require speech/model services and adds operational work, so it is deferred.
 
-For Supabase, use the direct connection when reachable over IPv6, or the session pooler on port 5432 for IPv4. Transaction pooling is not the initial choice for these persistent Node processes. Client-to-pooler TLS, PostgreSQL 17.6, and the database connection were verified. Pools default to 3 per process. Schema migrations are prepared for the deployment owner to apply; integration-test cleanup refuses hosted database targets.
+For Supabase, use the direct connection when reachable over IPv6, or the session pooler on port 5432 for IPv4. Transaction pooling is not the initial choice for these persistent Node processes. Client-to-pooler TLS, PostgreSQL 17.6, and the database connection were verified. Pools default to 3 per process. Migrations through `0011_retell_boundary` were applied to the currently configured Supabase database on 2026-09-14 after a private recovery package was verified; integration-test cleanup still refuses hosted database targets.
 
 ## Customer delivery target
 

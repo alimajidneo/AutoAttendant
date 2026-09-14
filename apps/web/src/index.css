@@ -69,11 +69,10 @@
      depth stops being findable. The accent is the only cool thing on warm paper,
      which is what makes it carry "act on this" alone.
 
-     Measured: white on accent 7.56, accent as text 6.97 on the stage and 6.15 on
-     the rail. White on red 7.67, red as text 7.08 and 6.24. */
-  --accent-fill: lch(32 55 258);
-  --red-fill: lch(36 60 25);
-  --green-fill: lch(42 45 145);
+     The two fills match the VoiceBridge action blue and destructive red while
+     remaining the only fixed chromatic values in the system. */
+  --accent-fill: lch(45 95.054 297.215);
+  --red-fill: lch(49.733 71.338 26.188);
   --white: lch(100 0 0);
 
   /* The ground every departure is measured from. `:root` is the stage. */
@@ -245,8 +244,8 @@
   --destructive-foreground: var(--white);
   --destructive-hover: color-mix(in oklab, var(--red-fill), var(--white) 12%);
   --destructive-subtle: color-mix(in srgb, var(--red-fill) 9%, transparent);
-  --success: var(--green-fill);
-  --success-subtle: color-mix(in srgb, var(--green-fill) 10%, transparent);
+  --success: var(--ink-3);
+  --success-subtle: color-mix(in srgb, var(--ink-3) 8%, transparent);
 
   --border: var(--line-1);
   --input: var(--line-2);
@@ -276,14 +275,14 @@
 
      `-dot` splits from the text rung because a dot is a graphical object needing
      3:1 while text needs 4.5:1. */
-  --status-booked: var(--green-fill);
-  --status-confirmed: var(--green-fill);
+  --status-booked: var(--ink-3);
+  --status-confirmed: var(--ink-3);
   --status-escalated: var(--accent-fill);
   --status-pending: var(--accent-fill);
   --status-requested: var(--accent-fill);
   --status-answered: var(--ink-1);
   --status-abandoned: var(--ink-1);
-  --status-resolved: var(--green-fill);
+  --status-resolved: var(--ink-3);
   --status-cancelled: var(--ink-1);
   --status-error: var(--red-fill);
 }
@@ -308,18 +307,18 @@
   --active: #e8eef8;
   --border: #dbe3ef;
   --input: #cbd6e5;
-  --primary: #315cff;
+  --primary: var(--accent-fill);
   --primary-hover: #244be1;
   --primary-subtle: rgb(49 92 255 / 0.1);
-  --accent-ink: #315cff;
-  --ring: #315cff;
-  --success: #168a5b;
-  --success-subtle: rgb(22 163 106 / 0.11);
+  --accent-ink: var(--accent-fill);
+  --ring: var(--accent-fill);
+  --success: var(--ink-3);
+  --success-subtle: color-mix(in srgb, var(--ink-3) 8%, transparent);
   --warning: #a66f00;
   --warning-subtle: rgb(217 154 0 / 0.13);
   --violet: #7048d8;
   --violet-subtle: rgb(139 92 246 / 0.11);
-  --destructive: #dc3545;
+  --destructive: var(--red-fill);
   --destructive-subtle: rgb(239 68 68 / 0.1);
   --sidebar: #2858d7;
   --sidebar-foreground: #f7f9ff;
@@ -348,18 +347,18 @@
   --active: #1a3150;
   --border: #203149;
   --input: #31445f;
-  --primary: #3973ff;
+  --primary: var(--accent-fill);
   --primary-hover: #5688ff;
   --primary-subtle: rgb(57 115 255 / 0.16);
-  --accent-ink: #7da2ff;
-  --ring: #3973ff;
-  --success: #22c982;
-  --success-subtle: rgb(34 201 130 / 0.14);
+  --accent-ink: var(--accent-fill);
+  --ring: var(--accent-fill);
+  --success: var(--ink-3);
+  --success-subtle: color-mix(in srgb, var(--ink-3) 8%, transparent);
   --warning: #e5a82d;
   --warning-subtle: rgb(229 168 45 / 0.14);
   --violet: #a78bfa;
   --violet-subtle: rgb(167 139 250 / 0.14);
-  --destructive: #ff5964;
+  --destructive: var(--red-fill);
   --destructive-subtle: rgb(255 89 100 / 0.14);
   --sidebar: #0d1a2b;
   --sidebar-foreground: #f1f5ff;
@@ -536,6 +535,7 @@
      escalation queue. Narrower than `form`, which is a settings surface you
      scan. */
   --container-narrow: 640px;
+  --container-auth: 430px;
   --container-sidebar: 244px;
   --container-field-2xs: 64px;  /* minutes, a count */
   --container-field-xs: 88px;   /* a price */

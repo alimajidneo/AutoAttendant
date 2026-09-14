@@ -1,8 +1,10 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 /** Node rather than jsdom: the design-token contract reads `index.css` off disk
  *  and resolves it, and a browser reports `lch()` back verbatim. */
 export default defineConfig({
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   test: {
     globals: true,
     environment: "node",

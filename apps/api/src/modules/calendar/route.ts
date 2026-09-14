@@ -126,7 +126,7 @@ export const calendar = new Hono<AppEnv>().use("*", requireCalendarOwner)
     const connectionId = c.req.param("connectionId");
     const agent = await getAgentById(agentId);
     if (!agent) return c.json({ error: "Agent not found" }, 404);
-    await deleteCalendarConnection(agentId, connectionId);
+    if (await deleteCalendarConnection(agentId, connectionId) === false) return c.json({ error: "Unassign this account from its employee before disconnecting it" }, 409);
     if (agent.calendarPayload?.bookingConnectionId === connectionId) {
       await updateAgent(agentId, { calendarProvider: null, calendarExternalId: null, calendarPayload: null });
     } else if (agent.calendarPayload) {

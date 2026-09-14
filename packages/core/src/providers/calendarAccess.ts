@@ -17,8 +17,9 @@ async function token(agentId: string, row: Awaited<ReturnType<typeof getCalendar
     : tokenForMicrosoftConnection(agentId, row);
 }
 
-export async function getCalendarCredential(agentId: string, connectionId: string): Promise<CalendarCredential | null> {
+export async function getCalendarCredential(agentId: string, connectionId: string, employeeId?: string): Promise<CalendarCredential | null> {
   const row = await getCalendarConnection(agentId, connectionId);
+  if (employeeId && row?.employeeId !== employeeId) return null;
   const accessToken = await token(agentId, row);
   return row && accessToken ? { connectionId: row.id, provider: row.provider, token: accessToken } : null;
 }

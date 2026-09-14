@@ -9,6 +9,8 @@ import { BusinessPanel } from './BusinessPanel'
 import { HoursPanel } from './HoursPanel'
 import { AgentPanel } from './AgentPanel'
 import { ConnectionsPanel } from './ConnectionsPanel'
+import { EmployeesPanel } from '../employees/EmployeesPanel'
+import { RetellPanel } from './RetellPanel'
 import { AccountPanel } from './AccountPanel'
 
 const PANELS = [
@@ -16,6 +18,8 @@ const PANELS = [
   { id: 'hours', label: 'Hours' },
   { id: 'agent', label: 'Agent' },
   { id: 'connections', label: 'Connections' },
+  { id: 'employees', label: 'Employees' },
+  { id: 'retell', label: 'Retell' },
   { id: 'account', label: 'Account' },
 ] as const
 
@@ -59,6 +63,10 @@ export default function SettingsPage() {
 
       {panel === 'account' ? (
         <AccountPanel />
+      ) : panel === 'retell' ? (
+        <RetellPanel />
+      ) : panel === 'employees' ? (
+        <EmployeesPanel />
       ) : isLoading || !settings ? (
         <div className="flex flex-col gap-3">
           {[1, 2, 3].map((i) => (

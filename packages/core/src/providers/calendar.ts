@@ -1,3 +1,4 @@
+import { providerWriteError } from './provider-write-error.js';
 import type { CalendarAgendaEvent, CalendarOption } from "@receptionist/shared";
 
 const GOOGLE_CALENDAR_BASE = "https://www.googleapis.com/calendar/v3";
@@ -120,7 +121,7 @@ export async function createCalendarEvent(
   );
 
   if (!res.ok) {
-    throw new Error(`[calendar] createEvent failed: ${res.status}`);
+    throw providerWriteError(res.status);
   }
 
   const data = (await res.json()) as { id: string };

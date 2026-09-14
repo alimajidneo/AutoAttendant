@@ -53,7 +53,7 @@ export default function SignInPage() {
       </header>
 
       <div className="relative z-10 grid min-h-[calc(100vh-5rem)] place-items-center px-5 pb-24 pt-6">
-        <section className="w-full max-w-[430px] rounded-[22px] border border-border/80 bg-card/80 p-7 shadow-[0_24px_80px_rgb(26_32_60_/_0.13)] backdrop-blur-2xl sm:p-10 dark:shadow-[0_28px_90px_rgb(0_0_0_/_0.38)]" data-ground="card">
+        <section className="w-full max-w-auth rounded-[22px] border border-border/80 bg-card/80 p-7 shadow-[0_24px_80px_rgb(26_32_60_/_0.13)] backdrop-blur-2xl sm:p-10 dark:shadow-[0_28px_90px_rgb(0_0_0_/_0.38)]" data-ground="card">
           <BrandMark />
           <h1 className="mt-6 text-[31px] font-bold leading-tight tracking-[-0.04em]">Welcome back</h1>
           <p className="mt-2 max-w-sm text-[15px] leading-6 text-muted-foreground">

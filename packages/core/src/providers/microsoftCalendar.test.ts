@@ -48,3 +48,8 @@ describe("Microsoft Calendar", () => {
     expect(body.transactionId).toEqual(expect.any(String));
   });
 });
+
+it('fails closed when a calendar page is partial instead of treating it as empty', async () => {
+  request.mockResolvedValue(response({}));
+  await expect(fetchMicrosoftBusyRanges('token', ['calendar'], '2026-09-14T10:00:00Z', '2026-09-14T11:00:00Z')).rejects.toThrow();
+});

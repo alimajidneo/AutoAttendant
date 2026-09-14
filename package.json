@@ -1,6 +1,6 @@
 {
   "name": "deskroute",
-  "version": "1.0.28",
+  "version": "1.0.29",
   "private": true,
   "packageManager": "pnpm@10.34.5",
   "type": "module",
@@ -15,6 +15,7 @@
     "lint": "pnpm -F web lint",
     "test": "vitest run --project unit",
     "test:int": "DATABASE_URL=postgresql://deskroute:deskroute@localhost:5433/deskroute_test pnpm -F @receptionist/core exec node tests/prepare-db.mjs && DATABASE_URL=postgresql://deskroute:deskroute@localhost:5433/deskroute_test pnpm -F @receptionist/core exec drizzle-kit migrate && vitest run --project int",
+    "calcom:webhook-secret": "node scripts/calcom-webhook-secret.mjs",
     "test:live": "vitest run --project live",
     "test:web": "pnpm -F web test",
     "db:generate": "pnpm -F @receptionist/core exec dotenv -e .env -- drizzle-kit generate",

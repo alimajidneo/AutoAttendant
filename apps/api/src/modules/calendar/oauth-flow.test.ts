@@ -112,3 +112,12 @@ describe("calendar selection boundaries", () => {
     expect(mocks.getCalendarConnectionTokens).toHaveBeenCalledWith(owner);
   });
 });
+
+it('returns a clear conflict when disconnecting an employee-assigned account', async () => {
+  mocks.getAgentById.mockResolvedValue({ id: owner });
+  mocks.deleteCalendarConnection.mockResolvedValue(false);
+  const result = await app.request(`/api/admin/calendar/${connectionA}`, { method: 'DELETE' });
+  expect(result.status).toBe(409);
+  expect(await result.text()).toContain('Unassign');
+  expect(mocks.updateAgent).not.toHaveBeenCalled();
+});

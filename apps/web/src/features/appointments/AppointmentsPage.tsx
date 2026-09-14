@@ -19,6 +19,7 @@ import { apiClient } from '@/lib/apiClient'
 import { cn } from '@/lib/utils'
 import { calendarSourceClass, calendarSourceLabel, groupCalendarSources } from './calendar-sources'
 import { appointmentCalendarEventKey, calendarEventKey, eventsForDays, splitAppointments } from './appointment-groups'
+import { AppointmentWriteStatus } from './AppointmentWriteStatus'
 import { removeAppointmentFromCache } from './appointment-cache'
 
 const DAY_MS = 86_400_000
@@ -327,7 +328,7 @@ export default function AppointmentsPage() {
                         <p className="text-sm text-muted-foreground">{eventTime(event, zone)}{appointment ? ' · DeskRoute booking' : ''}</p>
                         {source && <p className="mt-1 break-words text-sm text-muted-foreground">{calendarSourceLabel(source)}</p>}
                       </div>
-                      {!memberOnly && appointment && appointment.endTime && Date.parse(appointment.endTime) <= now ? (
+                      {appointment?.providerWriteState ? <AppointmentWriteStatus id={appointment.id} state={appointment.providerWriteState} calcom={appointment.externalCalendarId?.startsWith('calcom:')} updatedAt={appointment.updatedAt} canManage={!memberOnly} /> : !memberOnly && appointment && appointment.endTime && Date.parse(appointment.endTime) <= now ? (
                         <Button variant="destructive" size="sm" className="ml-auto shrink-0" disabled={refresh.isPending || removeHistory.isPending} onClick={() => setDeleting(appointment)} aria-label={`Delete past ${appointment.service} appointment from calendar`}>
                           <Trash2 /> Delete
                         </Button>
@@ -394,7 +395,7 @@ export default function AppointmentsPage() {
                       </dl>
                     )}
                   </div>
-                  {!memberOnly && <Button
+                  {appointment.providerWriteState ? <AppointmentWriteStatus id={appointment.id} state={appointment.providerWriteState} calcom={appointment.externalCalendarId?.startsWith('calcom:')} updatedAt={appointment.updatedAt} canManage={!memberOnly} /> : !memberOnly && <Button
                     variant="destructive"
                     size="sm"
                     aria-label={`Cancel ${appointment.service} appointment`}
@@ -426,7 +427,7 @@ export default function AppointmentsPage() {
                 <p className="mt-1 text-sm text-muted-foreground">{appointmentDateTime(appointment, zone)} · {appointment.callerName ?? 'Name not given'}</p>
               </div>
               {appointment.status === 'confirmed' ? <span className="rounded-md bg-success-subtle px-2 py-1 text-sm font-medium text-success">Ended</span> : <StatusBadge value={appointment.status} config={appointmentStatusConfig} />}
-              {!memberOnly && <Button variant="destructive" size="sm" disabled={refresh.isPending || removeHistory.isPending} onClick={() => setDeleting(appointment)} aria-label={`Delete past ${appointment.service} appointment`}><Trash2 /> Delete</Button>}
+              {appointment.providerWriteState ? <AppointmentWriteStatus id={appointment.id} state={appointment.providerWriteState} calcom={appointment.externalCalendarId?.startsWith('calcom:')} updatedAt={appointment.updatedAt} canManage={!memberOnly} /> : !memberOnly && <Button variant="destructive" size="sm" disabled={refresh.isPending || removeHistory.isPending} onClick={() => setDeleting(appointment)} aria-label={`Delete past ${appointment.service} appointment`}><Trash2 /> Delete</Button>}
             </div>
           ))}
         </div>

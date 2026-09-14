@@ -1,0 +1,11 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+const m = vi.hoisted(() => ({ getCalcomClient: vi.fn(), get: vi.fn(), cancel: vi.fn() }));
+vi.mock('../repositories/calcom.js', () => m);
+import { cancelCalcomAppointment, readCalcomAppointment } from './calcom-appointments.js';
+import type { AppointmentRow } from '../repositories/appointments.js';
+const row = { id: 'appointment', employeeId: 'employee', externalCalendarId: 'calcom:12', externalEventId: 'uid', externalCalendarConnectionId: 'connection' } as AppointmentRow;
+const booking = { uid: 'uid', status: 'accepted', eventTypeId: 12, metadata: { appointmentId: 'appointment', employeeId: 'employee', agentId: 'tenant' } };
+beforeEach(() => { vi.resetAllMocks(); m.getCalcomClient.mockResolvedValue(m); m.get.mockResolvedValue(booking); });
+it('reads original owned connection and cancels exactly once', async () => { await cancelCalcomAppointment('tenant', row); expect(m.getCalcomClient).toHaveBeenCalledWith('tenant', 'employee', 'connection'); expect(m.cancel).toHaveBeenCalledOnce(); expect(m.cancel).toHaveBeenCalledWith('uid'); });
+it('already cancelled provider state requires no mutation', async () => { m.get.mockResolvedValue({ ...booking, status: 'cancelled' }); await cancelCalcomAppointment('tenant', row); expect(m.cancel).not.toHaveBeenCalled(); });
+it('rejects metadata mismatch and unavailable reads without cancellation', async () => { m.get.mockResolvedValue({ ...booking, metadata: { ...booking.metadata, agentId: 'other' } }); await expect(cancelCalcomAppointment('tenant', row)).rejects.toThrow(); expect(m.cancel).not.toHaveBeenCalled(); m.get.mockRejectedValue(new Error('unavailable')); await expect(readCalcomAppointment('tenant', row)).rejects.toThrow(); });

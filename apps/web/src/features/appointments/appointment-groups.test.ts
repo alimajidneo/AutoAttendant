@@ -5,7 +5,7 @@ import { eventsForDays, splitAppointments } from './appointment-groups'
 const appointment = (overrides: Partial<AppointmentItem>): AppointmentItem => ({
   id: 'appointment', callerPhone: null, callerName: null, service: 'Meeting',
   startTime: '2026-09-09T10:00:00Z', endTime: '2026-09-09T11:00:00Z',
-  status: 'confirmed', externalEventId: null, bookingDetails: [], createdAt: '2026-09-08T10:00:00Z',
+  status: 'confirmed', externalEventId: null, bookingDetails: [], createdAt: '2026-09-08T10:00:00Z', updatedAt: '2026-09-08T10:00:00Z',
   ...overrides,
 })
 const event = (overrides: Partial<CalendarAgendaEvent> = {}): CalendarAgendaEvent => ({

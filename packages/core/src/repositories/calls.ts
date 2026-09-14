@@ -61,6 +61,9 @@ export async function listCalls(
 ) {
   return db
     .select({
+      provider: calls.provider, providerCallId: calls.providerCallId, providerStatus: calls.providerStatus,
+      disconnectionReason: calls.disconnectionReason, transferStatus: calls.transferStatus,
+      durationMs: calls.durationMs, costCents: calls.costCents,
       id: calls.id,
       callerId: calls.callerId,
       callerPhone: calls.callerPhone,
@@ -83,6 +86,9 @@ export async function listCalls(
 export async function getCallById(callId: string, agentId: string) {
   const rows = await db
     .select({
+      provider: calls.provider, providerCallId: calls.providerCallId, providerStatus: calls.providerStatus,
+      disconnectionReason: calls.disconnectionReason, transferStatus: calls.transferStatus,
+      durationMs: calls.durationMs, costCents: calls.costCents,
       id: calls.id,
       callerId: calls.callerId,
       callerPhone: calls.callerPhone,

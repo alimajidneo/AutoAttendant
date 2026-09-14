@@ -195,6 +195,13 @@ export type TranscriptEntry = {
 
 /** `callerPhone` is nullable throughout: a withheld ID is no identity, never a placeholder. */
 export interface CallListItem {
+  provider?: "livekit" | "retell";
+  providerCallId?: string | null;
+  providerStatus?: string | null;
+  disconnectionReason?: string | null;
+  transferStatus?: string | null;
+  durationMs?: number | null;
+  costCents?: number | null;
   id: string;
   callerId: string | null;
   callerPhone: string | null;
@@ -241,10 +248,12 @@ export interface AppointmentItem {
   startTime: string | null;
   endTime: string | null;
   status: AppointmentStatus;
+  providerWriteState?: "in_flight" | "reconciliation_required" | null;
   externalEventId: string | null;
   bookingDetails: BookingDetail[];
   externalCalendarId?: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface AvailableNumber {
@@ -324,3 +333,5 @@ export interface CalendarAgenda {
   events: CalendarAgendaEvent[];
   sources: CalendarAgendaSource[];
 }
+
+export type { EmployeeCalendarReference, EmployeeCalendarPolicy, EmployeeDraft, EmployeeView, EmployeeConnectionView } from "./employees.js";

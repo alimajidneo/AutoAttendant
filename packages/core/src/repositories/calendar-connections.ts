@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { calendarConnections } from "../db/schema.js";
+import { calendarConnections, workspaces } from "../db/schema.js";
 import type { CalendarProvider } from "@receptionist/shared";
 
 export type CalendarConnectionRow = typeof calendarConnections.$inferSelect;
@@ -45,10 +45,14 @@ export async function saveCalendarConnection(input: {
 }
 
 export async function deleteCalendarConnection(agentId: string, id: string) {
-  await db.delete(calendarConnections).where(and(
-    eq(calendarConnections.agentId, agentId),
-    eq(calendarConnections.id, id),
-  ));
+  return db.transaction(async tx => {
+    await tx.select({ id: workspaces.agentId }).from(workspaces).where(eq(workspaces.agentId, agentId)).for('update');
+    const where = and(eq(calendarConnections.agentId, agentId), eq(calendarConnections.id, id));
+    const [row] = await tx.select({ employeeId: calendarConnections.employeeId }).from(calendarConnections).where(where).for('update');
+    if (row?.employeeId) return false;
+    await tx.delete(calendarConnections).where(where);
+    return true;
+  });
 }
 
 export async function updateCalendarConnectionCredential(

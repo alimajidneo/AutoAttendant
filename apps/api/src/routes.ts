@@ -1,6 +1,9 @@
+import { calcom, calcomWebhooks, calcomMaintenance } from './modules/calcom/route.js';
+import { retell, retellSettings } from './modules/retell/route.js';
 import { Hono } from "hono";
 import type { AppEnv } from "./types.js";
 import { authenticate, requireAgent, requireManager } from "./middleware/auth.js";
+import { employees } from "./modules/employees/route.js";
 import { health } from "./modules/health/route.js";
 import { onboarding } from "./modules/onboarding/route.js";
 import { metrics } from "./modules/metrics/route.js";
@@ -33,6 +36,9 @@ const memberAdmin = new Hono<AppEnv>()
 
 const managerAdmin = new Hono<AppEnv>()
   .use("*", authenticate, requireAgent, requireManager)
+  .route("/retell", retellSettings)
+  .route("/employees", employees)
+  .route("/calcom", calcom)
   .route("/notifications", notifications)
   .route("/metrics", metrics)
   .route("/escalations", escalations)
@@ -45,6 +51,9 @@ const managerAdmin = new Hono<AppEnv>()
   .route("/agent", agent);
 
 export const routes = new Hono()
+  .route("/internal/calcom", calcomMaintenance)
+  .route("/calcom/webhooks", calcomWebhooks)
+  .route("/retell", retell)
   .route("/health", health)
   .route("/calendar/oauth", calendarOAuthCallback)
   .route("/microsoft/oauth", microsoftOAuthCallback)

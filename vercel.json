@@ -9,6 +9,7 @@
       "maxDuration": 60
     }
   },
+  "crons": [{ "path": "/api/internal/calcom/receipts", "schedule": "0 3 * * *" }],
   "rewrites": [
     {
       "source": "/api/(.*)",

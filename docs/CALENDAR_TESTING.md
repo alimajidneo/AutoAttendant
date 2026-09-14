@@ -21,6 +21,7 @@ Scope and order: [ROADMAP.md](ROADMAP.md). Last reviewed 2026-09-10.
 - `pnpm build`: passed (web bundle; existing large-chunk warnings remain).
 - `pnpm test:web`: 52 passed, 5 failed (including eight passing appointment grouping tests). The five existing design-contract failures concern the approved green status color, theme token overrides and the sign-in card's fixed width. No tests were disabled or weakened. Resolve the stale design contract in its own focused UI pass.
 - `git diff --check`: passed.
+- Later resolution on 2026-09-14: the five design-contract failures above were fixed without weakening tests; the complete web suite passed **91/91**. See `RETELL_MVP_IMPLEMENTATION.md` for the final focused and browser evidence.
 - Browser smoke check: appointments page and direct Manage calendars link render; the link opens the Google calendar drawer. The available in-app browser session has no connected calendars/appointments, so populated UI and second-account event acceptance remain unverified there.
 - No real call, calendar write/deletion, history deletion, email, Slack message, database migration or deployment was performed in this batch.
 

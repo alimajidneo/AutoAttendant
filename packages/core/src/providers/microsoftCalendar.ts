@@ -1,3 +1,4 @@
+import { providerWriteError } from './provider-write-error.js';
 import type { CalendarAgendaEvent, CalendarOption } from "@receptionist/shared";
 import type { BusyRange } from "./calendar.js";
 import { randomUUID } from "node:crypto";
@@ -59,7 +60,8 @@ async function listMicrosoftEvents(
   let url: string | undefined = `${GRAPH}/me/calendars/${encodeURIComponent(calendarId)}/calendarView?${params}`;
   while (url) {
     const data: { value?: GraphEvent[]; "@odata.nextLink"?: string } = await graphJson(accessToken, url);
-    events.push(...(data.value ?? []));
+    if (!Array.isArray(data.value)) throw new Error("[microsoft-calendar] availability could not be verified");
+    events.push(...data.value);
     url = data["@odata.nextLink"];
   }
   return events;
@@ -106,7 +108,7 @@ export async function createMicrosoftCalendarEvent(
       transactionId: randomUUID(),
     }),
   });
-  if (!response.ok) throw new Error(`[microsoft-calendar] createEvent failed: ${response.status}`);
+  if (!response.ok) throw providerWriteError(response.status);
   const data = await response.json() as { id?: string };
   if (!data.id) throw new Error("[microsoft-calendar] event creation was not confirmed");
   return data.id;

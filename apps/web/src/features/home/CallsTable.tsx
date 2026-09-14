@@ -1,13 +1,27 @@
+import { CallOutcome } from '../calls/CallOutcome'
+import { RetellCallFacts } from '../calls/RetellCallFacts'
 import { useEffect, useMemo, useRef } from 'react'
 import type { CallListItem } from '@receptionist/shared'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StatusBadge } from '@/components/ui/status-badge'
 import { DataList, type Column } from '@/components/ui/data-list'
 import { useCallsQuery } from '@/hooks/useCallsQuery'
 import { useAgentZone } from '@/hooks/useAgentZone'
 import { formatCaller, formatTime, formatDuration } from '@/lib/formatters'
-import { groupByDay } from '@/lib/group-by-day'
 import { callOutcomeConfig } from '@/lib/status-config'
+import { groupByDay } from '@/lib/group-by-day'
+
+// eslint-disable-next-line react-refresh/only-export-components -- Pure row-label contract is exported here for focused accessibility tests.
+export function callRowLabel(call: CallListItem): string {
+  if (call.provider !== 'retell') return call.summary || 'Call detail'
+  return [call.summary || 'No summary', formatCaller(call.callerName, call.callerPhone),
+    'Retell', call.providerStatus,
+    call.transferStatus ? `Transfer: ${call.transferStatus}` : null,
+    call.durationMs != null ? `${Math.round(call.durationMs / 1000)} s` : null,
+    formatDuration(call.startedAt, call.endedAt),
+    call.costCents != null ? `${call.costCents}¢` : null,
+    call.outcome ? callOutcomeConfig[call.outcome].label : 'Unknown',
+  ].filter(Boolean).join(' · ')
+}
 
 /** The group carries the date, so the column carries only the time. */
 function columns(zone: string | undefined): Column<CallListItem>[] {
@@ -26,10 +40,7 @@ function columns(zone: string | undefined): Column<CallListItem>[] {
       key: 'summary',
       header: 'Summary',
       width: 'minmax(0,1fr)',
-      cell: (c) =>
-        c.summary || (
-          <span className="text-muted-foreground">Hung up during the greeting</span>
-        ),
+      cell: (c) => <span><span>{c.summary || (c.provider === 'retell' ? 'No summary available' : 'Hung up during the greeting')}</span>{c.provider === 'retell' && <span className="ml-2"><RetellCallFacts call={c} /></span>}</span>,
     },
     {
       key: 'caller',
@@ -57,9 +68,9 @@ function columns(zone: string | undefined): Column<CallListItem>[] {
     {
       key: 'outcome',
       header: 'Outcome',
-      width: '86px',
+      width: 'max-content',
       align: 'end',
-      cell: (c) => <StatusBadge value={c.outcome} config={callOutcomeConfig} />,
+      cell: (c) => <CallOutcome provider={c.provider} outcome={c.outcome} />,
     },
   ]
 }
@@ -114,7 +125,7 @@ export function CallsTable({ compact = false, allowDetails = true }: { compact?:
         rowKey={(c) => c.id}
         {...(allowDetails ? {
           href: (c: CallListItem) => `/calls/${c.id}`,
-          rowLabel: (c: CallListItem) => c.summary || 'Call detail',
+          rowLabel: callRowLabel,
         } : {})}
       />
       {!compact && hasNextPage && (

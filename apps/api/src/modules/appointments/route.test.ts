@@ -3,6 +3,8 @@ import { Hono } from "hono";
 import type { AppEnv } from "../../types.js";
 
 const mocks = vi.hoisted(() => ({
+  reconcileCalcomAppointment: vi.fn(), cancelCalcomAppointment: vi.fn(), readCalcomAppointment: vi.fn(),
+  reconcileEmployeeAppointmentNotCreated: vi.fn(),
   listAppointments: vi.fn(),
   getAppointmentById: vi.fn(),
   cancelAppointmentById: vi.fn(),
@@ -18,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   getAgentById: vi.fn(),
 }));
 
+vi.mock('@receptionist/core/repositories/calcom.js', () => mocks);
+vi.mock('@receptionist/core/providers/calcom-appointments.js', () => ({ ...mocks, isCalcomAppointment: (row: { externalCalendarId?: string }) => row.externalCalendarId?.startsWith('calcom:') ?? false }));
 vi.mock("@receptionist/core/repositories/appointments.js", () => mocks);
 vi.mock("@receptionist/core/providers/calendarAccess.js", () => ({
   getAgentCalendarAccess: mocks.getAgentCalendarAccess,
@@ -298,12 +302,12 @@ describe("calendar source legend", () => {
 
 
 describe("past Google event deletion", () => {
-  const past = { id: "past", endTime: new Date(0), externalEventId: "event-old", externalCalendarId: "cal-old", externalCalendarConnectionId: "connection-old" };
+  const past = { id: "past", endTime: new Date(0), employeeId: "employee-old", externalEventId: "event-old", externalCalendarId: "cal-old", externalCalendarConnectionId: "connection-old" };
   it("uses the saved account and deletes Google before the local record", async () => {
     mocks.getAppointmentById.mockResolvedValue(past);
     mocks.deletePastAppointment.mockResolvedValue(true);
     expect((await app.request("/appointments/history/past", { method: "DELETE" })).status).toBe(200);
-    expect(mocks.getCalendarConnectionToken).toHaveBeenCalledWith("agent-1", "connection-old");
+    expect(mocks.getCalendarConnectionToken).toHaveBeenCalledWith("agent-1", "connection-old", "employee-old");
     expect(mocks.deleteCalendarEvent).toHaveBeenCalledWith("google", "token-1", "cal-old", "event-old");
     expect(mocks.deleteCalendarEvent.mock.invocationCallOrder[0]).toBeLessThan(mocks.deletePastAppointment.mock.invocationCallOrder[0]);
   });
@@ -319,4 +323,69 @@ describe("past Google event deletion", () => {
     expect((await app.request("/appointments/history/past", { method: "DELETE" })).status).toBe(409);
     expect(mocks.deletePastAppointment).not.toHaveBeenCalled();
   });
+});
+it('scopes cancellation credentials to the appointment employee', async () => {
+  mocks.getAppointmentById.mockResolvedValue({ id: 'appt-1', status: 'confirmed', employeeId: 'employee-1', externalEventId: 'event', externalCalendarId: 'cal', externalCalendarConnectionId: 'connection-1' });
+  mocks.cancelAppointmentById.mockResolvedValue({ id: 'appt-1' });
+  expect((await app.request('/appointments/appt-1', { method: 'DELETE' })).status).toBe(200);
+  expect(mocks.getCalendarConnectionToken).toHaveBeenCalledWith('agent-1', 'connection-1', 'employee-1');
+});
+
+describe('requested employee write protection', () => {
+  it.each(['in_flight', 'reconciliation_required', null])('blocks generic cancellation and history deletion for %s', async providerWriteState => {
+    mocks.getAppointmentById.mockResolvedValue({ id: 'held', employeeId: 'employee', status: 'requested', providerWriteState, endTime: new Date(0) });
+    mocks.cancelAppointmentById.mockResolvedValue({ id: 'held' });
+    mocks.deletePastAppointment.mockResolvedValue(true);
+    for (const path of ['/appointments/held', '/appointments/history/held']) {
+      expect((await app.request(path, { method: 'DELETE' })).status).toBe(409);
+    }
+    expect(mocks.cancelAppointmentById).not.toHaveBeenCalled();
+    expect(mocks.deletePastAppointment).not.toHaveBeenCalled();
+    expect(mocks.deleteCalendarEvent).not.toHaveBeenCalled();
+  });
+  it('requires manager access and a strict explicit provider attestation', async () => {
+    const path = '/appointments/held/reconcile-not-created';
+    const request = (body: unknown) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect((await memberApp.request(path, request({ providerChecked: true }))).status).toBe(403);
+    for (const body of [{}, { providerChecked: false }, { providerChecked: 'true' }, { providerChecked: true, extra: true }, null]) {
+      expect((await app.request(path, request(body))).status).toBe(400);
+    }
+    expect(mocks.reconcileEmployeeAppointmentNotCreated).not.toHaveBeenCalled();
+    mocks.reconcileEmployeeAppointmentNotCreated.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'held', status: 'cancelled' });
+    expect((await app.request(path, request({ providerChecked: true }))).status).toBe(409);
+    expect((await app.request(path, request({ providerChecked: true }))).status).toBe(200);
+    expect(mocks.reconcileEmployeeAppointmentNotCreated).toHaveBeenLastCalledWith('agent-1', 'held');
+    expect(mocks.deleteCalendarEvent).not.toHaveBeenCalled();
+  });
+  it('retains legacy requested cancellation', async () => {
+    mocks.getAppointmentById.mockResolvedValue({ id: 'legacy', status: 'requested', employeeId: null });
+    mocks.cancelAppointmentById.mockResolvedValue({ id: 'legacy' });
+    expect((await app.request('/appointments/legacy', { method: 'DELETE' })).status).toBe(200);
+  });
+});
+
+it.each([true, false])('maps authenticated Cal reconciliation match=%s to 200/409', async match => {
+ mocks.reconcileCalcomAppointment.mockResolvedValue(match ? { id: 'held', status: 'confirmed' } : null);
+ const response = await app.request('/appointments/held/reconcile-calcom', { method: 'POST', body: JSON.stringify({ bookingUid: 'current' }), headers: { 'Content-Type': 'application/json' } });
+ expect(response.status).toBe(match ? 200 : 409); expect(mocks.reconcileCalcomAppointment).toHaveBeenCalledWith('agent-1', 'held', 'current');
+});
+it.each([true, false])('Cal cancellation is provider-first and preserves local state on failure=%s', async fail => {
+ mocks.getAppointmentById.mockResolvedValue({ id: 'cal', status: 'confirmed', externalEventId: 'uid', externalCalendarId: 'calcom:12', employeeId: 'employee' });
+ if (fail) mocks.cancelCalcomAppointment.mockRejectedValue(new Error('unavailable')); else mocks.cancelCalcomAppointment.mockResolvedValue(undefined);
+ mocks.cancelAppointmentById.mockResolvedValue({ id: 'cal' });
+ const response = await app.request('/appointments/cal', { method: 'DELETE' });
+ expect(response.status).toBe(fail ? 500 : 200);
+ if (fail) expect(mocks.cancelAppointmentById).not.toHaveBeenCalled();
+ else expect(mocks.cancelCalcomAppointment.mock.invocationCallOrder[0]).toBeLessThan(mocks.cancelAppointmentById.mock.invocationCallOrder[0]!);
+});
+it.each([true, false])('mixed provider sync completes all reads before local mutations, failure=%s', async fail => {
+ const base = { startTime: new Date('2026-09-14T10:00:00Z'), endTime: new Date('2026-09-14T11:00:00Z'), status: 'confirmed', externalCalendarConnectionId: 'connection-1' };
+ mocks.listConfirmedAppointmentsForSync.mockResolvedValue([{ ...base, id: 'cal', externalCalendarId: 'calcom:12', externalEventId: 'uid' }, { ...base, id: 'direct', externalCalendarId: 'book', externalEventId: 'event' }]);
+ mocks.readCalcomAppointment.mockResolvedValue({ booking: { status: 'cancelled' } });
+ let release!: () => void; let started!: () => void; const reading = new Promise<void>(r => { started = r });
+ mocks.listCalendarEventIds.mockImplementation(async () => { started(); await new Promise<void>(r => { release = r }); if (fail) throw new Error('unavailable'); return new Set(); });
+ mocks.cancelAppointmentById.mockResolvedValue({ id: 'cancelled' });
+ const pending = app.request('/appointments/sync', { method: 'POST' }); await reading;
+ expect(mocks.cancelAppointmentById).not.toHaveBeenCalled(); release();
+ expect((await pending).status).toBe(fail ? 500 : 200); expect(mocks.cancelAppointmentById).toHaveBeenCalledTimes(fail ? 0 : 2);
 });

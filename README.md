@@ -2,9 +2,9 @@
 
 Neodym's AI receptionist for USA customer teams. The receptionist answers business questions, checks selected Google and Microsoft calendars, books appointments, and sends follow-ups to the dashboard and an optional Slack channel.
 
-**Version 1.0.28 · Updated 2026-09-11**
+**Version 1.0.29 · Updated 2026-09-14**
 
-This repository is under active development. Browser voice calls and Google booking have been tested. Microsoft Calendar and selected-channel Slack alerts are implemented and await live account acceptance. The Vercel website/API adapter is ready; hosted provider configuration and acceptance remain. Teams presence, two-person audio acceptance, telephone transfer, and managed LiveKit worker deployment remain pending.
+This repository is under active development. Browser voice calls and Google booking have been tested. Microsoft Calendar and selected-channel Slack alerts are implemented and await live account acceptance. The Retell boundary is locally implemented; real hosted provider/telephone acceptance remains. The Vercel website/API adapter is ready; hosted provider configuration and acceptance remain. Teams presence, two-person audio acceptance, telephone transfer, and managed LiveKit worker deployment remain pending.
 
 - [Agent capabilities and context plan](docs/AGENT_CONTEXT_AND_CAPABILITIES.md)
 - [Slack and Microsoft integration plan](docs/INTEGRATION_PLAN.md)
@@ -36,10 +36,13 @@ Microsoft Calendar and basic Slack alerts are available under **Settings → Con
 - In-app notification bell with unread count, record links and persistent read status across devices. Includes bookings, requests, cancellations, pending questions and failed calls.
 - Calls, transcripts, summaries, optional recordings, questions awaiting answers and FAQ management.
 - Personal/team workspaces, a member dashboard with read-only call logs and appointment calendar, explicit email-bound invitations, owner/manager/member access and configurable teammate departments/availability.
+- Independent employees under **Settings → Employees**: manager editing, encrypted private transfer numbers, employee calendars/hours, Google/Microsoft account assignment, and direct or personal Cal.com booking policies. Locally implemented provider-backed fail-closed availability, signed Retell webhooks/functions, normalized calls, and direct booking/message fallback; see [implementation and verification limits](docs/RETELL_MVP_IMPLEMENTATION.md). Real telephone transfer and hosted acceptance remain unverified.
 - Browser handoff requests with recipient acceptance, manual inbox refresh and restricted LiveKit room tokens.
 - Light/dark themes, profile details and loading indicators centered in the viewport or dashboard content area.
 
 On **2026-09-10**, Ali reported the two-Google-account test was successful. Detailed failure, revocation, cross-owner and simultaneous-booking acceptance are separate checks; a successful basic test does not establish production readiness.
+
+On **2026-09-14**, migrations `0010_employee_foundation` and `0011_retell_boundary` were applied to the currently configured Supabase database after a private, checksummed recovery package was created. All four stored Google connections remained decryptable, and Ali confirmed the calendar-account list loaded afterward.
 
 ## Notifications
 
@@ -85,7 +88,7 @@ Apply committed migrations before starting an updated API:
 pnpm db:migrate
 ```
 
-Migration `0009_redundant_ulik` records verified workspace-member emails for the team directory. Existing members backfill their own address when they next open Workspaces. Migration `0008_curved_nebula` adds the encrypted, workspace-scoped Slack installation. Earlier migrations add workspaces and independent calendar connections. Existing workspaces, Google accounts, and appointments remain in place.
+Migrations `0010_employee_foundation` and `0011_retell_boundary` add employee-owned calendar policy, normalized Retell records, and protected provider-write state. Migration `0009_redundant_ulik` records verified workspace-member emails for the team directory. Migration `0008_curved_nebula` adds the encrypted, workspace-scoped Slack installation. Existing workspaces, Google accounts, and appointments remain in place.
 
 Run in separate terminals:
 
@@ -129,13 +132,13 @@ pnpm test:int      # disposable local PostgreSQL only
 
 `pnpm test:live` uses real credentials and writes Google Calendar test events; it is separate from the above checks. The integration runner refuses a non-local or differently named test database before creating fixtures or clearing test records.
 
-See [verification evidence](docs/WORKSPACES_AND_TRANSFERS.md#verification) for this release. Five existing web design-contract failures conflict with the current approved colors/theme and sign-in width; they are documented and have not been disabled.
+See [verification evidence](docs/RETELL_MVP_IMPLEMENTATION.md#local-verification) for this release. Five existing web design-contract failures conflict with the current approved colors/theme and sign-in width; they are documented and have not been disabled.
 
 ## Remaining delivery work
 
-1. Complete rescheduling, invitations, external time-change synchronization and simultaneous-booking protection.
+1. Complete rescheduling, invitations and external time-change synchronization. Simultaneous employee booking protection is implemented locally; live acceptance remains.
 2. Live-test personal Outlook, Microsoft 365, mixed Google/Microsoft conflicts, recurrence, all-day events, DST, and revoked access.
-3. Accept-test workspaces and browser handoff with teammates; add explicit employee-owned calendar availability sharing.
+3. Accept-test workspaces and browser handoff with teammates. Employee-owned calendar availability and booking are implemented locally; consent flows and live provider acceptance remain.
 4. Extend browser department routing to approved telephone destinations, presence/transfer hours and reliable fallback rules.
 5. Integrate Mike's phone system and test inbound calls, assisted transfers, no-answer and hang-up behavior.
 6. Add signed Slack or Teams transfer approvals after browser and phone transfers work.
@@ -175,3 +178,7 @@ Other API modules cover onboarding, settings, calls, questions, knowledge, servi
 ## License and upstream
 
 [AGPL-3.0](LICENSE). Original DeskRoute © 2026 Prabhat Mattoo; [upstream project](https://github.com/PrabhatMattoo/DeskRoute). This repository contains Neodym's modifications; [the corresponding source is available here](https://github.com/alimajidneo/AutoAttendant).
+
+Retell Phase B is implemented locally: signed webhooks/functions, employee calendar booking and minimal settings/call outcomes. See [implementation and verification limits](docs/RETELL_MVP_IMPLEMENTATION.md) and [Ali’s account checklist](docs/ALI_RETELL_SETUP.md). Real-provider and transfer acceptance remain unverified.
+
+Employee-specific Cal.com API v2 connections, discovery, slot checks, booking and reconciliation are documented in [Cal.com integration](docs/CALCOM_INTEGRATION.md). Migration 0012 is additive; this implementation has not been live-validated.

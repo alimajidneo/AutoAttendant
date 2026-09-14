@@ -1,5 +1,9 @@
 import {
+  bigint,
   boolean,
+  check,
+  doublePrecision,
+  foreignKey,
   index,
   integer,
   uniqueIndex,
@@ -143,6 +147,15 @@ export const calls = pgTable(
     callerId: uuid("caller_id").references(() => callers.id, { onDelete: "set null" }),
     /** Null for a withheld number. Never a placeholder identity. */
     callerPhone: text("caller_phone"),
+    provider: text("provider").$type<"livekit" | "retell">().notNull().default("livekit"),
+    providerCallId: text("provider_call_id"),
+    providerStatus: text("provider_status"),
+    disconnectionReason: text("disconnection_reason"),
+    transferAttemptStartedAt: bigint("transfer_attempt_started_at", { mode: "number" }),
+    transferStatus: text("transfer_status"),
+    durationMs: integer("duration_ms"),
+    costCents: doublePrecision("cost_cents"),
+    retellAgentId: text("retell_agent_id"),
     roomName: text("room_name").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
@@ -155,7 +168,12 @@ export const calls = pgTable(
     disclosureVersion: text("disclosure_version"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("calls_agent_started_at_idx").on(table.agentId, table.startedAt)]
+  (table) => [index("calls_agent_started_at_idx").on(table.agentId, table.startedAt),
+    uniqueIndex("calls_retell_provider_call_idx").on(table.providerCallId).where(sql`${table.provider} = 'retell'`),
+    check("calls_provider_check", sql`${table.provider} IN ('livekit', 'retell')`),
+    check("calls_retell_privacy_check", sql`${table.provider} <> 'retell' OR (${table.providerCallId} IS NOT NULL AND ${table.retellAgentId} IS NOT NULL AND ${table.transcript} IS NULL AND ${table.recordingKey} IS NULL AND ${table.callerId} IS NULL AND (${table.callerPhone} IS NULL OR ${table.callerPhone} ~ '^•••• [0-9]{4}$'))`),
+    check("calls_cost_duration_check", sql`(${table.durationMs} IS NULL OR ${table.durationMs} >= 0) AND (${table.costCents} IS NULL OR (${table.costCents} >= 0 AND ${table.costCents} <= 100000000))`),
+  ]
 ).enableRLS();
 
 export const escalations = pgTable(
@@ -241,6 +259,8 @@ export const appointments = pgTable(
     agentId: uuid("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id"),
+    providerWriteState: text("provider_write_state").$type<"in_flight" | "reconciliation_required">(),
     callerId: uuid("caller_id").references(() => callers.id, { onDelete: "set null" }),
     callerPhone: text("caller_phone"),
     callerName: text("caller_name"),
@@ -265,6 +285,9 @@ export const appointments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    foreignKey({ name: "appointments_employee_workspace_fk", columns: [table.agentId, table.employeeId], foreignColumns: [employees.agentId, employees.id] }),
+    check("appointments_provider_write_state_check", sql`${table.providerWriteState} IS NULL OR (${table.employeeId} IS NOT NULL AND ${table.status} = 'requested' AND ${table.providerWriteState} IN ('in_flight', 'reconciliation_required'))`),
+    check("appointments_employee_interval_check", sql`${table.employeeId} IS NULL OR (${table.startTime} IS NOT NULL AND ${table.endTime} IS NOT NULL AND ${table.endTime} > ${table.startTime})`),
     index("appointments_agent_start_time_idx").on(table.agentId, table.startTime),
     index("appointments_agent_updated_idx").on(table.agentId, table.updatedAt),
   ]
@@ -278,6 +301,26 @@ export const googleCredentials = pgTable("google_credentials", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }).enableRLS();
 
+export const employees = pgTable("employees", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  agentId: uuid("agent_id").notNull().references(() => workspaces.agentId, { onDelete: "cascade" }),
+  displayName: text("display_name").notNull(),
+  department: text("department"),
+  routingEnabled: boolean("routing_enabled").notNull().default(false),
+  manualAvailability: text("manual_availability").$type<"available" | "unavailable" | "unknown">().notNull().default("unknown"),
+  timezone: text("timezone").notNull(),
+  workingHours: jsonb("working_hours").$type<BusinessHours>().notNull().default(DEFAULT_BUSINESS_HOURS),
+  encryptedTransferDestination: text("encrypted_transfer_destination"),
+  transferDestinationDisplay: text("transfer_destination_display"),
+  calendarPolicy: jsonb("calendar_policy").$type<import("@receptionist/shared").EmployeeCalendarPolicy>()
+    .notNull().default({ authority: "direct", booking: null, conflicts: [] }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, t => [
+  unique("employees_agent_id_unique").on(t.agentId, t.id),
+  index("employees_agent_name_idx").on(t.agentId, t.displayName, t.id),
+]).enableRLS();
+
 /** Google accounts authorized for calendar access. These are integrations, not login identities. */
 export const calendarConnections = pgTable(
   "calendar_connections",
@@ -286,6 +329,7 @@ export const calendarConnections = pgTable(
     agentId: uuid("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id"),
     provider: text("provider").$type<CalendarProvider>().notNull().default("google"),
     providerAccountId: text("provider_account_id").notNull(),
     accountEmail: text("account_email").notNull(),
@@ -303,6 +347,9 @@ export const calendarConnections = pgTable(
       table.providerAccountId,
     ),
     index("calendar_connections_agent_idx").on(table.agentId),
+    index("calendar_connections_employee_idx").on(table.agentId, table.employeeId),
+    foreignKey({ name: "calendar_connections_employee_workspace_fk", columns: [table.agentId, table.employeeId],
+      foreignColumns: [employees.agentId, employees.id] }),
   ],
 ).enableRLS();
 
@@ -364,3 +411,66 @@ export const transferRequests = pgTable("transfer_requests", {
   status: text("status").$type<"pending" | "accepted" | "declined" | "connected" | "ended">().notNull().default("pending"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, t => [index("transfer_requests_inbox_idx").on(t.agentId, t.targetUserId, t.expiresAt)]).enableRLS();
+
+export const retellConnections = pgTable("retell_connections", {
+  agentId: uuid("agent_id").primaryKey().references(() => workspaces.agentId, { onDelete: "cascade" }),
+  retellAgentId: text("retell_agent_id").notNull().unique(),
+  enabled: boolean("enabled").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}).enableRLS();
+export const retellWebhookReceipts = pgTable("retell_webhook_receipts", {
+  dedupKey: text("dedup_key").primaryKey(),
+  agentId: uuid("agent_id").notNull().references(() => workspaces.agentId, { onDelete: "cascade" }),
+  event: text("event").notNull(),
+  callId: text("call_id").notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+}).enableRLS();
+
+// Separate from OAuth calendar connections: Cal credentials and assignment never cross employees.
+export const calcomConnections = pgTable('calcom_connections', {
+ id: uuid('id').defaultRandom().primaryKey(),
+ agentId: uuid('agent_id').notNull().references(() => workspaces.agentId, { onDelete: 'cascade' }),
+ employeeId: uuid('employee_id').notNull(),
+ authKind: text('auth_kind').$type<'api_key'>().notNull().default('api_key'),
+ encryptedCredential: text('encrypted_credential').notNull(),
+ providerUserId: text('provider_user_id').notNull(),
+ accountEmail: text('account_email').notNull(),
+ displayLabel: text('display_label').notNull(),
+ status: text('status').$type<'active' | 'reconnect_required'>().notNull().default('active'),
+ createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+ updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+ unique('calcom_employee_unique').on(t.agentId, t.employeeId),
+ unique('calcom_provider_identity_unique').on(t.agentId, t.providerUserId),
+ unique('calcom_agent_id_unique').on(t.agentId, t.id),
+ foreignKey({ name: 'calcom_employee_workspace_fk', columns: [t.agentId, t.employeeId], foreignColumns: [employees.agentId, employees.id] }),
+ check('calcom_auth_kind_check', sql`${t.authKind} IN ('api_key')`),
+ check('calcom_status_check', sql`${t.status} IN ('active', 'reconnect_required')`),
+]).enableRLS();
+export const calcomWebhookReceipts = pgTable('calcom_webhook_receipts', {
+ connectionId: uuid('connection_id').notNull().references(() => calcomConnections.id, { onDelete: 'cascade' }),
+ digest: text('digest').notNull(),
+ bookingUid: text('booking_uid').notNull(),
+ eventType: text('event_type').notNull(),
+ createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.connectionId, t.digest] }), index('calcom_receipts_connection_time_idx').on(t.connectionId, t.createdAt), index('calcom_receipts_time_idx').on(t.createdAt)]).enableRLS();
+
+// Durable side-effect results; no arguments, transcripts or provider response bodies.
+export const retellFunctionInvocations = pgTable('retell_function_invocations', {
+ key: text('key').primaryKey(),
+ agentId: uuid('agent_id').notNull().references(() => workspaces.agentId, { onDelete: 'cascade' }),
+ callId: text('call_id').notNull(),
+ name: text('name').notNull(),
+ semanticHash: text('semantic_hash').notNull(),
+ state: text('state').$type<'processing' | 'completed' | 'uncertain'>().notNull().default('processing'),
+ result: jsonb('result').$type<Record<string, unknown>>(),
+ appointmentId: uuid('appointment_id').references(() => appointments.id, { onDelete: 'set null' }),
+ createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+ updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+ check('retell_invocation_state_check', sql`${t.state} IN ('processing', 'completed', 'uncertain')`),
+ check('retell_invocation_result_check', sql`(${t.state} = 'completed') = (${t.result} IS NOT NULL) AND (${t.result} IS NULL OR (jsonb_typeof(${t.result}) = 'object' AND octet_length(${t.result}::text) <= 8192))`),
+ check('retell_invocation_identity_check', sql`${t.key} ~ '^[a-f0-9]{64}$' AND ${t.semanticHash} ~ '^[a-f0-9]{64}$' AND length(${t.callId}) BETWEEN 1 AND 200 AND ${t.name} IN ('book-appointment', 'save-message')`),
+ index('retell_invocation_recovery_idx').on(t.agentId, t.state, t.updatedAt),
+]).enableRLS();

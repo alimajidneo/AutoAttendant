@@ -1,15 +1,15 @@
+import { CallOutcome } from '../calls/CallOutcome'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
 import type { CallDetail } from '@receptionist/shared'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StatusBadge } from '@/components/ui/status-badge'
 import { PageContainer } from '@/layout/PageContainer'
 import { PageHeader } from '@/layout/PageHeader'
 import { keys, fetchers } from '@/lib/queries'
 import { useAgentZone } from '@/hooks/useAgentZone'
-import { callOutcomeConfig } from '@/lib/status-config'
 import { formatPhone, formatDateTime, formatDuration } from '@/lib/formatters'
+import { RetellCallFacts } from './RetellCallFacts'
 import AudioPlayer from './AudioPlayer'
 
 /** A labelled fact in the header strip. */
@@ -59,16 +59,17 @@ export default function CallDetailPage() {
 
       <PageHeader
         className="mb-5"
-        title={call.summary || 'This call was too short to summarise'}
-        actions={<StatusBadge value={call.outcome} config={callOutcomeConfig} />}
+        title={call.summary || (call.provider === 'retell' ? 'No summary available' : 'This call was too short to summarise')}
+        actions={<CallOutcome provider={call.provider} outcome={call.outcome} />}
       />
 
+      <div className="mb-4"><RetellCallFacts call={call} /></div>
       <dl className="mb-5 grid gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:grid-cols-3" data-ground="card">
         <Fact label="Caller ID">
           {call.callerPhone ? formatPhone(call.callerPhone) : 'No caller ID'}
         </Fact>
         <Fact label="When">{formatDateTime(call.startedAt, zone)}</Fact>
-        <Fact label="Length">{length ?? 'Still running'}</Fact>
+        <Fact label="Length">{call.durationMs != null ? `${Math.round(call.durationMs / 1000)} s` : length ?? (call.provider === 'retell' ? 'Unknown' : 'Still running')}</Fact>
       </dl>
 
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm" data-ground="card">
