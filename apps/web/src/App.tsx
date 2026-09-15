@@ -21,6 +21,7 @@ const Knowledge = lazy(() => import('@/features/knowledge/KnowledgePage'))
 const Onboarding = lazy(() => import('@/features/onboarding/OnboardingPage'))
 const Workspaces = lazy(() => import('@/features/workspaces/WorkspacesPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
+const EmployeeSelf = lazy(() => import('@/features/employees/EmployeeSelfPage'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAuth()
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="/escalations" element={<Escalations />} />
             <Route path="/escalations/queue" element={<Queue />} />
             <Route path="/appointments" element={<Appointments />} />
+            <Route path="/employee" element={<EmployeeSelf />} />
             <Route path="/knowledge" element={<Knowledge />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />

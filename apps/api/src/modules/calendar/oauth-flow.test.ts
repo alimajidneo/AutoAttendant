@@ -111,6 +111,27 @@ describe("calendar selection boundaries", () => {
     expect(mocks.updateAgent).not.toHaveBeenCalled();
     expect(mocks.getCalendarConnectionTokens).toHaveBeenCalledWith(owner);
   });
+
+  it("persists an approved color for each selected calendar", async () => {
+    mocks.getCalendarConnectionTokens.mockResolvedValue([{
+      row: { id: connectionA, provider: "microsoft", accountEmail: "owner@outlook.com" }, token: "token-a",
+    }]);
+    mocks.listCalendars.mockResolvedValue([{
+      id: "calendar", summary: "DeskRoute Bookings", writable: true, primary: false,
+    }]);
+    const result = await app.request("/api/admin/calendar", { method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        booking: { connectionId: connectionA, calendarId: "calendar" },
+        conflicts: [{ connectionId: connectionA, calendarId: "calendar", color: "teal" }],
+      }),
+    });
+    expect(result.status).toBe(200);
+    expect(mocks.updateAgent).toHaveBeenCalledWith(owner, expect.objectContaining({
+      calendarPayload: expect.objectContaining({
+        conflictCalendars: [expect.objectContaining({ id: "calendar", color: "teal" })],
+      }),
+    }));
+  });
 });
 
 it('returns a clear conflict when disconnecting an employee-assigned account', async () => {

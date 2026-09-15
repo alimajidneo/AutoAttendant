@@ -114,8 +114,12 @@ export const appointments = new Hono<AppEnv>()
         if (calendars.has(key)) continue;
         calendars.set(key, { provider: group.provider, token: group.token, connectionId: group.connectionId, calendarId });
         const reference = agent.calendarPayload?.conflictCalendars?.find(item => item.connectionId === group.connectionId && item.id === calendarId);
-        sources.push({ ...account, calendarId, calendarName: reference?.summary
-          ?? (calendarId === agent.calendarExternalId ? agent.calendarPayload?.summary : undefined) ?? calendarId });
+        sources.push({
+          ...account, calendarId,
+          calendarName: reference?.summary
+            ?? (calendarId === agent.calendarExternalId ? agent.calendarPayload?.summary : undefined) ?? calendarId,
+          ...(reference?.color ? { color: reference.color } : {}),
+        });
       }
     }
     const results = await Promise.all([...calendars.values()].map(({ provider, token, calendarId }) =>

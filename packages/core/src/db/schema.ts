@@ -385,12 +385,18 @@ export const workspaces = pgTable("workspaces", {
 export const workspaceMembers = pgTable("workspace_members", {
   agentId: uuid("agent_id").notNull().references(() => workspaces.agentId, { onDelete: "cascade" }),
   userId: text("user_id").notNull(),
+  employeeId: uuid("employee_id"),
   email: text("email").notNull().default(""),
   role: text("role").$type<"manager" | "member">().notNull(),
   displayName: text("display_name").notNull().default(""),
   department: text("department").notNull().default(""),
   available: boolean("available").notNull().default(false),
-}, t => [primaryKey({ columns: [t.agentId, t.userId] }), index("workspace_members_user_idx").on(t.userId)]).enableRLS();
+}, t => [
+  primaryKey({ columns: [t.agentId, t.userId] }),
+  unique("workspace_members_employee_unique").on(t.agentId, t.employeeId),
+  foreignKey({ name: "workspace_members_employee_workspace_fk", columns: [t.agentId, t.employeeId], foreignColumns: [employees.agentId, employees.id] }),
+  index("workspace_members_user_idx").on(t.userId),
+]).enableRLS();
 
 export const workspaceInvites = pgTable("workspace_invites", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -432,12 +438,20 @@ export const calcomConnections = pgTable('calcom_connections', {
  id: uuid('id').defaultRandom().primaryKey(),
  agentId: uuid('agent_id').notNull().references(() => workspaces.agentId, { onDelete: 'cascade' }),
  employeeId: uuid('employee_id').notNull(),
- authKind: text('auth_kind').$type<'api_key'>().notNull().default('api_key'),
+ authKind: text('auth_kind').$type<'api_key' | 'oauth'>().notNull().default('api_key'),
  encryptedCredential: text('encrypted_credential').notNull(),
+ credentialVersion: bigint('credential_version', { mode: 'number' }).notNull().default(1),
+ lifecycleGeneration: bigint('lifecycle_generation', { mode: 'number' }).notNull().default(1),
+ lifecycleLeaseExpiresAt: timestamp('lifecycle_lease_expires_at', { withTimezone: true }),
+ credentialRefreshLeaseExpiresAt: timestamp('credential_refresh_lease_expires_at', { withTimezone: true }),
  providerUserId: text('provider_user_id').notNull(),
  accountEmail: text('account_email').notNull(),
  displayLabel: text('display_label').notNull(),
- status: text('status').$type<'active' | 'reconnect_required'>().notNull().default('active'),
+ status: text('status').$type<'active' | 'setup_required' | 'reconnect_required' | 'disconnecting'>().notNull().default('active'),
+ eventTypeId: integer('event_type_id'),
+ webhookId: text('webhook_id'),
+ destinationCalendarIntegration: text('destination_calendar_integration'),
+ destinationCalendarExternalId: text('destination_calendar_external_id'),
  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, t => [
@@ -445,8 +459,33 @@ export const calcomConnections = pgTable('calcom_connections', {
  unique('calcom_provider_identity_unique').on(t.agentId, t.providerUserId),
  unique('calcom_agent_id_unique').on(t.agentId, t.id),
  foreignKey({ name: 'calcom_employee_workspace_fk', columns: [t.agentId, t.employeeId], foreignColumns: [employees.agentId, employees.id] }),
- check('calcom_auth_kind_check', sql`${t.authKind} IN ('api_key')`),
- check('calcom_status_check', sql`${t.status} IN ('active', 'reconnect_required')`),
+ check('calcom_auth_kind_check', sql`${t.authKind} IN ('api_key', 'oauth')`),
+ check('calcom_status_check', sql`${t.status} IN ('active', 'setup_required', 'reconnect_required', 'disconnecting')`),
+ check('calcom_versions_check', sql`${t.credentialVersion} > 0 AND ${t.lifecycleGeneration} > 0`),
+ check('calcom_lease_state_check', sql`(${t.authKind} = 'oauth' OR ${t.credentialRefreshLeaseExpiresAt} IS NULL) AND (${t.lifecycleLeaseExpiresAt} IS NULL OR ${t.status} IN ('setup_required', 'disconnecting'))`),
+ check('calcom_oauth_setup_check', sql`${t.authKind} <> 'oauth' OR ${t.status} <> 'active' OR (${t.eventTypeId} IS NOT NULL AND ${t.webhookId} IS NOT NULL AND ${t.destinationCalendarIntegration} IS NOT NULL AND ${t.destinationCalendarExternalId} IS NOT NULL AND length(${t.destinationCalendarIntegration}) > 0 AND length(${t.destinationCalendarExternalId}) > 0)`),
+]).enableRLS();
+
+// Opaque, short-lived, atomically deleted callback capabilities. No tokens or provider codes.
+export const calcomOauthStates = pgTable('calcom_oauth_states', {
+ stateHash: text('state_hash').primaryKey(),
+ agentId: uuid('agent_id').notNull().references(() => workspaces.agentId, { onDelete: 'cascade' }),
+ userId: text('user_id').notNull(),
+ employeeId: uuid('employee_id').notNull(),
+ intent: text('intent').$type<'connect' | 'reconnect'>().notNull(),
+ startingConnectionId: uuid('starting_connection_id'),
+ startingProviderUserId: text('starting_provider_user_id'),
+ startingLifecycleGeneration: bigint('starting_lifecycle_generation', { mode: 'number' }),
+ browserChallengeHash: text('browser_challenge_hash').notNull(),
+ expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+ createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+ foreignKey({ name: 'calcom_oauth_states_employee_workspace_fk', columns: [t.agentId, t.employeeId], foreignColumns: [employees.agentId, employees.id] }).onDelete('cascade'),
+ check('calcom_oauth_state_hash_check', sql`${t.stateHash} ~ '^[a-f0-9]{64}$' AND ${t.browserChallengeHash} ~ '^[a-f0-9]{64}$'`),
+ check('calcom_oauth_state_identity_check', sql`length(${t.userId}) BETWEEN 1 AND 200 AND (${t.startingProviderUserId} IS NULL OR length(${t.startingProviderUserId}) BETWEEN 1 AND 200)`),
+ check('calcom_oauth_state_intent_check', sql`(${t.intent} = 'connect' AND ${t.startingConnectionId} IS NULL AND ${t.startingProviderUserId} IS NULL AND ${t.startingLifecycleGeneration} IS NULL) OR (${t.intent} = 'reconnect' AND ${t.startingConnectionId} IS NOT NULL AND ${t.startingProviderUserId} IS NOT NULL AND ${t.startingLifecycleGeneration} > 0)`),
+ index('calcom_oauth_states_expiry_idx').on(t.expiresAt),
+ index('calcom_oauth_states_employee_idx').on(t.agentId, t.employeeId),
 ]).enableRLS();
 export const calcomWebhookReceipts = pgTable('calcom_webhook_receipts', {
  connectionId: uuid('connection_id').notNull().references(() => calcomConnections.id, { onDelete: 'cascade' }),

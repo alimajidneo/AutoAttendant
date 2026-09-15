@@ -147,11 +147,14 @@ export type CalendarPayload = {
   bookingConnectionId?: string;
 };
 
+export type CalendarSourceColor = "blue" | "violet" | "green" | "amber" | "pink" | "teal" | "orange" | "slate";
+
 export type CalendarReference = {
   connectionId?: string;
   id: string;
   summary: string;
   timeZone?: string;
+  color?: CalendarSourceColor;
 };
 
 /** One of the calendars a connected account can offer, for the picker. */
@@ -327,6 +330,7 @@ export interface CalendarAgendaSource {
   calendarId: string;
   calendarName: string;
   colorIndex: number;
+  color?: CalendarSourceColor;
 }
 
 export interface CalendarAgenda {

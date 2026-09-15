@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { ProviderWriteRejectedError } from './provider-write-error.js';
+import { env } from '../env.js';
 const date = z.string().datetime({ offset: true });
 const uid = z.string().min(1).max(200);
 const metadata = z.object({ appointmentId: z.string().uuid().optional(), employeeId: z.string().uuid().optional(), agentId: z.string().uuid().optional() });
@@ -24,8 +25,19 @@ const schedulingSchema = calcomEventTypeSchema.extend({
  teamId: z.number().int().positive().optional(), schedulingType: z.enum(['roundRobin', 'collective', 'managed']).nullable().optional(),
  bookingFields: z.array(z.object({ slug: z.string().max(200), type: z.string().max(100), required: z.boolean(), isDefault: z.boolean() })).max(100),
  locations: z.array(z.object({ type: z.string().max(100) })).max(20),
+ destinationCalendar: z.object({ integration: z.string().trim().min(1).max(200), externalId: z.string().trim().min(1).max(1000) }).strict().optional(),
 });
 export type CalcomSchedulingType = z.infer<typeof schedulingSchema>;
+const oauthTokensSchema = z.object({ access_token: z.string().min(1).max(8192), token_type: z.literal('bearer'),
+ refresh_token: z.string().min(1).max(8192), expires_in: z.number().int().positive().max(86400) }).strict();
+const webhookTriggers = z.enum(['BOOKING_CREATED', 'BOOKING_RESCHEDULED', 'BOOKING_CANCELLED']);
+const webhookSchema = z.object({ id: z.union([z.string().min(1).max(200), z.number().int().positive()]).transform(String),
+ subscriberUrl: z.string().url().max(2048), active: z.boolean(), triggers: z.array(webhookTriggers).max(20) });
+export type CalcomOAuthTokens = { accessToken: string; refreshToken: string; expiresAt: number };
+export type CalcomAccount = { id: number; email: string; username: string };
+export class CalcomAuthorizationError extends ProviderWriteRejectedError {
+ constructor() { super(); this.name = 'CalcomAuthorizationError'; this.message = 'Cal.com response unavailable'; }
+}
 export function trustedCalcomBase(base: string) {
  if (!/^https:\/\/api\.cal\.com\/v2\/?$/.test(base)) throw new Error('Untrusted Cal.com API base');
  return 'https://api.cal.com/v2';
@@ -35,7 +47,9 @@ export function deriveCalcomWebhookSecret(rootSecret: string, connectionId: stri
  const id = z.string().uuid().parse(connectionId);
  return createHmac('sha256', root).update(`deskroute-calcom-webhook:${id}`).digest('hex');
 }
-export type CalcomEventType = z.infer<typeof calcomEventTypeSchema>;
+export type CalcomEventType = z.infer<typeof calcomEventTypeSchema> & {
+ destinationCalendar?: { integration: string; externalId: string };
+};
 export function calcomContact(email?: string, phone?: string) {
  const validEmail = z.string().trim().email().max(254).safeParse(email);
  const validPhone = z.string().regex(/^\+[1-9]\d{7,14}$/).safeParse(phone);
@@ -43,17 +57,25 @@ export function calcomContact(email?: string, phone?: string) {
 }
 const unavailable = () => new Error('Cal.com response unavailable');
 export class CalcomClient {
- constructor(private readonly token: string, private readonly base = 'https://api.cal.com/v2', private readonly onUnauthorized?: () => void | Promise<void>) { this.base = trustedCalcomBase(base); }
- private async request(path: string, version: string, body?: unknown): Promise<unknown> {
+ constructor(private readonly token: string, private readonly base = 'https://api.cal.com/v2', private readonly onUnauthorized?: () => void | Promise<void>,
+  private readonly oauthSetupWritesApproved = false) { this.base = trustedCalcomBase(base); }
+ private requireOAuthSetupWriteApproval() {
+  if (!this.oauthSetupWritesApproved) throw new Error('Cal.com OAuth automatic provider writes are not approved');
+ }
+ private async request(path: string, version: string, body?: unknown, method = body === undefined ? 'GET' : 'POST'): Promise<unknown> {
   try {
-   const response = await fetch(`${this.base.replace(/\/$/, '')}${path}`, { method: body === undefined ? 'GET' : 'POST', redirect: 'error',
+   const response = await fetch(`${this.base.replace(/\/$/, '')}${path}`, { method, redirect: 'error',
     headers: { Authorization: `Bearer ${this.token}`, 'cal-api-version': version, 'Content-Type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(15000) });
    if (!response.ok) {
-    if (response.status === 401 || response.status === 403) await Promise.resolve(this.onUnauthorized?.()).catch(() => undefined);
+    if (response.status === 401 || response.status === 403) {
+     await Promise.resolve(this.onUnauthorized?.()).catch(() => undefined);
+     throw new CalcomAuthorizationError();
+    }
     if (body !== undefined && [400, 401, 403, 404, 405, 410, 422].includes(response.status)) throw new ProviderWriteRejectedError();
     throw unavailable();
    }
+   if (method === 'DELETE' && response.status === 204) return null;
    const parsed = z.object({ status: z.literal('success'), data: z.unknown() }).safeParse(await response.json());
    if (!parsed.success || parsed.data.data === undefined) throw unavailable();
    return parsed.data.data;
@@ -79,6 +101,31 @@ export class CalcomClient {
    return [t];
   });
  }
+ async createEventType(input: { lengthInMinutes: number; title: string; slug: string }) {
+  this.requireOAuthSetupWriteApproval();
+  const body = z.object({ lengthInMinutes: z.number().int().positive(), title: z.string().min(1).max(200), slug: z.string().min(1).max(200) }).strict().parse(input);
+  const parsed = schedulingSchema.safeParse(await this.request('/event-types', '2024-06-14', body));
+  if (!parsed.success || parsed.data.lengthInMinutes !== body.lengthInMinutes || parsed.data.title !== body.title || parsed.data.slug !== body.slug) throw unavailable();
+  return parsed.data;
+ }
+ async webhooks() {
+  const parsed = z.array(webhookSchema).max(1000).safeParse(await this.request('/webhooks', '2024-06-14'));
+  if (!parsed.success) throw unavailable();
+  return parsed.data;
+ }
+ async createWebhook(input: { subscriberUrl: string; secret: string }) {
+  this.requireOAuthSetupWriteApproval();
+  const body = { subscriberUrl: z.string().url().max(2048).parse(input.subscriberUrl), active: true,
+   triggers: ['BOOKING_CREATED', 'BOOKING_RESCHEDULED', 'BOOKING_CANCELLED'] as const,
+   secret: z.string().min(32).max(200).parse(input.secret), version: '2021-10-20' };
+  const parsed = webhookSchema.safeParse(await this.request('/webhooks', '2024-06-14', body));
+  if (!parsed.success || parsed.data.subscriberUrl !== body.subscriberUrl) throw unavailable();
+  return parsed.data;
+ }
+ async deleteWebhook(webhookId: string) {
+  this.requireOAuthSetupWriteApproval();
+  await this.request(`/webhooks/${encodeURIComponent(z.string().min(1).max(200).parse(webhookId))}`, '2024-06-14', undefined, 'DELETE');
+ }
  async slots(eventTypeId: number, start: string, end: string, timeZone: string) {
   const query = new URLSearchParams({ eventTypeId: String(eventTypeId), start, end, timeZone, format: 'range' });
   const parsed = z.record(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.array(range)).safeParse(await this.request(`/slots?${query}`, '2024-09-04'));
@@ -102,6 +149,35 @@ export class CalcomClient {
   const parsed = bookingSchema.safeParse(await this.request(`/bookings/${encodeURIComponent(uid.parse(bookingUid))}/cancel`, '2024-08-13', { cancellationReason: 'Cancelled by DeskRoute manager' }));
   if (!parsed.success || parsed.data.uid !== bookingUid || parsed.data.status !== 'cancelled') throw unavailable();
  }
+}
+
+function oauthConfig() {
+ if (!env.CALCOM_OAUTH_CLIENT_ID || !env.CALCOM_OAUTH_CLIENT_SECRET) throw new Error('Cal.com OAuth is not configured');
+ return { clientId: env.CALCOM_OAUTH_CLIENT_ID, clientSecret: env.CALCOM_OAUTH_CLIENT_SECRET };
+}
+export function calcomOAuthConfigured() { return !!env.CALCOM_OAUTH_CLIENT_ID && !!env.CALCOM_OAUTH_CLIENT_SECRET; }
+async function oauthToken(body: URLSearchParams): Promise<CalcomOAuthTokens> {
+ try {
+  const response = await fetch('https://api.cal.com/v2/auth/oauth2/token', { method: 'POST', redirect: 'error',
+   headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body, signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw unavailable();
+  const parsed = oauthTokensSchema.safeParse(await response.json());
+  if (!parsed.success) throw unavailable();
+  return { accessToken: parsed.data.access_token, refreshToken: parsed.data.refresh_token, expiresAt: Date.now() + parsed.data.expires_in * 1000 };
+ } catch { throw unavailable(); }
+}
+export async function exchangeCalcomAuthorizationCode(code: string, redirectUri: string) {
+ const { clientId, clientSecret } = oauthConfig();
+ const body = new URLSearchParams({ grant_type: 'authorization_code', client_id: clientId, client_secret: clientSecret,
+  code: z.string().min(1).max(4096).parse(code), redirect_uri: z.string().url().parse(redirectUri) });
+ const tokens = await oauthToken(body);
+ const account = await new CalcomClient(tokens.accessToken).me();
+ return { tokens, account };
+}
+export async function refreshCalcomOAuthTokens(refreshToken: string) {
+ const { clientId, clientSecret } = oauthConfig();
+ return oauthToken(new URLSearchParams({ grant_type: 'refresh_token', client_id: clientId, client_secret: clientSecret,
+  refresh_token: z.string().min(1).max(8192).parse(refreshToken) }));
 }
 export function verifyCalcomWebhook(raw: Buffer, signature: string, secret: string) {
  if (!secret || !/^[a-fA-F0-9]{64}$/.test(signature) || !timingSafeEqual(createHmac('sha256', secret).update(raw).digest(), Buffer.from(signature, 'hex'))) throw new Error('Invalid Cal.com signature');

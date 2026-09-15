@@ -102,7 +102,8 @@ export const calendar = new Hono<AppEnv>().use("*", requireCalendarOwner)
     const booking = byKey.get(key(parsed.data.booking.connectionId, parsed.data.booking.calendarId));
     if (!booking?.writable) return c.json({ error: "Select a writable booking calendar" }, 400);
     const requested = new Map(parsed.data.conflicts.map(item => [key(item.connectionId, item.calendarId), item]));
-    requested.set(key(booking.connectionId, booking.id), { connectionId: booking.connectionId, calendarId: booking.id });
+    const bookingKey = key(booking.connectionId, booking.id);
+    if (!requested.has(bookingKey)) requested.set(bookingKey, { connectionId: booking.connectionId, calendarId: booking.id });
     const conflicts = [...requested.values()].map(item => byKey.get(key(item.connectionId, item.calendarId)));
     if (conflicts.some(item => !item)) return c.json({ error: "One or more calendars are unavailable. Reconnect the account and try again." }, 400);
 
@@ -116,6 +117,8 @@ export const calendar = new Hono<AppEnv>().use("*", requireCalendarOwner)
         conflictCalendars: conflicts.map(item => ({
           connectionId: item!.connectionId, id: item!.id, summary: item!.summary,
           ...(item!.timeZone ? { timeZone: item!.timeZone } : {}),
+          ...(requested.get(key(item!.connectionId, item!.id))?.color
+            ? { color: requested.get(key(item!.connectionId, item!.id))!.color } : {}),
         })),
       },
     });

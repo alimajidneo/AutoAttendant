@@ -59,6 +59,57 @@ it('signals reconnect on expired credentials without leaking response data', asy
  await expect(new CalcomClient('TOKEN', undefined, reconnect).me()).rejects.toThrow('Cal.com response unavailable'); expect(reconnect).toHaveBeenCalledOnce();
 });
 
+it('creates and discovers only a deterministic compatible DeskRoute event type', async () => {
+ const created = { ...safeType, id: 99, title: 'DeskRoute appointment', slug: 'deskroute-employee', lengthInMinutes: 30,
+  destinationCalendar: { integration: 'google_calendar', externalId: 'work@example.test' } };
+ const fetch = vi.fn()
+  .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'success', data: created })))
+  .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'success', data: [created] })));
+ vi.stubGlobal('fetch', fetch);
+ const client = new CalcomClient('TOKEN', undefined, undefined, true);
+ await client.createEventType({ title: created.title, slug: created.slug, lengthInMinutes: 30 });
+ expect(JSON.parse(fetch.mock.calls[0]![1]!.body)).toEqual({ title: 'DeskRoute appointment', slug: 'deskroute-employee', lengthInMinutes: 30 });
+ expect(fetch.mock.calls[0]![0]).toBe('https://api.cal.com/v2/event-types');
+ const discovered = await client.eventTypes();
+ expect(discovered.find(event => event.slug === created.slug)?.lengthInMinutes).toBe(30);
+ expect(discovered.find(event => event.slug === created.slug)?.destinationCalendar).toEqual(created.destinationCalendar);
+});
+
+it('retains a bounded official destination calendar and distinguishes its absence', async () => {
+ response({ status: 'success', data: [{ ...safeType, destinationCalendar: { integration: 'google_calendar', externalId: 'work@example.test' } }, { ...safeType, id: 13 }] });
+ const types = await new CalcomClient('TOKEN').eventTypes();
+ expect(types[0]!.destinationCalendar).toEqual({ integration: 'google_calendar', externalId: 'work@example.test' });
+ expect(types[1]!.destinationCalendar).toBeUndefined();
+});
+
+it('creates, lists, and deletes signed booking webhooks without exposing the secret', async () => {
+ const webhook = { id: 'webhook-1', subscriberUrl: 'https://api.example/api/calcom/webhooks/00000000-0000-4000-8000-000000000001', active: true,
+  triggers: ['BOOKING_CREATED', 'BOOKING_RESCHEDULED', 'BOOKING_CANCELLED'] };
+ const fetch = vi.fn()
+  .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'success', data: webhook })))
+  .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'success', data: [webhook] })))
+  .mockResolvedValueOnce(new Response(null, { status: 204 }));
+ vi.stubGlobal('fetch', fetch);
+ const client = new CalcomClient('TOKEN', undefined, undefined, true);
+ await client.createWebhook({ subscriberUrl: webhook.subscriberUrl, secret: 'PRIVATE_SECRET'.padEnd(32, '_') });
+ expect(await client.webhooks()).toEqual([webhook]);
+ await client.deleteWebhook(webhook.id);
+ expect(fetch.mock.calls.map(call => [call[0], call[1]!.method])).toEqual([
+  ['https://api.cal.com/v2/webhooks', 'POST'], ['https://api.cal.com/v2/webhooks', 'GET'], ['https://api.cal.com/v2/webhooks/webhook-1', 'DELETE'],
+ ]);
+ expect(fetch.mock.calls.every(call => call[1]!.headers['cal-api-version'] === '2024-06-14')).toBe(true);
+ expect(JSON.parse(fetch.mock.calls[0]![1]!.body)).toMatchObject({ secret: 'PRIVATE_SECRET'.padEnd(32, '_'), triggers: webhook.triggers });
+});
+
+it('blocks automatic OAuth setup mutations before fetch unless explicitly approved', async () => {
+ const fetch = response({ status: 'success', data: safeType });
+ const client = new CalcomClient('TOKEN');
+ await expect(client.createEventType({ title: 'DeskRoute appointment', slug: 'deskroute-employee', lengthInMinutes: 30 })).rejects.toThrow('not approved');
+ await expect(client.createWebhook({ subscriberUrl: 'https://api.example/api/calcom/webhooks/00000000-0000-4000-8000-000000000001', secret: 's'.repeat(32) })).rejects.toThrow('not approved');
+ await expect(client.deleteWebhook('webhook')).rejects.toThrow('not approved');
+ expect(fetch).not.toHaveBeenCalled();
+});
+
 const safeType = { id: 12, title: 'Intro', slug: 'intro', lengthInMinutes: 60, bookingUrl: 'https://cal.com/sam/intro', recurrence: null, price: 0, isInstantEvent: false, seats: { disabled: true }, bookingFields: [], locations: [{ type: 'integration', integration: 'cal-video' }] };
 it.each([
  { recurrence: { interval: 1, occurrences: 5, frequency: 'weekly' } }, { isInstantEvent: true }, { seats: { seatsPerTimeSlot: 2 } }, { seatsPerTimeSlot: 2 },

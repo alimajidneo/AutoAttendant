@@ -17,7 +17,7 @@ import { formatPhone, formatTime, dayKey } from '@/lib/formatters'
 import { appointmentStatusConfig } from '@/lib/status-config'
 import { apiClient } from '@/lib/apiClient'
 import { cn } from '@/lib/utils'
-import { calendarSourceClass, calendarSourceLabel, groupCalendarSources } from './calendar-sources'
+import { calendarSourceClass, calendarSourceLabel } from './calendar-sources'
 import { appointmentCalendarEventKey, calendarEventKey, eventsForDays, splitAppointments } from './appointment-groups'
 import { AppointmentWriteStatus } from './AppointmentWriteStatus'
 import { removeAppointmentFromCache } from './appointment-cache'
@@ -108,7 +108,6 @@ export default function AppointmentsPage() {
   const events = useMemo(() => calendarQuery.data?.events ?? [], [calendarQuery.data])
   const sources = useMemo(() => calendarQuery.data?.sources ?? [], [calendarQuery.data])
   const sourceByCalendar = useMemo(() => new Map(sources.map(source => [source.calendarId, source])), [sources])
-  const sourceAccounts = useMemo(() => groupCalendarSources(sources), [sources])
   const appointmentByEventId = useMemo(
     () => new Map(appointments.map(item => [appointmentCalendarEventKey(item), item])),
     [appointments],
@@ -276,7 +275,7 @@ export default function AppointmentsPage() {
                           key={calendarEventKey(event)}
                           className={cn(
                             'block truncate rounded border-l-2 px-1 py-0.5 text-[10px] leading-4 sm:text-xs',
-                            'calendar-event-chip', calendarSourceClass(sourceByCalendar.get(event.calendarId)?.colorIndex ?? 0),
+                            'calendar-event-chip', calendarSourceClass(sourceByCalendar.get(event.calendarId)?.color ?? sourceByCalendar.get(event.calendarId)?.colorIndex ?? 0),
                           )}
                         >
                           <span className="hidden sm:inline">{eventTime(event, zone)} </span>{event.title}
@@ -290,16 +289,16 @@ export default function AppointmentsPage() {
             </div>
           )}
 
-          {sourceAccounts.length > 0 && (
+          {sources.length > 0 && (
             <section aria-label="Calendar sources" className="border-t border-border bg-muted/20 px-4 py-3 sm:px-5">
               <h3 className="text-sm font-semibold text-foreground">Calendar sources</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Each color identifies a connected account. Only your selected calendars are shown.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Each color identifies a selected calendar. Change colors in Connections.</p>
               <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
-                {sourceAccounts.map(account => <li key={account.connectionId} className="flex min-w-0 items-start gap-2">
-                  <span aria-hidden="true" className={cn('calendar-source-dot mt-1 size-3 shrink-0 rounded-full', calendarSourceClass(account.colorIndex))} />
+                {sources.map(source => <li key={`${source.connectionId}\u0000${source.calendarId}`} className="flex min-w-0 items-start gap-2">
+                  <span aria-hidden="true" className={cn('calendar-source-dot mt-1 size-3 shrink-0 rounded-full', calendarSourceClass(source.color ?? source.colorIndex))} />
                   <div className="min-w-0">
-                    <p className="break-all text-sm font-semibold text-foreground">{account.provider === 'google' ? 'Google' : 'Microsoft'} · {account.accountEmail}</p>
-                    {account.calendars.length > 0 && <p className="break-words text-sm text-muted-foreground">{account.calendars.join(' · ')}</p>}
+                    <p className="break-words text-sm font-semibold text-foreground">{source.provider === 'google' ? 'Google' : 'Microsoft'} · {source.calendarName}</p>
+                    {source.calendarName.trim().toLowerCase() !== source.accountEmail.trim().toLowerCase() && <p className="break-all text-sm text-muted-foreground">{source.accountEmail}</p>}
                   </div>
                 </li>)}
               </ul>
@@ -321,7 +320,7 @@ export default function AppointmentsPage() {
                     <div key={calendarEventKey(event)} className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg bg-muted/65 px-3 py-2.5">
                       <span className={cn(
                         'h-9 w-1 shrink-0 rounded-full',
-                        'calendar-source-dot', calendarSourceClass(source?.colorIndex ?? 0),
+                        'calendar-source-dot', calendarSourceClass(source?.color ?? source?.colorIndex ?? 0),
                       )} />
                       <div className="min-w-0">
                         <p className="truncate font-medium text-foreground">{event.title}</p>

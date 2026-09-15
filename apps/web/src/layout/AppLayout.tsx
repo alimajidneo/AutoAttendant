@@ -13,6 +13,7 @@ import {
   LogOut,
   CircleHelp,
   Building2,
+  UserRoundCog,
 } from 'lucide-react'
 import { AudioWaveform } from 'lucide-react'
 import { keys, fetchers } from '@/lib/queries'
@@ -48,6 +49,7 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
   { to: '/',              label: 'Dashboard',    icon: Home,        end: true },
   { to: '/calls',         label: 'Calls',         icon: PhoneCall },
   { to: '/appointments',  label: 'Appointments', icon: Calendar },
+  { to: '/employee',      label: 'My employee setup', icon: UserRoundCog },
   { to: '/escalations',   label: 'Questions',     icon: AlertCircle },
   { to: '/help',          label: 'Help & tutorial', icon: CircleHelp },
   { to: '/knowledge',     label: 'Knowledge',    icon: BookOpen },
@@ -57,6 +59,7 @@ const MEMBER_NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: Home, end: true },
   { to: '/calls', label: 'Calls', icon: PhoneCall },
   { to: '/appointments', label: 'Appointments', icon: Calendar },
+  { to: '/employee', label: 'My employee setup', icon: UserRoundCog },
   { to: '/workspaces', label: 'Workspace', icon: Building2 },
   { to: '/help', label: 'Help & tutorial', icon: CircleHelp },
 ]

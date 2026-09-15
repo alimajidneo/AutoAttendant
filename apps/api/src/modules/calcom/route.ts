@@ -7,12 +7,14 @@ import { requireManager } from '../../middleware/auth.js';
 import * as repo from '@receptionist/core/repositories/calcom.js';
 import { env } from '@receptionist/core/env.js';
 import { deriveCalcomWebhookSecret, verifyCalcomWebhook } from '@receptionist/core/providers/calcom.js';
+import { env as apiEnv } from '../../env.js';
 const uuid = z.string().uuid();
 export const calcom = new Hono<AppEnv>()
  .onError((_error, c) => c.json({ error: 'Cal.com unavailable. Check the connection and unresolved appointments before retrying.' }, 503))
- .use('*', requireManager, requireCalendarOwner, bodyLimit({ maxSize: 8192 }))
+ .use('*', requireManager, bodyLimit({ maxSize: 8192 }))
  .use('*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next(); })
  .get('/', async c => c.json(await repo.listCalcomConnections(c.get('agentId'))))
+ .use('*', requireCalendarOwner)
  .use('/:employeeId/*', async (c, next) => {
   if (!uuid.safeParse(c.req.param('employeeId')).success) return c.json({ error: 'Invalid employee' }, 400);
   const id = c.req.param('connectionId');
@@ -41,7 +43,9 @@ export const calcom = new Hono<AppEnv>()
   return c.json({ saved: true });
  })
  .delete('/:employeeId/:connectionId', async c => {
-  await repo.disconnectCalcom(c.get('agentId'), c.req.param('employeeId'), c.req.param('connectionId'));
+  if (!apiEnv.PUBLIC_API_URL) throw new Error('Cal.com webhook cleanup origin unavailable');
+  const connectionId = c.req.param('connectionId');
+  await repo.disconnectCalcom(c.get('agentId'), c.req.param('employeeId'), connectionId, `${apiEnv.PUBLIC_API_URL}/api/calcom/webhooks/${connectionId}`);
   return c.json({ disconnected: true });
  });
 export const calcomWebhooks = new Hono()

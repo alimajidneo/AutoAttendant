@@ -231,3 +231,92 @@ describe("exact deployed Cal.com boundary", () => {
     } finally { await pool.end(); await rm(folder, { recursive: true, force: true }); }
   }, 60_000);
 });
+
+describe("0011 to complete 0014 release candidate", () => {
+  it("preserves representative rows and proves ledger, constraints, indexes, RLS, and OAuth state semantics", async () => {
+    const name = `calcom_candidate_${Date.now()}`;
+    await withAdmin(pool => pool.query(`CREATE DATABASE "${name}"`));
+    scratchDb = name;
+    const url = new URL(ADMIN_URL); url.pathname = `/${name}`;
+    const pool = new Pool({ connectionString: url.toString(), max: 1 });
+    const folder = await mkdtemp(path.join(tmpdir(), "calcom-candidate-"));
+    try {
+      const journal = JSON.parse(await readFile(path.join(MIGRATIONS_FOLDER, "meta/_journal.json"), "utf8"));
+      const install = async (through: number) => {
+        const entries = journal.entries.filter((entry: { idx: number }) => entry.idx <= through);
+        await mkdir(path.join(folder, "meta"), { recursive: true });
+        await writeFile(path.join(folder, "meta/_journal.json"), JSON.stringify({ ...journal, entries }));
+        for (const entry of entries) await copyFile(path.join(MIGRATIONS_FOLDER, `${entry.tag}.sql`), path.join(folder, `${entry.tag}.sql`));
+        await migrate(drizzle(pool), { migrationsFolder: folder });
+      };
+      await pool.query('CREATE SCHEMA auth; CREATE TABLE auth.users (id uuid PRIMARY KEY, email text)');
+      await install(11);
+      expect((await pool.query('SELECT * FROM drizzle.__drizzle_migrations')).rowCount).toBe(12);
+      const { rows: [agent] } = await pool.query("INSERT INTO agents (business_name,timezone,auth_user_id) VALUES ('Candidate','UTC','candidate-owner') RETURNING id");
+      await pool.query("INSERT INTO workspaces VALUES ($1,'candidate-owner','team')", [agent.id]);
+      await pool.query("INSERT INTO workspace_members (agent_id,user_id,email,role,display_name) VALUES ($1,'candidate-owner','owner@example.test','manager','Owner')", [agent.id]);
+      const { rows: [employee] } = await pool.query("INSERT INTO employees (agent_id,display_name,timezone) VALUES ($1,'Thomas','UTC') RETURNING id", [agent.id]);
+      const { rows: [calendar] } = await pool.query("INSERT INTO calendar_connections (agent_id,employee_id,provider_account_id,account_email,encrypted_refresh_token,encryption_owner) VALUES ($1,$2,'provider-account','calendar@example.test','opaque-calendar','owner') RETURNING id", [agent.id, employee.id]);
+      await pool.query("INSERT INTO calls (agent_id,room_name,provider,provider_call_id,retell_agent_id) VALUES ($1,'retell:candidate','retell','candidate-call','candidate-agent')", [agent.id]);
+      await pool.query("INSERT INTO appointments (agent_id,employee_id,service_name,status,start_time,end_time,external_calendar_connection_id,external_calendar_id,provider_write_state) VALUES ($1,$2,'Existing','requested','2026-09-15T10:00Z','2026-09-15T10:30Z',$3,'calendar','reconciliation_required')", [agent.id, employee.id, calendar.id]);
+
+      await install(12);
+      expect((await pool.query('SELECT * FROM drizzle.__drizzle_migrations')).rowCount).toBe(13);
+      const { rows: [connection] } = await pool.query("INSERT INTO calcom_connections (agent_id,employee_id,encrypted_credential,provider_user_id,account_email,display_label) VALUES ($1,$2,'opaque-calcom','provider-user','thomas@example.test','Thomas') RETURNING id", [agent.id, employee.id]);
+      await pool.query("INSERT INTO calcom_webhook_receipts (connection_id,digest,booking_uid,event_type) VALUES ($1,'candidate-digest','uid','BOOKING_CREATED')", [connection.id]);
+      const before = {
+        agent: (await pool.query('SELECT id,business_name,timezone,auth_user_id FROM agents WHERE id=$1', [agent.id])).rows,
+        member: (await pool.query('SELECT agent_id,user_id,email,role,display_name,department,available FROM workspace_members WHERE agent_id=$1', [agent.id])).rows,
+        employee: (await pool.query('SELECT id,agent_id,display_name,timezone,calendar_policy FROM employees WHERE id=$1', [employee.id])).rows,
+        calendar: (await pool.query('SELECT id,agent_id,employee_id,encrypted_refresh_token,encryption_owner FROM calendar_connections WHERE id=$1', [calendar.id])).rows,
+        appointment: (await pool.query("SELECT agent_id,employee_id,service_name,status,provider_write_state FROM appointments WHERE agent_id=$1", [agent.id])).rows,
+        calcom: (await pool.query('SELECT id,agent_id,employee_id,encrypted_credential,provider_user_id,account_email,display_label,auth_kind,status FROM calcom_connections WHERE id=$1', [connection.id])).rows,
+        receipt: (await pool.query('SELECT connection_id,digest,booking_uid,event_type FROM calcom_webhook_receipts WHERE connection_id=$1', [connection.id])).rows,
+      };
+
+      await install(14);
+      expect((await pool.query('SELECT * FROM drizzle.__drizzle_migrations')).rowCount).toBe(15);
+      expect(journal.entries.slice(11, 15).map((entry: { idx: number; tag: string }) => [entry.idx, entry.tag])).toEqual([
+        [11, '0011_retell_boundary'], [12, '0012_calcom_integration'], [13, '0013_retell_function_invocations'], [14, '0014_employee_calcom_oauth'],
+      ]);
+      const after = {
+        agent: (await pool.query('SELECT id,business_name,timezone,auth_user_id FROM agents WHERE id=$1', [agent.id])).rows,
+        member: (await pool.query('SELECT agent_id,user_id,email,role,display_name,department,available FROM workspace_members WHERE agent_id=$1', [agent.id])).rows,
+        employee: (await pool.query('SELECT id,agent_id,display_name,timezone,calendar_policy FROM employees WHERE id=$1', [employee.id])).rows,
+        calendar: (await pool.query('SELECT id,agent_id,employee_id,encrypted_refresh_token,encryption_owner FROM calendar_connections WHERE id=$1', [calendar.id])).rows,
+        appointment: (await pool.query("SELECT agent_id,employee_id,service_name,status,provider_write_state FROM appointments WHERE agent_id=$1", [agent.id])).rows,
+        calcom: (await pool.query('SELECT id,agent_id,employee_id,encrypted_credential,provider_user_id,account_email,display_label,auth_kind,status FROM calcom_connections WHERE id=$1', [connection.id])).rows,
+        receipt: (await pool.query('SELECT connection_id,digest,booking_uid,event_type FROM calcom_webhook_receipts WHERE connection_id=$1', [connection.id])).rows,
+      };
+      expect(after).toEqual(before);
+      expect((await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name='calcom_connections'")).rows.map(row => row.column_name))
+        .toEqual(expect.arrayContaining(['credential_version', 'lifecycle_generation', 'lifecycle_lease_expires_at', 'credential_refresh_lease_expires_at',
+          'event_type_id', 'webhook_id', 'destination_calendar_integration', 'destination_calendar_external_id']));
+      const constraints = (await pool.query("SELECT conname FROM pg_constraint WHERE conrelid IN ('calcom_connections'::regclass,'calcom_oauth_states'::regclass,'workspace_members'::regclass)")).rows.map(row => row.conname);
+      expect(constraints).toEqual(expect.arrayContaining(['calcom_versions_check', 'calcom_lease_state_check', 'calcom_oauth_setup_check', 'calcom_oauth_state_intent_check',
+        'calcom_oauth_state_hash_check', 'calcom_oauth_states_employee_workspace_fk', 'workspace_members_employee_workspace_fk', 'workspace_members_employee_unique']));
+      const indexes = (await pool.query("SELECT indexname FROM pg_indexes WHERE tablename='calcom_oauth_states'")).rows.map(row => row.indexname);
+      expect(indexes).toEqual(expect.arrayContaining(['calcom_oauth_states_expiry_idx', 'calcom_oauth_states_employee_idx']));
+      expect((await pool.query("SELECT relname,relrowsecurity FROM pg_class WHERE oid IN ('calcom_connections'::regclass,'calcom_webhook_receipts'::regclass,'calcom_oauth_states'::regclass) ORDER BY relname")).rows)
+        .toEqual([{ relname: 'calcom_connections', relrowsecurity: true }, { relname: 'calcom_oauth_states', relrowsecurity: true }, { relname: 'calcom_webhook_receipts', relrowsecurity: true }]);
+
+      await pool.query("UPDATE workspace_members SET employee_id=$2 WHERE agent_id=$1 AND user_id='candidate-owner'", [agent.id, employee.id]);
+      await pool.query("INSERT INTO calcom_oauth_states (state_hash,agent_id,user_id,employee_id,intent,browser_challenge_hash,expires_at) VALUES ($1,$2,'candidate-owner',$3,'connect',$4,now()+interval '10 minutes')", ['a'.repeat(64), agent.id, employee.id, 'b'.repeat(64)]);
+      await expect(pool.query("INSERT INTO calcom_oauth_states (state_hash,agent_id,user_id,employee_id,intent,browser_challenge_hash,expires_at) VALUES ($1,$2,'candidate-owner',$3,'reconnect',$4,now()+interval '10 minutes')", ['c'.repeat(64), agent.id, employee.id, 'd'.repeat(64)])).rejects.toMatchObject({ code: '23514' });
+      await expect(pool.query("UPDATE calcom_connections SET auth_kind='oauth',status='active',event_type_id=12,webhook_id='webhook' WHERE id=$1", [connection.id])).rejects.toMatchObject({ code: '23514' });
+      await pool.query("UPDATE calcom_connections SET auth_kind='oauth',status='active',event_type_id=12,webhook_id='webhook',destination_calendar_integration='google_calendar',destination_calendar_external_id='work@example.test' WHERE id=$1", [connection.id]);
+      expect((await pool.query('SELECT lifecycle_lease_expires_at,credential_refresh_lease_expires_at FROM calcom_connections WHERE id=$1', [connection.id])).rows[0])
+        .toEqual({ lifecycle_lease_expires_at: null, credential_refresh_lease_expires_at: null });
+      await expect(pool.query("UPDATE calcom_connections SET lifecycle_lease_expires_at=now()+interval '5 minutes' WHERE id=$1", [connection.id])).rejects.toMatchObject({ code: '23514' });
+      await pool.query("UPDATE calcom_connections SET status='setup_required',lifecycle_lease_expires_at=now()+interval '5 minutes' WHERE id=$1", [connection.id]);
+      await pool.query("UPDATE calcom_connections SET lifecycle_generation=lifecycle_generation+1,lifecycle_lease_expires_at=NULL WHERE id=$1", [connection.id]);
+      await pool.query('BEGIN');
+      try {
+        await pool.query('CREATE ROLE oauth_state_reader NOLOGIN');
+        await pool.query('GRANT USAGE ON SCHEMA public TO oauth_state_reader; GRANT SELECT,INSERT ON calcom_oauth_states TO oauth_state_reader; SET LOCAL ROLE oauth_state_reader');
+        expect((await pool.query('SELECT * FROM calcom_oauth_states')).rows).toEqual([]);
+        await expect(pool.query("INSERT INTO calcom_oauth_states (state_hash,agent_id,user_id,employee_id,intent,browser_challenge_hash,expires_at) VALUES ($1,$2,'candidate-owner',$3,'connect',$4,now()+interval '10 minutes')", ['e'.repeat(64), agent.id, employee.id, 'f'.repeat(64)])).rejects.toMatchObject({ code: '42501' });
+      } finally { await pool.query('ROLLBACK'); }
+    } finally { await pool.end(); await rm(folder, { recursive: true, force: true }); }
+  }, 60_000);
+});

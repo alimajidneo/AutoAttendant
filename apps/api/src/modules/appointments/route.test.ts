@@ -268,6 +268,17 @@ describe("past appointment history deletion", () => {
 
 describe("multiple-account calendar display", () => {
   it("reads every selected calendar across accounts and reads shared calendars only once", async () => {
+    mocks.getAgentById.mockResolvedValue({
+      id: "agent-1", calendarExternalId: "cal-1",
+      calendarPayload: {
+        summary: "Primary", bookingConnectionId: "connection-1",
+        conflictCalendars: [
+          { connectionId: "connection-1", id: "cal-1", summary: "Primary", color: "blue" },
+          { connectionId: "connection-2", id: "cal-2", summary: "Personal", color: "teal" },
+          { connectionId: "connection-1", id: "shared", summary: "Shared", color: "amber" },
+        ],
+      },
+    });
     mocks.getAgentCalendarAccess.mockResolvedValue({ accounts: [
       { connectionId: "connection-1", provider: "google", accountEmail: "first@example.test", colorIndex: 0 },
       { connectionId: "connection-2", provider: "google", accountEmail: "second@example.test", colorIndex: 1 },
@@ -283,7 +294,7 @@ describe("multiple-account calendar display", () => {
     const body = await response.json();
     expect(body.events.map((event: { calendarId: string }) => event.calendarId)).toEqual(["cal-1", "shared", "cal-2"]);
     expect(body.sources.find((source: { calendarId: string }) => source.calendarId === "cal-2")).toMatchObject({
-      connectionId: "connection-2", accountEmail: "second@example.test", colorIndex: 1,
+      connectionId: "connection-2", accountEmail: "second@example.test", colorIndex: 1, color: "teal",
     });
     expect(JSON.stringify(body)).not.toContain("token-");
   });

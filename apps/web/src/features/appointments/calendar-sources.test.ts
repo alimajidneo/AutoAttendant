@@ -10,6 +10,9 @@ describe('calendar account colors and legend', () => {
     expect(calendarSourceClass(sources[0].colorIndex)).toBe(calendarSourceClass(sources[2].colorIndex))
     expect(new Set(Array.from({ length: 8 }, (_, i) => calendarSourceClass(i))).size).toBe(8)
   })
+  it('uses a saved calendar color instead of its automatic account color', () => {
+    expect(calendarSourceClass('teal')).toBe('calendar-source-teal')
+  })
   it('groups every selected calendar under its named account', () => {
     const grouped = groupCalendarSources(sources)
     expect(grouped).toHaveLength(2)

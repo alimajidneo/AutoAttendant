@@ -16,6 +16,7 @@ import type { Period } from './types'
 import type { AppSettings } from './settings-types'
 
 export const keys = {
+  employeeSelf: ['employee-self'] as const,
   notifications: ['notifications'] as const,
   /* Prefixes, so an invalidation meaning "every period" is written in these keys
      rather than a bare array that stops matching when the shape changes. */
@@ -35,6 +36,8 @@ export const keys = {
 }
 
 export const fetchers = {
+  employeeSelf: () => apiClient.get<{ configured: boolean; employee: { id: string; displayName: string } | null;
+    connection: { id: string; authKind: 'api_key' | 'oauth'; accountEmail: string; status: 'active' | 'setup_required' | 'reconnect_required' | 'disconnecting'; ready: boolean; eventTypeTitle: string | null } | null }>('/admin/employee').then(r => r.data),
   notifications: () => apiClient.get<NotificationItem[]>('/admin/notifications').then(r => r.data),
   metrics: (period: Period) =>
     apiClient.get<DashboardMetrics>(`/admin/metrics?period=${period}`).then((r) => r.data),

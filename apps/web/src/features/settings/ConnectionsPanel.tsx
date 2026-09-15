@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Calendar, MessageSquareText, Phone, Plus, Send, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { CalendarOption, CalendarProvider, SlackAlertKind } from '@receptionist/shared'
+import type { CalendarOption, CalendarProvider, CalendarSourceColor, SlackAlertKind } from '@receptionist/shared'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -26,6 +26,7 @@ import { keys, fetchers } from '@/lib/queries'
 import { formatPhone } from '@/lib/formatters'
 import type { AppSettings } from '@/lib/settings-types'
 import { cn } from '@/lib/utils'
+import { calendarSourceClass, calendarSourceColors } from '@/lib/calendar-colors'
 import { Section, SubRow, MEASURE } from './SettingsList'
 
 type Open = 'phone' | 'calendar' | 'slack' | null
@@ -82,8 +83,12 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
   const [choice, setChoice] = useState<string | null>(null)
   const savedConflictChoices = settings.business.calendarPayload?.conflictCalendars?.flatMap(calendar =>
     calendar.connectionId ? [`${calendar.connectionId}\u0000${calendar.id}`] : []) ?? []
+  const savedColorChoices = Object.fromEntries(settings.business.calendarPayload?.conflictCalendars?.flatMap(calendar =>
+    calendar.connectionId && calendar.color ? [[`${calendar.connectionId}\u0000${calendar.id}`, calendar.color]] : []) ?? []) as Record<string, CalendarSourceColor>
   const [conflictDraft, setConflictChoices] = useState<string[] | null>(null)
   const conflictChoices = conflictDraft ?? savedConflictChoices
+  const [colorDraft, setColorDraft] = useState<Record<string, CalendarSourceColor> | null>(null)
+  const colorChoices = colorDraft ?? savedColorChoices
   const [granting, setGranting] = useState<CalendarProvider | null>(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null)
   const [confirmSlackDisconnect, setConfirmSlackDisconnect] = useState(false)
@@ -148,6 +153,22 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
     setSlackAlerts(current => current ?? slackQuery.data.alertKinds)
   }, [slackQuery.data])
 
+  const calendars = data?.calendars ?? []
+  const connections = data?.connections ?? []
+  const activeBookingKey = choice ?? initialBookingKey
+  const calendarKey = (calendar: Pick<CalendarOption, 'connectionId' | 'id'>) => `${calendar.connectionId}\u0000${calendar.id}`
+  const selected = calendars.find(calendar => calendarKey(calendar) === activeBookingKey)
+
+  function defaultCalendarColor(value: string): CalendarSourceColor {
+    const connectionId = value.split('\u0000')[0]
+    const index = Math.max(0, connections.findIndex(connection => connection.id === connectionId))
+    return calendarSourceColors[index % calendarSourceColors.length]!.value
+  }
+
+  function calendarColor(value: string) {
+    return colorChoices[value] ?? defaultCalendarColor(value)
+  }
+
   const selectCalendar = useMutation({
     mutationFn: (calendar: CalendarOption) =>
       apiClient.patch('/admin/calendar', {
@@ -155,7 +176,7 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
         conflicts: [...new Set([...conflictChoices, `${calendar.connectionId}\u0000${calendar.id}`])]
           .map(value => {
             const [connectionId, calendarId] = value.split('\u0000')
-            return { connectionId, calendarId }
+            return { connectionId, calendarId, color: calendarColor(value) }
           }),
       }),
     onSuccess: async () => {
@@ -163,6 +184,7 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
       await qc.invalidateQueries({ queryKey: keys.appointments })
       setChoice(null)
       setConflictChoices(null)
+      setColorDraft(null)
       toast.success('Calendar settings saved')
     },
     onError: () => toast.error('Could not save that calendar. Try again.'),
@@ -176,6 +198,7 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
       await qc.invalidateQueries({ queryKey: keys.appointments })
       setChoice(null)
       setConflictChoices(null)
+      setColorDraft(null)
       setConfirmDisconnect(null)
       toast.success('Calendar account disconnected')
     },
@@ -230,12 +253,6 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
     },
     onError: () => toast.error('Could not disconnect Slack.'),
   })
-
-  const calendars = data?.calendars ?? []
-  const connections = data?.connections ?? []
-  const activeBookingKey = choice ?? initialBookingKey
-  const calendarKey = (calendar: Pick<CalendarOption, 'connectionId' | 'id'>) => `${calendar.connectionId}\u0000${calendar.id}`
-  const selected = calendars.find(calendar => calendarKey(calendar) === activeBookingKey)
 
   function toggleConflictCalendar(id: string, checked: boolean) {
     if (id === activeBookingKey && !checked) return
@@ -447,6 +464,46 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
                             aria-label={`Include ${calendar.summary} from ${calendar.accountEmail}`}
                           />
                         </label>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="border-t border-border/60 py-3">
+                  <div className="mb-2">
+                    <p className="font-medium text-foreground">Calendar colors</p>
+                    <p className="text-sm text-muted-foreground">Choose how each included calendar appears on the Appointments page.</p>
+                  </div>
+                  <div className="space-y-2 rounded-xl border border-border p-2">
+                    {calendars.filter(calendar => {
+                      const id = calendarKey(calendar)
+                      return conflictChoices.includes(id) || id === activeBookingKey
+                    }).map(calendar => {
+                      const id = calendarKey(calendar)
+                      const activeColor = calendarColor(id)
+                      return (
+                        <div key={id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg px-2 py-2">
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium text-foreground">{calendar.summary}</span>
+                            <span className="block truncate text-sm text-muted-foreground">{calendar.accountEmail} · {calendarSourceColors.find(option => option.value === activeColor)?.label}</span>
+                          </span>
+                          <div role="group" aria-label={`Color for ${calendar.summary}`} className="flex flex-wrap gap-2">
+                            {calendarSourceColors.map(option => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                aria-pressed={activeColor === option.value}
+                                aria-label={`${option.label} for ${calendar.summary}`}
+                                title={option.label}
+                                onClick={() => setColorDraft(current => ({ ...(current ?? savedColorChoices), [id]: option.value }))}
+                                className={cn(
+                                  'calendar-source-dot size-5 rounded-full border-2 border-card transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                  calendarSourceClass(option.value),
+                                  activeColor === option.value && 'ring-2 ring-foreground ring-offset-2 ring-offset-card',
+                                )}
+                              />
+                            ))}
+                          </div>
+                        </div>
                       )
                     })}
                   </div>

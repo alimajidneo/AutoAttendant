@@ -26,6 +26,7 @@ export function AgentGate() {
     const memberPath = location.pathname === '/'
       || location.pathname === '/calls'
       || location.pathname === '/appointments'
+      || location.pathname === '/employee'
     return memberPath ? <Outlet /> : <Navigate to="/" replace />
   }
   if (!data?.onboarded && data?.hasWorkspaces) return <Navigate to="/workspaces" replace />

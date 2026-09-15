@@ -4,6 +4,7 @@ import { createHmac } from 'node:crypto';
 const m = vi.hoisted(() => ({ pruneCalcomWebhookReceipts: vi.fn(), listCalcomConnections: vi.fn(), connectCalcom: vi.fn(), getCalcomClient: vi.fn(), selectCalcomEventType: vi.fn(), disconnectCalcom: vi.fn(), ingestCalcomWebhook: vi.fn() }));
 vi.mock('@receptionist/core/repositories/calcom.js', () => m);
 vi.mock('@receptionist/core/env.js', async importOriginal => { const original = await importOriginal<typeof import('@receptionist/core/env.js')>(); return { env: { ...original.env, CALCOM_WEBHOOK_SECRET: 'w'.repeat(32), CRON_SECRET: 'c'.repeat(32) } }; });
+vi.mock('../../env.js', () => ({ env: { PUBLIC_API_URL: 'https://api.deskroute.example', DASHBOARD_ORIGINS: ['https://deskroute.example'] } }));
 import { deriveCalcomWebhookSecret } from '@receptionist/core/providers/calcom.js';
 import { calcom, calcomWebhooks } from './route.js';
 import type { AppEnv } from '../../types.js';
@@ -53,10 +54,12 @@ it('selection uses only an event discovered for the owned connection', async () 
 });
 
 it('denies non-owner managers on every credential route', async () => {
- for (const [path, method] of [['/', 'GET'], [`/${employee}/connect`, 'POST'], [`/${employee}/${connection}/event-types`, 'GET'], [`/${employee}/${connection}/select`, 'POST'], [`/${employee}/${connection}`, 'DELETE']]) {
+ m.listCalcomConnections.mockResolvedValue([{ id: connection, ready: false, status: 'setup_required' }]);
+ const list = await app('manager', false).request('/'); expect(list.status).toBe(200); expect(await list.text()).not.toContain('encryptedCredential');
+ for (const [path, method] of [[`/${employee}/connect`, 'POST'], [`/${employee}/${connection}/event-types`, 'GET'], [`/${employee}/${connection}/select`, 'POST'], [`/${employee}/${connection}`, 'DELETE']]) {
   expect((await app('manager', false).request(path!, { method })).status).toBe(403);
  }
- for (const fn of Object.values(m)) expect(fn).not.toHaveBeenCalled();
+ expect(m.listCalcomConnections).toHaveBeenCalledOnce(); expect(m.connectCalcom).not.toHaveBeenCalled(); expect(m.getCalcomClient).not.toHaveBeenCalled(); expect(m.disconnectCalcom).not.toHaveBeenCalled();
 });
 it.each([undefined, '1', '262145'])('bounds actual streamed webhook bytes with Content-Length %s', async length => {
  const headers: Record<string, string> = { 'X-Cal-Webhook-Version': '2021-10-20' };
@@ -80,5 +83,5 @@ it('owner can list and disconnect credentials', async () => {
  m.listCalcomConnections.mockResolvedValue([]);
  expect((await app().request('/')).status).toBe(200);
  expect((await app().request(`/${employee}/${connection}`, { method: 'DELETE' })).status).toBe(200);
- expect(m.disconnectCalcom).toHaveBeenCalledWith('tenant', employee, connection);
+ expect(m.disconnectCalcom).toHaveBeenCalledWith('tenant', employee, connection, `https://api.deskroute.example/api/calcom/webhooks/${connection}`);
 });

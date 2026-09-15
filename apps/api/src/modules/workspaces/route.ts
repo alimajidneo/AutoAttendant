@@ -6,7 +6,8 @@ import * as repo from "@receptionist/core/repositories/workspaces.js";
 
 const role = z.enum(["manager", "member"]);
 const memberPatch = z.object({ displayName: z.string().trim().min(1).max(80).optional(),
-  department: z.string().trim().max(80).optional(), available: z.boolean().optional(), role: role.optional() }).strict();
+  department: z.string().trim().max(80).optional(), available: z.boolean().optional(), role: role.optional(),
+  employeeId: z.string().uuid().nullable().optional() }).strict();
 const creation = z.object({ name: z.string().trim().min(1).max(100), kind: z.enum(["personal", "team"]),
   timezone: z.string().refine(value => { try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; } }) }).strict();
 

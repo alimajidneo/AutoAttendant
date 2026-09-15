@@ -11,7 +11,8 @@ import { keys, fetchers } from '@/lib/queries'
 import { TransferInbox } from './TransferInbox'
 
 type Workspace = { id: string; name: string; kind: 'personal' | 'team'; role: 'manager' | 'member'; ownerUserId: string; userId: string }
-type Member = { userId: string; email: string; displayName: string; department: string; available: boolean; role: 'manager' | 'member' }
+type Member = { userId: string; employeeId: string | null; email: string; displayName: string; department: string; available: boolean; role: 'manager' | 'member' }
+type EmployeeOption = { id: string; displayName: string }
 type Invite = { id: string; email: string; role: string; expiresAt: string }
 const panel = 'rounded-2xl border border-border bg-card p-5 shadow-low'
 
@@ -20,12 +21,13 @@ function message(error: unknown) {
   return typeof e.response?.data?.error === 'string' ? e.response.data.error : 'Could not save. Please try again.'
 }
 
-function MemberEditor({ member, workspace, refresh }: { member: Member; workspace: Workspace; refresh: () => void }) {
+function MemberEditor({ member, workspace, employees, linkedEmployeeIds, refresh }: { member: Member; workspace: Workspace; employees: EmployeeOption[]; linkedEmployeeIds: string[]; refresh: () => void }) {
   const { user } = useAuth()
   const [name, setName] = useState(member.displayName)
   const [department, setDepartment] = useState(member.department)
   const [available, setAvailable] = useState(member.available)
   const [role, setRole] = useState(member.role)
+  const [employeeId, setEmployeeId] = useState(member.employeeId ?? '')
   const [busy, setBusy] = useState(false)
   const self = user?.id === member.userId
   const owner = user?.id === workspace.ownerUserId
@@ -36,6 +38,7 @@ function MemberEditor({ member, workspace, refresh }: { member: Member; workspac
     try {
       await apiClient.patch(`/workspaces/${workspace.id}/members/${encodeURIComponent(member.userId)}`, {
         displayName: name, department, available, ...(canChangeRole ? { role } : {}),
+        ...(workspace.role === 'manager' ? { employeeId: employeeId || null } : {}),
       })
       refresh(); toast.success('Member settings saved')
     } catch (error) { toast.error(message(error)) } finally { setBusy(false) }
@@ -61,6 +64,7 @@ function MemberEditor({ member, workspace, refresh }: { member: Member; workspac
     {canEdit ? <>
       <div className="grid gap-3 sm:grid-cols-2"><label htmlFor={`member-name-${member.userId}`} className="grid gap-1 text-sm">Name callers can ask for<Input id={`member-name-${member.userId}`} value={name} maxLength={80} onChange={e => setName(e.target.value)} /></label><label htmlFor={`member-department-${member.userId}`} className="grid gap-1 text-sm">Department<Input id={`member-department-${member.userId}`} value={department} maxLength={80} onChange={e => setDepartment(e.target.value)} /></label></div>
       <label className="flex items-center gap-2 rounded-lg bg-sunk-1 p-3 text-sm font-medium"><input type="checkbox" checked={available} onChange={e => setAvailable(e.target.checked)} />Available for browser transfers</label>
+      {workspace.role === 'manager' && <label className="grid gap-1 text-sm">Employee self-service link<select className="rounded-lg border border-border bg-card p-2" value={employeeId} onChange={e => setEmployeeId(e.target.value)}><option value="">Not linked</option>{employees.map(employee => <option key={employee.id} value={employee.id} disabled={employee.id !== member.employeeId && linkedEmployeeIds.includes(employee.id)}>{employee.displayName}</option>)}</select><span className="text-muted-foreground">This explicit link controls whose private Cal.com setup this member can access.</span></label>}
       <div className="flex flex-wrap items-center gap-3">{canChangeRole && <label className="flex items-center gap-2 text-sm">Role<select className="rounded-lg border border-border bg-card p-2" value={role} onChange={e => setRole(e.target.value as Member['role'])}><option value="member">Member</option><option value="manager">Manager</option></select></label>}<Button disabled={busy || !name.trim()} onClick={() => void save()}>Save</Button>{canChangeRole && <Button variant="ghost" disabled={busy} onClick={() => void remove()}>Remove member</Button>}</div>
     </> : <p className="text-sm text-muted-foreground">{member.department || 'No department'} · {member.available ? 'Available for transfers' : 'Unavailable'}</p>}
   </div>
@@ -75,6 +79,7 @@ function WorkspaceDetails({ workspace }: { workspace: Workspace }) {
   const [busy, setBusy] = useState(false)
   const owner = workspace.ownerUserId === user?.id
   const members = useQuery({ queryKey: ['workspace-members', workspace.id], queryFn: () => apiClient.get<Member[]>(`/workspaces/${workspace.id}/members`).then(r => r.data) })
+  const employees = useQuery({ queryKey: ['workspace-employee-options', workspace.id], queryFn: () => apiClient.get<EmployeeOption[]>('/admin/employees?limit=100&offset=0').then(r => r.data), enabled: workspace.role === 'manager' })
   const invites = useQuery({ queryKey: ['workspace-invites', workspace.id], queryFn: () => apiClient.get<Invite[]>(`/workspaces/${workspace.id}/invites`).then(r => r.data), enabled: owner && workspace.kind === 'team' })
   const calendars = useQuery({ queryKey: keys.calendarList, queryFn: fetchers.calendarList, enabled: owner })
   const refresh = () => { void queryClient.invalidateQueries({ queryKey: ['workspace-members', workspace.id] }) }
@@ -99,7 +104,7 @@ function WorkspaceDetails({ workspace }: { workspace: Workspace }) {
       <article className={panel}><CircleCheck className="size-5 text-primary" /><p className="mt-3 text-sm text-muted-foreground">Available for transfers</p><p className="mt-1 text-2xl font-bold">{available}</p></article>
       <article className={panel}><CalendarDays className="size-5 text-primary" /><p className="mt-3 text-sm text-muted-foreground">Calendar accounts</p><p className="mt-1 text-2xl font-bold">{owner ? calendars.data?.connections.length ?? '—' : 'Private'}</p></article>
     </div>
-    <section className={panel}><h2 className="mb-4 text-lg font-semibold">People & routing</h2>{members.isPending ? <p>Loading members…</p> : members.isError ? <p>Could not load members. <Button variant="ghost" onClick={refresh}>Retry</Button></p> : <div className="grid gap-3">{members.data.map(member => <MemberEditor key={`${member.userId}:${member.displayName}:${member.department}:${member.available}:${member.role}`} member={member} workspace={workspace} refresh={refresh} />)}</div>}</section>
+    <section className={panel}><h2 className="mb-4 text-lg font-semibold">People & routing</h2>{members.isPending ? <p>Loading members…</p> : members.isError ? <p>Could not load members. <Button variant="ghost" onClick={refresh}>Retry</Button></p> : <div className="grid gap-3">{members.data.map(member => <MemberEditor key={`${member.userId}:${member.employeeId}:${member.displayName}:${member.department}:${member.available}:${member.role}`} member={member} workspace={workspace} employees={employees.data ?? []} linkedEmployeeIds={members.data.flatMap(item => item.employeeId ? [item.employeeId] : [])} refresh={refresh} />)}</div>}</section>
     {owner && <section className={panel}>
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">Calendar accounts</h2><p className="mt-1 text-sm text-muted-foreground">Accounts connected to this workspace receptionist. Events stay in their original source calendars.</p></div><Button variant="outline" render={<Link to="/settings?tab=connections" />}>Manage calendars</Button></div>
       {calendars.isPending ? <p className="mt-4 text-sm text-muted-foreground">Loading calendar accounts…</p> : calendars.isError ? <p className="mt-4 text-sm text-destructive">Could not load calendar accounts.</p> : calendars.data?.connections.length ? <div className="mt-4 grid gap-2">{calendars.data.connections.map(connection => {

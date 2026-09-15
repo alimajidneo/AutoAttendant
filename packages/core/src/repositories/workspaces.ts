@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { agents, workspaces, workspaceMembers as members, workspaceInvites as invites } from "../db/schema.js";
+import { agents, employees, workspaces, workspaceMembers as members, workspaceInvites as invites } from "../db/schema.js";
 
 export async function listWorkspaces(userId: string) {
   return db.select({ id: workspaces.agentId, name: agents.businessName, kind: workspaces.kind,
@@ -39,13 +39,22 @@ export async function listMembers(agentId: string) {
 }
 
 export async function updateMember(agentId: string, actor: string, target: string,
-  patch: Partial<Pick<typeof members.$inferInsert, "displayName" | "department" | "available" | "role">>) {
+  patch: Partial<Pick<typeof members.$inferInsert, "displayName" | "department" | "available" | "role" | "employeeId">>) {
   return db.transaction(async tx => {
+    if (patch.employeeId !== undefined) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'member-employee-link:' + agentId}))`);
     const [workspace] = await tx.select().from(workspaces).where(eq(workspaces.agentId, agentId)).for("update");
     if (!workspace) return false;
     const [access] = await tx.select().from(members).where(and(eq(members.agentId, agentId), eq(members.userId, actor)));
     if (!access || (actor !== target && access.role !== "manager")) return false;
     if (patch.role !== undefined && (workspace.ownerUserId !== actor || target === workspace.ownerUserId)) return false;
+    if (patch.employeeId !== undefined) {
+      if (access.role !== "manager") return false;
+      if (patch.employeeId !== null) {
+        const [employee] = await tx.select({ id: employees.id }).from(employees).where(and(eq(employees.agentId, agentId), eq(employees.id, patch.employeeId))).limit(1);
+        const [claimed] = await tx.select({ userId: members.userId }).from(members).where(and(eq(members.agentId, agentId), eq(members.employeeId, patch.employeeId), ne(members.userId, target))).limit(1);
+        if (!employee || claimed) return false;
+      }
+    }
     const updated = await tx.update(members).set(patch).where(and(eq(members.agentId, agentId), eq(members.userId, target))).returning();
     return updated.length > 0;
   });
@@ -53,6 +62,7 @@ export async function updateMember(agentId: string, actor: string, target: strin
 
 export async function removeMember(agentId: string, actor: string, target: string) {
   return db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'member-employee-link:' + agentId}))`);
     const [workspace] = await tx.select().from(workspaces).where(eq(workspaces.agentId, agentId)).for("update");
     if (!workspace || workspace.ownerUserId !== actor || target === actor) return false;
     await tx.delete(members).where(and(eq(members.agentId, agentId), eq(members.userId, target)));

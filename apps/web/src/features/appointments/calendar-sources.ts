@@ -1,11 +1,5 @@
 import type { CalendarAgendaSource, CalendarProvider } from '@receptionist/shared'
-
-const classes = ['calendar-source-blue', 'calendar-source-violet', 'calendar-source-green', 'calendar-source-amber',
-  'calendar-source-pink', 'calendar-source-teal', 'calendar-source-orange', 'calendar-source-slate'] as const
-
-export function calendarSourceClass(index: number) {
-  return classes[index % classes.length] ?? classes[0]
-}
+export { calendarSourceClass } from '@/lib/calendar-colors'
 
 export function groupCalendarSources(sources: CalendarAgendaSource[]) {
   const accounts = new Map<string, { connectionId: string; provider: CalendarProvider; accountEmail: string; colorIndex: number; calendars: string[] }>()

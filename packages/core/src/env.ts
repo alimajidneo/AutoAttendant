@@ -7,6 +7,10 @@ import { z } from "zod";
 export const coreEnvSchema = z
   .object({
     CALCOM_API_BASE_URL: z.string().regex(/^https:\/\/api\.cal\.com\/v2\/?$/, "Use https://api.cal.com/v2").default("https://api.cal.com/v2").transform(() => "https://api.cal.com/v2"),
+    CALCOM_OAUTH_CLIENT_ID: z.string().min(1).optional(),
+    CALCOM_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
+    CALCOM_OAUTH_WRITE_APPROVED: z.preprocess(value => typeof value === "boolean" ? String(value) : value,
+      z.enum(["true", "false"]).default("false")).transform(value => value === "true"),
     CRON_SECRET: z.string().min(32).optional(),
     CALCOM_WEBHOOK_SECRET: z.string().min(32).optional(),
     RETELL_WORKSPACE_ID: z.string().uuid().optional(),
@@ -33,6 +37,10 @@ export const coreEnvSchema = z
     R2_BUCKET_NAME: z.string().min(1).optional(),
   })
   .superRefine((cfg, ctx) => {
+    if (!!cfg.CALCOM_OAUTH_CLIENT_ID !== !!cfg.CALCOM_OAUTH_CLIENT_SECRET) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [cfg.CALCOM_OAUTH_CLIENT_ID ? "CALCOM_OAUTH_CLIENT_SECRET" : "CALCOM_OAUTH_CLIENT_ID"],
+        message: "Set both Cal.com OAuth client variables, or neither" });
+    }
     const r2 = [
       "R2_ACCOUNT_ID",
       "R2_ACCESS_KEY_ID",

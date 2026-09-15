@@ -6,3 +6,7 @@ it.each(['http://api.cal.com/v2', 'https://evil.test/v2', 'https://127.0.0.1/v2'
 it('normalizes the exact production API base trailing slash', () => {
  expect(parseEnv(coreEnvSchema, { ...env, CALCOM_API_BASE_URL: 'https://api.cal.com/v2/' }).CALCOM_API_BASE_URL).toBe('https://api.cal.com/v2');
 });
+it('defaults Cal.com OAuth provider writes to fail closed', () => {
+ expect(parseEnv(coreEnvSchema, { ...env, CALCOM_OAUTH_WRITE_APPROVED: undefined }).CALCOM_OAUTH_WRITE_APPROVED).toBe(false);
+ expect(parseEnv(coreEnvSchema, { ...env, CALCOM_OAUTH_WRITE_APPROVED: 'true' }).CALCOM_OAUTH_WRITE_APPROVED).toBe(true);
+});

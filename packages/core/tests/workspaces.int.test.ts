@@ -7,6 +7,8 @@ import { createWorkspace, listWorkspaces, workspaceAccess, createInvite, acceptI
 import { requestBrowserTransfer, respondToTransfer, transferInbox, connectTransfer } from "../src/repositories/transfers.js";
 import { listNotifications, markNotificationsRead } from "../src/repositories/notifications.js";
 import { makeAppointment } from "./factories.js";
+import { createEmployee } from "../src/repositories/employees.js";
+import { getLinkedEmployee } from "../src/repositories/calcom.js";
 
 async function team() {
   const workspace = (await createWorkspace("owner", "owner@example.test", "Team", "America/New_York", "team"))!;
@@ -55,6 +57,20 @@ describe("workspace boundaries", () => {
     expect(await removeMember(workspace.id, "owner", "owner")).toBe(false);
     expect(await removeMember(workspace.id, "owner", "member")).toBe(true);
     expect(await workspaceAccess(workspace.id, "member")).toBeNull();
+  });
+  it("allows only a manager to explicitly link one member to one workspace employee", async () => {
+    const workspace = await team();
+    const first = await createEmployee(workspace.id, { displayName: "Sam", timezone: "UTC" });
+    const second = await createEmployee(workspace.id, { displayName: "Alex", timezone: "UTC" });
+    expect(await updateMember(workspace.id, "member", "member", { employeeId: first.id })).toBe(false);
+    expect(await updateMember(workspace.id, "owner", "member", { employeeId: first.id })).toBe(true);
+    expect(await getLinkedEmployee(workspace.id, "member", first.id)).toMatchObject({ id: first.id, memberUserId: "member" });
+    expect(await updateMember(workspace.id, "owner", "owner", { employeeId: first.id })).toBe(false);
+    expect(await updateMember(workspace.id, "owner", "member", { employeeId: second.id })).toBe(true);
+    expect(await getLinkedEmployee(workspace.id, "member", first.id)).toBeNull();
+    expect(await getLinkedEmployee(workspace.id, "member", second.id)).toMatchObject({ id: second.id });
+    expect(await updateMember(workspace.id, "owner", "member", { employeeId: null })).toBe(true);
+    expect(await getLinkedEmployee(workspace.id, "member", second.id)).toBeNull();
   });
   it("keeps notification reads separate for managers", async () => {
     const workspace = await team();

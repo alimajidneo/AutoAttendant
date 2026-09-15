@@ -26,21 +26,21 @@ function control(label: string) { return nodes(tree()).find(n => n.props.childre
 async function settle() { await new Promise(resolve => setImmediate(resolve)) }
 beforeEach(() => { vi.resetAllMocks(); m.owner = true; m.queries = []; m.get.mockResolvedValue({ data: [] }); m.state = []; m.data = []; m.pending = false; m.isError = false; m.refresh.mockResolvedValue(undefined); m.refetch.mockResolvedValue(undefined) })
 afterEach(() => vi.unstubAllGlobals())
-it('offers a password input and disables loading/error/busy controls', () => {
- m.pending = true; expect(control('Connect Cal.com').props.disabled).toBe(true)
+it('clearly labels the legacy password flow and disables loading/error/busy controls', () => {
+ m.pending = true; expect(control('Connect legacy Cal.com').props.disabled).toBe(true)
  m.isError = true; expect(renderToStaticMarkup(tree())).toContain('Could not load Cal.com connections')
  m.data = [{ id: 'connection', employeeId: 'employee' }]; m.state = [true, 'Failure', [{ id: 12, title: 'Intro', lengthInMinutes: 60 }], '12']
  expect(control('Refresh Cal.com event types').props.disabled).toBe(true)
  expect(control('Disconnect Cal.com').props.disabled).toBe(true)
  expect(control('Use selected Cal.com event type').props.disabled).toBe(true)
  expect(nodes(tree()).find(n => n.type === 'select')!.props.disabled).toBe(true)
- const html = renderToStaticMarkup(tree()); expect(html).toContain('type="password"'); expect(html).toContain('Failure'); expect(html).not.toContain('OAuth')
+ const html = renderToStaticMarkup(tree()); expect(html).toContain('type="password"'); expect(html).toContain('Failure'); expect(html).toContain('Legacy manager API-key flow only'); expect(html).toContain('OAuth')
 })
 it.each([false, true])('connect submit clears the secret, handles failure=%s and releases busy state', async fail => {
  vi.stubGlobal('FormData', class { get() { return 'PRIVATE' } })
  if (fail) m.post.mockRejectedValue(new Error('PRIVATE')); else m.post.mockResolvedValue({})
  const reset = vi.fn(); nodes(tree()).find(n => n.type === 'form')!.props.onSubmit!({ preventDefault() {}, currentTarget: { reset } })
- expect(reset).toHaveBeenCalledOnce(); expect(control('Connect Cal.com').props.disabled).toBe(true)
+ expect(reset).toHaveBeenCalledOnce(); expect(control('Connect legacy Cal.com').props.disabled).toBe(true)
  await settle(); expect(m.post).toHaveBeenCalledWith('/admin/calcom/employee/connect', { apiKey: 'PRIVATE' }); expect(m.state[0]).toBe(false)
  expect(m.refresh).toHaveBeenCalledTimes(fail ? 0 : 1)
  expect(String(m.state[1])).not.toContain('PRIVATE'); expect(Boolean(m.state[1])).toBe(fail)
@@ -61,10 +61,11 @@ it.each([false, true])('refresh/select/disconnect handlers handle failure=%s', a
  expect(m.refresh).toHaveBeenCalledTimes(fail ? 0 : 2)
 })
 
-it('never queries or renders credentials for a non-owner manager even with cached connection data', () => {
+it('shows safe readiness to a non-owner manager without rendering credential controls', () => {
  m.owner = false; m.data = [{ id: 'connection', employeeId: 'employee' }]
  const html = renderToStaticMarkup(tree())
- expect(m.get).not.toHaveBeenCalled()
- expect(m.queries.every(query => query.enabled === false)).toBe(true)
- expect(html).not.toMatch(/API key|Connect Cal.com|Reconnect|Disconnect|event type|password/)
+ expect(m.get).toHaveBeenCalledWith('/admin/calcom')
+ expect(m.queries.every(query => query.enabled !== false)).toBe(true)
+ expect(html).toContain('Cal.com employee connection')
+ expect(html).not.toMatch(/API key|Reconnect|Disconnect|event type|password/)
 })
