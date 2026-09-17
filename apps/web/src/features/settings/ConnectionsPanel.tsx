@@ -155,6 +155,7 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
 
   const calendars = data?.calendars ?? []
   const connections = data?.connections ?? []
+  const providers = data?.providers ?? { google: true, microsoft: true }
   const activeBookingKey = choice ?? initialBookingKey
   const calendarKey = (calendar: Pick<CalendarOption, 'connectionId' | 'id'>) => `${calendar.connectionId}\u0000${calendar.id}`
   const selected = calendars.find(calendar => calendarKey(calendar) === activeBookingKey)
@@ -366,14 +367,17 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
                 <p className="text-muted-foreground">
                   Connect Google or Microsoft, then pick where appointments are saved and which calendars block free time.
                 </p>
+                {!providers.google && !providers.microsoft && (
+                  <p role="status" className="rounded-lg bg-warning-subtle p-3 text-sm text-warning">Calendar connections are not configured for this installation yet.</p>
+                )}
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => void grantAccess('google')} disabled={granting !== null}>
+                  <Button onClick={() => void grantAccess('google')} disabled={granting !== null || !providers.google}>
                     <Calendar />
-                    {granting === 'google' ? 'Opening Google' : 'Connect Google'}
+                    {granting === 'google' ? 'Opening Google' : providers.google ? 'Connect Google' : 'Google unavailable'}
                   </Button>
-                  <Button variant="outline" onClick={() => void grantAccess('microsoft')} disabled={granting !== null}>
+                  <Button variant="outline" onClick={() => void grantAccess('microsoft')} disabled={granting !== null || !providers.microsoft}>
                     <Calendar />
-                    {granting === 'microsoft' ? 'Opening Microsoft' : 'Connect Microsoft'}
+                    {granting === 'microsoft' ? 'Opening Microsoft' : providers.microsoft ? 'Connect Microsoft' : 'Microsoft unavailable'}
                   </Button>
                 </div>
               </>
@@ -386,10 +390,10 @@ export function ConnectionsPanel({ settings }: { settings: AppSettings }) {
                       <p className="text-sm text-muted-foreground">Connecting an account does not select all its calendars. Choose which ones appear on your appointments page below.</p>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => void grantAccess('google')} disabled={granting !== null}>
+                      <Button variant="outline" size="sm" onClick={() => void grantAccess('google')} disabled={granting !== null || !providers.google}>
                         <Plus className="size-4" /> {granting === 'google' ? 'Opening Google' : 'Google'}
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => void grantAccess('microsoft')} disabled={granting !== null}>
+                      <Button variant="outline" size="sm" onClick={() => void grantAccess('microsoft')} disabled={granting !== null || !providers.microsoft}>
                         <Plus className="size-4" /> {granting === 'microsoft' ? 'Opening Microsoft' : 'Microsoft'}
                       </Button>
                     </div>

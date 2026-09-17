@@ -107,6 +107,7 @@ export default function AppointmentsPage() {
   const appointments = useMemo(() => appointmentsQuery.data ?? [], [appointmentsQuery.data])
   const events = useMemo(() => calendarQuery.data?.events ?? [], [calendarQuery.data])
   const sources = useMemo(() => calendarQuery.data?.sources ?? [], [calendarQuery.data])
+  const calendarConnected = memberOnly || calendarQuery.data?.connected !== false
   const sourceByCalendar = useMemo(() => new Map(sources.map(source => [source.calendarId, source])), [sources])
   const appointmentByEventId = useMemo(
     () => new Map(appointments.map(item => [appointmentCalendarEventKey(item), item])),
@@ -307,7 +308,13 @@ export default function AppointmentsPage() {
 
           <div className="border-t border-border p-4 sm:p-5">
             <h3 className="font-semibold text-foreground">{dateLabel(selectedDay)}</h3>
-            {calendarQuery.isError ? (
+            {!calendarConnected ? (
+              <div className="mt-3 rounded-lg bg-primary-subtle px-3 py-3 text-sm text-foreground">
+                <p className="font-semibold">No calendar connected</p>
+                <p className="mt-1 text-muted-foreground">Connect Google or Microsoft to display events and let DeskRoute book appointments.</p>
+                <Link to="/settings?tab=connections&manageCalendars=1" className="mt-2 inline-block font-semibold text-accent-ink underline underline-offset-4">Connect a calendar</Link>
+              </div>
+            ) : calendarQuery.isError ? (
               <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">Calendar events are unavailable. Refresh and try again.</p>
             ) : selectedEvents.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">Nothing scheduled on this calendar.</p>

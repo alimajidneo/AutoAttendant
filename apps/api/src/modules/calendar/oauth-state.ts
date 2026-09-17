@@ -24,10 +24,11 @@ export function readOAuthState(value: string, verifier: string): OAuthState | nu
   if (!coreEnv.TOKEN_ENCRYPTION_KEY || !/^[A-Za-z0-9_-]{43}$/.test(verifier)) return null;
   if (value.split(".").length !== 2) return null;
   const [payload, supplied] = value.split(".");
-  if (!payload || !supplied) return null;
+  if (!payload || !supplied || !/^[A-Za-z0-9_-]{43}$/.test(supplied)) return null;
   const expected = createHmac("sha256", coreEnv.TOKEN_ENCRYPTION_KEY).update(payload).digest();
   const actual = Buffer.from(supplied, "base64url");
-  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
+  if (actual.toString("base64url") !== supplied
+    || actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString()) as OAuthState;
     return typeof parsed.agentId === "string" && parsed.agentId.length > 0

@@ -334,6 +334,7 @@ export interface CalendarAgendaSource {
 }
 
 export interface CalendarAgenda {
+  connected: boolean;
   events: CalendarAgendaEvent[];
   sources: CalendarAgendaSource[];
 }

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { agents, phoneNumbers, workspaces, workspaceMembers } from "../db/schema.js";
 
@@ -119,4 +119,14 @@ export async function updateAgent(
   >>
 ): Promise<void> {
   await db.update(agents).set({ ...patch, updatedAt: new Date() }).where(eq(agents.id, id));
+}
+
+export async function updateAgentBusinessHours(
+  id: string,
+  patch: Partial<Pick<AgentRow["businessHours"], "weekly" | "exceptions">>,
+): Promise<void> {
+  await db.update(agents).set({
+    businessHours: sql`${agents.businessHours} || ${JSON.stringify(patch)}::jsonb`,
+    updatedAt: new Date(),
+  }).where(eq(agents.id, id));
 }

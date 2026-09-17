@@ -90,6 +90,12 @@ describe("browser-bound Google connection", () => {
 });
 
 describe("calendar selection boundaries", () => {
+  it("reports which calendar providers are configured before the user tries to connect", async () => {
+    mocks.getCalendarConnectionTokens.mockResolvedValue([]);
+    const result = await app.request("/api/admin/calendar/list");
+    expect(await result.json()).toMatchObject({ providers: { google: true, microsoft: false } });
+  });
+
   it("does not expose encrypted credentials and flags invalid permissions", async () => {
     mocks.getCalendarConnectionTokens.mockResolvedValue([{
       row: { id: connectionA, accountEmail: "owner@example.com", accountName: "Owner", encryptedRefreshToken: "PRIVATE" }, token: "SECRET",

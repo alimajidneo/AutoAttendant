@@ -3,11 +3,11 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../../types.js'
 
 const mocks = vi.hoisted(() => ({
-  getAgentById: vi.fn(), updateAgent: vi.fn(), listPhoneNumbers: vi.fn(), listServices: vi.fn(),
+  getAgentById: vi.fn(), updateAgent: vi.fn(), updateAgentBusinessHours: vi.fn(), listPhoneNumbers: vi.fn(), listServices: vi.fn(),
   getSlackConnection: vi.fn(), getRetellConnection: vi.fn(), livekitConfig: vi.fn(),
 }))
 vi.mock('@receptionist/core/repositories/agents.js', () => ({
-  getAgentById: mocks.getAgentById, updateAgent: mocks.updateAgent, listPhoneNumbers: mocks.listPhoneNumbers,
+  getAgentById: mocks.getAgentById, updateAgent: mocks.updateAgent, updateAgentBusinessHours: mocks.updateAgentBusinessHours, listPhoneNumbers: mocks.listPhoneNumbers,
 }))
 vi.mock('@receptionist/core/repositories/services.js', () => ({ listServices: mocks.listServices }))
 vi.mock('@receptionist/core/repositories/slack-connections.js', () => ({ getSlackConnection: mocks.getSlackConnection }))
@@ -66,4 +66,27 @@ it('rejects enabling recording when the active voice path cannot record', async 
   expect(response.status).toBe(409)
   expect(await response.json()).toEqual({ error: 'Recording is unavailable for the active voice provider' })
   expect(mocks.updateAgent).not.toHaveBeenCalled()
+})
+
+it('updates weekly hours without resending or overwriting holiday exceptions', async () => {
+  const weekly = { mon: [{ start: '09:00', end: '17:00' }], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] }
+  const response = await app().request('/settings', {
+    method: 'PATCH', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ business: { businessHours: { weekly } } }),
+  })
+
+  expect(response.status).toBe(200)
+  expect(mocks.updateAgentBusinessHours).toHaveBeenCalledWith('workspace-1', { weekly })
+  expect(mocks.updateAgent).toHaveBeenCalledWith('workspace-1', {})
+})
+
+it('updates holiday exceptions without resending or overwriting weekly hours', async () => {
+  const exceptions = [{ date: '2026-12-25', intervals: [], label: 'Christmas' }]
+  const response = await app().request('/settings', {
+    method: 'PATCH', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ business: { businessHours: { exceptions } } }),
+  })
+
+  expect(response.status).toBe(200)
+  expect(mocks.updateAgentBusinessHours).toHaveBeenCalledWith('workspace-1', { exceptions })
 })

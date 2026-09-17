@@ -3,6 +3,7 @@ import type { AppEnv } from "../../types.js";
 import {
   getAgentById,
   updateAgent,
+  updateAgentBusinessHours,
   listPhoneNumbers,
 } from "@receptionist/core/repositories/agents.js";
 import { listServices } from "@receptionist/core/repositories/services.js";
@@ -86,7 +87,6 @@ export const settings = new Hono<AppEnv>()
       if (b.industry !== undefined) patch.industry = b.industry;
       if (b.timezone !== undefined) patch.timezone = b.timezone;
       if (b.description !== undefined) patch.description = b.description;
-      if (b.businessHours !== undefined) patch.businessHours = b.businessHours;
       if (b.bookingPolicy !== undefined) {
         patch.minNoticeMinutes = b.bookingPolicy.minNoticeMinutes;
         patch.maxAdvanceDays = b.bookingPolicy.maxAdvanceDays;
@@ -110,5 +110,8 @@ export const settings = new Hono<AppEnv>()
     }
 
     await updateAgent(c.get("agentId"), patch);
+    if (body.business?.businessHours) {
+      await updateAgentBusinessHours(c.get("agentId"), body.business.businessHours);
+    }
     return c.json({ updated: true });
   });

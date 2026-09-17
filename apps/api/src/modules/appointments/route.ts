@@ -97,11 +97,11 @@ export const appointments = new Hono<AppEnv>()
           id: item.externalEventId ?? item.id, calendarId: item.externalCalendarId ?? "workspace",
           title: item.service, start: item.startTime.toISOString(), end: item.endTime.toISOString(), allDay: false,
         }] : []);
-      return c.json({ events, sources: [] });
+      return c.json({ connected: true, events, sources: [] });
     }
 
     const agent = await getAgentById(c.get("agentId"));
-    if (!agent?.calendarExternalId) return c.json({ error: "Connect a calendar first" }, 409);
+    if (!agent?.calendarExternalId) return c.json({ connected: false, events: [], sources: [] });
     const access = await getAgentCalendarAccess(agent.id, agent.calendarExternalId, agent.calendarPayload);
     if (!access) return c.json({ error: "Reconnect your calendar account" }, 409);
     const calendars = new Map<string, { provider: typeof access.booking.provider; token: string; connectionId: string; calendarId: string }>();
@@ -125,7 +125,7 @@ export const appointments = new Hono<AppEnv>()
     const results = await Promise.all([...calendars.values()].map(({ provider, token, calendarId }) =>
       listProviderCalendarEvents(provider, token, calendarId, timeMin.toISOString(), timeMax.toISOString()),
     ));
-    return c.json({ events: results.flat(), sources });
+    return c.json({ connected: true, events: results.flat(), sources });
   })
   .post("/sync", requireManager, async (c) => {
     const agentId = c.get("agentId");

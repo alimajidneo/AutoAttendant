@@ -67,7 +67,7 @@ export const fetchers = {
 
   calendarList: () =>
     apiClient
-      .get<{ connected: boolean; connections: CalendarConnectionSummary[]; calendars: CalendarOption[] }>('/admin/calendar/list')
+      .get<{ connected: boolean; providers: Record<'google' | 'microsoft', boolean>; connections: CalendarConnectionSummary[]; calendars: CalendarOption[] }>('/admin/calendar/list')
       .then((r) => r.data),
   slack: () =>
     apiClient.get<SlackConnectionSummary>('/admin/slack').then((r) => r.data),

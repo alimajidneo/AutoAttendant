@@ -81,6 +81,12 @@ export const businessHoursSchema = z.object({
     .default([]),
 });
 
+/** Field-level updates keep the hours and holiday editors from overwriting each other. */
+export const businessHoursPatchSchema = businessHoursSchema.partial().refine(
+  (value) => value.weekly !== undefined || value.exceptions !== undefined,
+  { message: "At least one business-hours field is required" },
+);
+
 export const bookingPolicySchema = z.object({
   // 0 is legitimate — a barbershop happily takes someone walking in now.
   minNoticeMinutes: z.number().int().min(0).max(60 * 24 * 7).default(30),
@@ -107,7 +113,7 @@ export const updateSettingsSchema = z.object({
       industry: z.string().optional(),
       timezone: ianaTimezone.optional(),
       description: z.string().optional(),
-      businessHours: businessHoursSchema.optional(),
+      businessHours: businessHoursPatchSchema.optional(),
       bookingPolicy: bookingPolicySchema.optional(),
       recordCalls: z.boolean().optional(),
     })

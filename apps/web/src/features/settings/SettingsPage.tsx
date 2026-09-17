@@ -9,6 +9,7 @@ import { BusinessPanel } from './BusinessPanel'
 import { HoursPanel } from './HoursPanel'
 import { AgentPanel } from './AgentPanel'
 import { ConnectionsPanel } from './ConnectionsPanel'
+import { HolidaysPanel } from './HolidaysPanel'
 import { EmployeesPanel } from '../employees/EmployeesPanel'
 import { RetellPanel } from './RetellPanel'
 import { AccountPanel } from './AccountPanel'
@@ -80,7 +81,12 @@ export default function SettingsPage() {
       ) : panel === 'agent' ? (
         <AgentPanel settings={settings} />
       ) : (
-        session?.workspaceOwner ? <ConnectionsPanel settings={settings} /> : <p className="text-sm text-muted-foreground">The workspace owner manages calendar connections. Personal calendar details are private.</p>
+        <>
+          {session?.workspaceOwner
+            ? <ConnectionsPanel settings={settings} />
+            : <p className="text-sm text-muted-foreground">The workspace owner manages calendar connections. Personal calendar details are private.</p>}
+          <HolidaysPanel settings={settings} />
+        </>
       )}
     </PageContainer>
   )

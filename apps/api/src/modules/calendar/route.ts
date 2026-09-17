@@ -87,7 +87,12 @@ export const calendar = new Hono<AppEnv>().use("*", requireCalendarOwner)
         throw error;
       }
     }));
-    return c.json({ connected: results.length > 0, connections: results.map(result => result.connection), calendars: results.flatMap(result => result.calendars) });
+    return c.json({
+      connected: results.length > 0,
+      providers: { google: googleConnectionConfigured(), microsoft: microsoftConnectionConfigured() },
+      connections: results.map(result => result.connection),
+      calendars: results.flatMap(result => result.calendars),
+    });
   })
   .patch("/", async c => {
     const parsed = calendarSelectSchema.safeParse(await c.req.json());

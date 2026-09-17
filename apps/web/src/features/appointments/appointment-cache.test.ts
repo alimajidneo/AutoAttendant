@@ -12,7 +12,7 @@ const event: CalendarAgendaEvent = {
   id: 'event', calendarId: 'calendar-a', title: 'Demo', allDay: false,
   start: item.startTime!, end: item.endTime!,
 }
-const agenda = (events: CalendarAgendaEvent[]): CalendarAgenda => ({ events, sources: [] })
+const agenda = (events: CalendarAgendaEvent[]): CalendarAgenda => ({ connected: true, events, sources: [] })
 
 describe('confirmed appointment deletion in calendar caches', () => {
   it('removes the linked event in every month while preserving other calendars and bookings', async () => {

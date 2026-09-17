@@ -141,6 +141,18 @@ describe("explicit calendar refresh", () => {
 });
 
 describe("calendar view", () => {
+  it("returns an explicit empty state when the owner has not connected a calendar", async () => {
+    mocks.getAgentById.mockResolvedValue({ id: "agent-1", calendarExternalId: null, calendarPayload: null });
+
+    const response = await app.request(
+      "/appointments/calendar?timeMin=2026-09-01T00:00:00.000Z&timeMax=2026-10-01T00:00:00.000Z",
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ connected: false, events: [], sources: [] });
+    expect(mocks.getAgentCalendarAccess).not.toHaveBeenCalled();
+  });
+
   it("returns events from the calendar selected by this owner", async () => {
     mocks.listCalendarEvents.mockResolvedValue([
       {

@@ -37,6 +37,7 @@ import { RouteSkeleton } from './RouteSkeleton'
 import { setupItems } from '@/features/home/setup-items'
 import { TopBar } from './TopBar'
 import { userAvatarUrl } from '@/lib/user-profile'
+import { preloadRoute } from '@/lib/route-preload'
 
 interface NavItem {
   to: string
@@ -121,7 +122,7 @@ export default function AppLayout() {
                   return (
                     <SidebarMenuItem key={item.to}>
                       <SidebarMenuButton
-                        render={<Link to={item.to} />}
+                        render={<Link to={item.to} onPointerEnter={() => void preloadRoute(item.to)} onFocus={() => void preloadRoute(item.to)} />}
                         isActive={active}
                         tooltip={item.label}
                         className="text-sm"
@@ -161,7 +162,7 @@ export default function AppLayout() {
             )}
             {!memberOnly && <SidebarMenuItem>
               <SidebarMenuButton
-                render={<Link to="/settings" />}
+                render={<Link to="/settings" onPointerEnter={() => void preloadRoute('/settings')} onFocus={() => void preloadRoute('/settings')} />}
                 isActive={pathname === '/settings'}
                 tooltip="Settings"
                 className="text-sm"
