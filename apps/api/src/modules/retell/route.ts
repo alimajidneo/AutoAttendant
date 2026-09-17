@@ -27,7 +27,15 @@ const booking = interval.extend({ caller_confirmed: z.boolean().optional(), call
  callerPhone: (v.caller_phone ?? v.callerPhone)?.trim() || undefined, purpose: v.purpose?.replace(/\s+/g, ' '),
  callerConfirmed: v.caller_confirmed ?? v.callerConfirmed ?? false }));
 const lookup = z.object({ name: z.string().trim().min(1).max(80).optional(), department: z.string().trim().min(1).max(80).optional() }).strict();
-const message = z.object({ message: z.string().trim().min(1).max(1000), callerName: z.string().trim().max(100).optional(), callerPhone: z.string().regex(/^\+[1-9]\d{7,14}$/).optional() }).strict();
+const message = z.object({
+  message: z.string().trim().min(1).max(1000),
+  callerName: z.string().trim().max(100).optional(),
+  callerPhone: z.string().regex(/^\+[1-9]\d{7,14}$/).optional(),
+  caller_confirmed: z.boolean().optional(),
+  callerConfirmed: z.boolean().optional(),
+}).strict().refine(v => v.caller_confirmed === undefined || v.callerConfirmed === undefined || v.caller_confirmed === v.callerConfirmed)
+  .transform(v => ({ message: v.message, callerName: v.callerName, callerPhone: v.callerPhone,
+    callerConfirmed: v.caller_confirmed ?? v.callerConfirmed ?? false }));
 const envelope = z.object({ call: z.object({ agent_id: identifier, call_id: identifier }), args: z.unknown(),
  tool_call_id: identifier.optional(), invocation_id: identifier.optional() })
  .refine(v => !v.tool_call_id || !v.invocation_id || v.tool_call_id === v.invocation_id);
@@ -35,7 +43,8 @@ function normalizeSemanticText(args: unknown) {
  if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
  return Object.fromEntries(Object.entries(args).map(([key, value]) => [key, typeof value === 'string' ? value.normalize('NFC') : value]));
 }
-type RetellEnv = { Variables: { payload: unknown; args: unknown; agentId: string; retellAgentId: string; callId: string; invocationId: string | undefined } };
+type RetellEnv = { Variables: { payload: unknown; args: unknown; agentId: string; retellAgentId: string; callId: string; invocationId: string | undefined; bookingDeadlineAt: number } };
+const RETELL_BOOKING_BUDGET_MS = 45_000;
 function parseJson(raw: string): unknown { try { return JSON.parse(raw); } catch { return undefined; } }
 async function readBoundedBody(request: Request) {
  const reader = request.body?.getReader();
@@ -54,13 +63,27 @@ export const retell = new Hono<RetellEnv>()
   .onError((_error, c) => c.json({ error: 'Request unavailable' }, 503))
   .use('*', async (c, next) => {
     c.header('Cache-Control', 'no-store');
-    const raw = await readBoundedBody(c.req.raw);
-    if (raw === null) return c.json({ error: 'Payload too large' }, 413);
-    if (!verifyRetellSignature(raw, env.RETELL_API_KEY ?? '', c.req.header('x-retell-signature') ?? '', Date.now())) return c.json({ error: 'Unauthorized' }, 401);
-    const payload = parseJson(raw);
-    if (payload === undefined) return c.json({ error: 'Invalid payload' }, 400);
-    c.set('payload', payload);
-    await next();
+    const bookingDeadlineAt = Date.now() + RETELL_BOOKING_BUDGET_MS;
+    c.set('bookingDeadlineAt', bookingDeadlineAt);
+    const handle = async () => {
+      const raw = await readBoundedBody(c.req.raw);
+      if (raw === null) return c.json({ error: 'Payload too large' }, 413);
+      if (!verifyRetellSignature(raw, env.RETELL_API_KEY ?? '', c.req.header('x-retell-signature') ?? '', Date.now())) return c.json({ error: 'Unauthorized' }, 401);
+      const payload = parseJson(raw);
+      if (payload === undefined) return c.json({ error: 'Invalid payload' }, 400);
+      c.set('payload', payload);
+      await next();
+    };
+    if (!c.req.path.endsWith('/functions/book-appointment')) return handle();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        handle(),
+        new Promise<Response>(resolve => { timer = setTimeout(() => resolve(c.json({ status: 'unknown', reason: 'request_deadline_exceeded' })), Math.max(1, bookingDeadlineAt - Date.now())); }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   })
   .post('/webhook', async c => {
     const event = normalizeRetellEvent(c.get('payload'));
@@ -103,7 +126,7 @@ export const retell = new Hono<RetellEnv>()
     const result = await repo.runRetellFunction(c.get('agentId'), c.get('retellAgentId'), c.get('callId'), 'book-appointment',
       createHash('sha256').update(JSON.stringify(args.data)).digest('hex'), c.get('invocationId'),
       async key => {
-        const result = await bookEmployeeAppointment(c.get('agentId'), args.data, key);
+        const result = await bookEmployeeAppointment(c.get('agentId'), args.data, key, c.get('bookingDeadlineAt'));
         if (result.status === 'confirmed') await repo.markRetellCallOutcome(c.get('agentId'), c.get('retellAgentId'), c.get('callId'), 'booked').catch(() => undefined);
         return result;
       });
@@ -112,8 +135,10 @@ export const retell = new Hono<RetellEnv>()
   .post('/functions/save-message', async c => {
     const args = message.safeParse(c.get('args'));
     if (!args.success) return c.json({ error: 'Invalid arguments' }, 400);
-    return c.json(await repo.saveRetellMessage(c.get('agentId'), c.get('retellAgentId'), c.get('callId'), args.data,
-      createHash('sha256').update(JSON.stringify(args.data)).digest('hex'), c.get('invocationId')));
+    if (!args.data.callerConfirmed) return c.json({ saved: false, status: 'confirmation_required', reason: 'Read the message and callback details back, then ask the caller to confirm before saving.' });
+    const { callerConfirmed: _confirmed, ...details } = args.data;
+    return c.json(await repo.saveRetellMessage(c.get('agentId'), c.get('retellAgentId'), c.get('callId'), details,
+      createHash('sha256').update(JSON.stringify(details)).digest('hex'), c.get('invocationId')));
   });
 
 const approved = (workspace: string, id: string) => !!env.RETELL_API_KEY && workspace === env.RETELL_WORKSPACE_ID && id === env.RETELL_AGENT_ID;

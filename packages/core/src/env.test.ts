@@ -10,3 +10,22 @@ it('defaults Cal.com OAuth provider writes to fail closed', () => {
  expect(parseEnv(coreEnvSchema, { ...env, CALCOM_OAUTH_WRITE_APPROVED: undefined }).CALCOM_OAUTH_WRITE_APPROVED).toBe(false);
  expect(parseEnv(coreEnvSchema, { ...env, CALCOM_OAUTH_WRITE_APPROVED: 'true' }).CALCOM_OAUTH_WRITE_APPROVED).toBe(true);
 });
+it('allows Retell-only configuration without LiveKit', () => {
+ const parsed = parseEnv(coreEnvSchema, {
+  ...env,
+  LIVEKIT_URL: undefined,
+  LIVEKIT_API_KEY: undefined,
+  LIVEKIT_API_SECRET: undefined,
+ });
+ expect(parsed.LIVEKIT_URL).toBeUndefined();
+ expect(parsed.LIVEKIT_API_KEY).toBeUndefined();
+ expect(parsed.LIVEKIT_API_SECRET).toBeUndefined();
+});
+it('rejects partial LiveKit configuration', () => {
+ expect(() => parseEnv(coreEnvSchema, {
+  ...env,
+  LIVEKIT_URL: 'wss://example.livekit.cloud',
+  LIVEKIT_API_KEY: undefined,
+  LIVEKIT_API_SECRET: undefined,
+ })).toThrow(/all three LIVEKIT_\* variables/i);
+});

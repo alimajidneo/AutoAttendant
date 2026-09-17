@@ -9,15 +9,23 @@ import { listServices } from "@receptionist/core/repositories/services.js";
 import { storageConfigured } from "@receptionist/core/providers/storage.js";
 import { updateSettingsSchema } from "../../schemas.js";
 import { getSlackConnection } from "@receptionist/core/repositories/slack-connections.js";
+import { getRetellConnection } from "@receptionist/core/repositories/retell.js";
+import { livekitConfig } from "@receptionist/core/env.js";
+
+async function recordingAvailable(agentId: string): Promise<boolean> {
+  const retell = await getRetellConnection(agentId);
+  return storageConfigured && Boolean(livekitConfig()) && !retell?.enabled;
+}
 
 export const settings = new Hono<AppEnv>()
   .get("/", async (c) => {
     const agentId = c.get("agentId");
-    const [agent, services, numbers, slack] = await Promise.all([
+    const [agent, services, numbers, slack, canRecord] = await Promise.all([
       getAgentById(agentId),
       listServices(agentId),
       listPhoneNumbers(agentId),
       c.get("workspaceOwner") ? getSlackConnection(agentId) : null,
+      recordingAvailable(agentId),
     ]);
     if (!agent) return c.json({ error: "Agent not found" }, 404);
 
@@ -35,6 +43,7 @@ export const settings = new Hono<AppEnv>()
         },
         recordCalls: agent.recordCalls,
         storageConfigured,
+        recordingAvailable: canRecord,
         phoneNumber: numbers[0]?.e164 ?? null,
         calendarProvider: agent.calendarProvider ?? null,
         calendarExternalId: c.get("workspaceOwner") ? agent.calendarExternalId ?? null : null,
@@ -64,6 +73,10 @@ export const settings = new Hono<AppEnv>()
     const parsed = updateSettingsSchema.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
     const body = parsed.data;
+
+    if (body.business?.recordCalls === true && !await recordingAvailable(c.get("agentId"))) {
+      return c.json({ error: "Recording is unavailable for the active voice provider" }, 409);
+    }
 
     const patch: Parameters<typeof updateAgent>[1] = {};
 

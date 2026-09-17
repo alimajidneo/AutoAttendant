@@ -12,6 +12,7 @@ import { useAuth } from '@/features/auth/useAuth'
 import { CallsTable } from '@/features/home/CallsTable'
 import { useAgentZone } from '@/hooks/useAgentZone'
 import { formatTime } from '@/lib/formatters'
+import { browserTransferUi } from '@/lib/livekit'
 import { TransferInbox } from './TransferInbox'
 
 type Workspace = { id: string; name: string; kind: 'personal' | 'team'; role: 'manager' | 'member'; ownerUserId: string; userId: string }
@@ -47,12 +48,12 @@ export function MemberHomePage() {
       actions={<Button variant="outline" render={<Link to="/workspaces" />}><Settings2 />Workspace profile</Button>}
     />
 
-    <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className={`mt-7 grid gap-4 sm:grid-cols-2 ${browserTransferUi ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
       {[
         { label: 'Upcoming appointments', value: appointments.isLoading ? '—' : upcoming.length, icon: CalendarDays, tone: 'bg-success-subtle text-success' },
         { label: 'Appointments today', value: appointments.isLoading ? '—' : todayCount, icon: Clock3, tone: 'bg-primary-subtle text-accent-ink' },
         { label: 'Team members', value: members.isLoading ? '—' : members.data?.length ?? 0, icon: Users, tone: 'bg-violet-subtle text-violet' },
-        { label: 'Your transfer status', value: self?.available ? 'Available' : 'Unavailable', icon: Route, tone: 'bg-warning-subtle text-warning' },
+        ...(browserTransferUi ? [{ label: browserTransferUi.statusLabel, value: self?.available ? 'Available' : 'Unavailable', icon: Route, tone: 'bg-warning-subtle text-warning' }] : []),
       ].map(({ label, value, icon: Icon, tone }) => <article key={label} className="rounded-2xl border border-border bg-card p-5 shadow-sm" data-ground="card">
         <span className={`grid size-10 place-items-center rounded-xl ${tone}`}><Icon className="size-5" /></span>
         <p className="mt-4 text-sm font-medium text-muted-foreground">{label}</p>
@@ -93,7 +94,7 @@ export function MemberHomePage() {
     </div>
 
     <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.75fr)]">
-      <TransferInbox />
+      {browserTransferUi && <TransferInbox />}
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm" data-ground="card">
         <h2 className="text-lg font-semibold">Your access</h2>
         <div className="mt-4 grid gap-3 text-sm text-muted-foreground">

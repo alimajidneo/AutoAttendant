@@ -18,9 +18,9 @@ export const coreEnvSchema = z
     RETELL_API_KEY: z.string().min(1).optional(),
     DATABASE_URL: z.string().min(1),
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(20).default(3),
-    LIVEKIT_URL: z.string().min(1),
-    LIVEKIT_API_KEY: z.string().min(1),
-    LIVEKIT_API_SECRET: z.string().min(1),
+    LIVEKIT_URL: z.string().min(1).optional(),
+    LIVEKIT_API_KEY: z.string().min(1).optional(),
+    LIVEKIT_API_SECRET: z.string().min(1).optional(),
     SUPABASE_URL: z.string().url(),
     SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
     GOOGLE_CLIENT_ID: z.string().min(1).optional(),
@@ -40,6 +40,13 @@ export const coreEnvSchema = z
     if (!!cfg.CALCOM_OAUTH_CLIENT_ID !== !!cfg.CALCOM_OAUTH_CLIENT_SECRET) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: [cfg.CALCOM_OAUTH_CLIENT_ID ? "CALCOM_OAUTH_CLIENT_SECRET" : "CALCOM_OAUTH_CLIENT_ID"],
         message: "Set both Cal.com OAuth client variables, or neither" });
+    }
+    const livekit = ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"] as const;
+    const livekitSet = livekit.filter((key) => cfg[key]);
+    if (livekitSet.length > 0 && livekitSet.length < livekit.length) {
+      for (const key of livekit.filter((candidate) => !cfg[candidate])) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: "Set all three LIVEKIT_* variables, or none" });
+      }
     }
     const r2 = [
       "R2_ACCOUNT_ID",
@@ -74,3 +81,8 @@ export function parseEnv<T extends z.ZodTypeAny>(schema: T, source: unknown): z.
 }
 
 export const env = parseEnv(coreEnvSchema, process.env);
+
+export function livekitConfig(): { url: string; apiKey: string; apiSecret: string } | null {
+  if (!env.LIVEKIT_URL || !env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET) return null;
+  return { url: env.LIVEKIT_URL, apiKey: env.LIVEKIT_API_KEY, apiSecret: env.LIVEKIT_API_SECRET };
+}

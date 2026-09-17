@@ -1,12 +1,14 @@
 > **2026-09-10 update:** Implement personal/team workspaces now, as requested. Preserve existing data and keep calendar details owner-only. Use browser handoff for the initial routing test; do not purchase a number or configure paid phone routes. Deploy staging before telephone integration. See [workspace decisions and limitations](WORKSPACES_AND_TRANSFERS.md). This supersedes the earlier Microsoft-before-workspaces ordering below.
 
+> **2026-09-17 update:** The first telephone pilot is **Retell-only and USA-only**. Retell provides the hosted conversation/telephone runtime and invokes DeskRoute's signed HTTPS functions on Vercel. LiveKit deployment, Pakistan/international routing and custom SIP carriers are deferred. A Retell-managed US local number is the default later purchase, but no number, web call, real call, provider write, deployment or migration is authorized by this decision.
+
 # Scope decision — 2026-09-09
 
 Follow [ROADMAP.md](ROADMAP.md) as the current task order. Keep Supabase Auth; calendar accounts remain separate from sign-in identities. Verify multiple Google accounts and Microsoft calendars before implementing company workspaces. The target model is user-owned calendar connections with explicit availability sharing to workspaces, company-owned receptionists and employee routing. Current connections are agent-owned; implement a reviewed data upgrade before multi-company rollout. No workspace administrator receives private calendar content simply through membership.
 
-Vercel Pro remains the website/HTTP API target; the persistent voice worker stays separate. Same-origin requests, aggregated reads and bounded caching remain work to verify, not deployed guarantees. Google and Microsoft failures must not silently widen availability. Mike's phone system is a discovery input to collect early, without blocking calendar tests.
+Vercel Pro remains the website/HTTP API target. The Retell-only path has no persistent DeskRoute voice worker. Same-origin requests, aggregated reads and bounded caching remain work to verify, not deployed guarantees. Google, Microsoft and Cal.com failures must not silently widen availability.
 
-# Initial implementation decisions
+# Historical initial implementation decisions
 
 Recorded 2026-09-08.
 
@@ -26,11 +28,11 @@ LiveKit's free plan is an allowance, not unlimited free speech inference. Review
 
 For Supabase, use the direct connection when reachable over IPv6, or the session pooler on port 5432 for IPv4. Transaction pooling is not the initial choice for these persistent Node processes. Client-to-pooler TLS, PostgreSQL 17.6, and the database connection were verified. Pools default to 3 per process. Migrations through `0011_retell_boundary` were applied to the currently configured Supabase database on 2026-09-14 after a private recovery package was verified; integration-test cleanup still refuses hosted database targets.
 
-## Customer delivery target
+## Current customer delivery target
 
-The product is for customer handover in the USA, not a personal app for its developer. The user confirmed the Supabase Data API is disabled. Keep the chosen Supabase/Drizzle/LiveKit architecture through delivery; do not require a customer to change providers or migrate data after handover. Configuration must use actual supported fields and real provider credentials, with no placeholder behavior.
+The product is for customer handover in the USA, not a personal app for its developer. The user confirmed the Supabase Data API is disabled. Keep Supabase/Drizzle as the system of record and Retell as the current hosted voice layer; do not require a customer to change providers or migrate data after handover. Configuration must use actual supported fields and real provider credentials, with no placeholder behavior.
 
-Local worker execution and Google OAuth testing mode are development arrangements. The eventual customer-facing application will use Vercel Pro; the LiveKit voice worker must use LiveKit Cloud or another persistent worker runtime. Hosted operation, production OAuth readiness, verified US telephone routing, data isolation, recovery, and measured costs are handover requirements. Existing customer number/forwarding details, hosting region, and approved operating budget remain deployment inputs.
+Legacy local LiveKit worker execution and Google OAuth testing mode are development arrangements. The customer-facing application will use Vercel Pro while Retell hosts the voice runtime. Hosted operation, production OAuth readiness, verified US telephone routing, data isolation, recovery, and measured costs are handover requirements. The US area code, hosting region, recording policy, number purchase and approved operating budget remain deployment inputs.
 
 ## Official references
 

@@ -1,5 +1,7 @@
 > **2026-09-10 scope update:** At Ali's request, workspace implementation and browser transfer testing moved ahead of Microsoft. See [current workspace capabilities and testing](WORKSPACES_AND_TRANSFERS.md). Two-Google-account basic testing was reported successful.
 
+> **2026-09-17 production-path update:** The immediate pilot is **USA numbers only**. Use a Retell-managed US number, Retell conversation flow/knowledge base, and DeskRoute's signed HTTP functions. Pakistan/international routing, custom SIP carriers, and number purchase are deferred. LiveKit is a legacy optional path and must remain unconfigured and hidden for the Retell-only deployment. No provider test, web call, number, deployment, migration, or other potentially billable action is authorized merely by this roadmap.
+
 # DeskRoute delivery roadmap
 
 Agreed with Ali on 2026-09-09. Neodym builds the product; Neodym or Triangle is the first pilot. This is the current scope and execution order. It supersedes conflicting personal-use, Clerk, provider and day-order instructions in earlier plans. Existing working code is preserved; completion requires evidence, not a date.
@@ -8,8 +10,8 @@ Agreed with Ali on 2026-09-09. Neodym builds the product; Neodym or Triangle is 
 
 A company receptionist identifies the caller's purpose and intended employee, checks permitted calendars, and books, requests a transfer, or takes a message. Validate calendar fundamentals before expanding employee scheduling and telephone routing.
 
-- Supabase PostgreSQL and Auth, Drizzle, existing React/Hono app and LiveKit. Keep credentials server-side and the unused Supabase Data API disabled.
-- Eventual Vercel Pro website and HTTP API, with a separately hosted LiveKit worker. No persistent worker inside a request function.
+- Supabase PostgreSQL and Auth, Drizzle, and the existing React/Hono app. Keep credentials server-side and the unused Supabase Data API disabled.
+- Vercel hosts the website and request-scoped HTTP API. Retell hosts the conversation/telephone runtime and calls DeskRoute's signed HTTPS functions and webhook. Do not deploy the optional LiveKit worker for the Retell-only pilot.
 - Prefer existing free allowances for testing. Automated unit tests use no real credentials, paid models or calendar writes.
 - Low invocations: same-origin production API, aggregate dashboard reads, cache private data only within the authenticated identity, refresh after mutations or explicitly, no recurring dashboard polling. These are deployment targets, not claims of current completion.
 - No new orchestration framework, broad provider abstraction, placeholder functionality or developer-specific customer configuration.
@@ -32,15 +34,30 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 | 10 | Employees and routing | Member profiles, departments, manual availability and browser handoff requests implemented. Employee booking destinations, phone numbers, presence and transfer hours remain pending. |
 | 11 | Cross-workspace scheduling | A booking for an employee in one company blocks the other without revealing details; prevent simultaneous cross-workspace booking. Pending. |
 | 12 | Receptionist behavior | Approved FAQ answers, configurable intake, general appointments, honest message fallback. Existing features require full journey acceptance. |
-| 13 | Mike's VoIP discovery | Provider documentation, SIP/transfer/presence, number routing, costs. Collect in parallel from the beginning; do not choose a carrier blindly. |
-| 14 | Stable hosted staging | Website/API/worker work without Ali's computer; stable OAuth/Slack callback URLs, small DB pool, invocation measurements. Pending. |
-| 15 | Real telephone testing | Inbound route, audio, response latency and measured provider usage. Pending. |
+| 13 | US telephony decision | **Complete for the first pilot:** Retell-managed US telephony is the simplest approved target. Custom SIP and international routes are deferred. No number has been purchased. |
+| 14 | Stable hosted staging | Website/API work without Ali's computer; stable OAuth/Cal.com/Retell callback URLs, small DB pool, invocation measurements. The optional LiveKit worker is excluded. Pending deployment approval, secrets, backup and migrations. |
+| 15 | Retell pre-telephone acceptance | Configure one draft/versioned agent, approved knowledge base and five signed functions. Run text simulation and then a web call only after confirming whether that provider action is free or receiving explicit spend approval. Transfers remain telephone-only and unproved here. |
+| 15b | Real US telephone testing | After Ali buys a number: inbound route, private acceptance screening, accept/decline/no-answer behavior, audio, latency and measured provider usage. Deferred until number purchase and call-spend approval. |
 | 16 | Slack alerts, approvals and transfer | Workspace install, selected channel, privacy-minimal alerts, and explicit test messages are implemented. Signed interactive accept/decline and actual human transfer remain pending. |
 | 17 | Failure paths | Calendar/Slack/carrier failures reach scheduling or a message, never invented success. Pending full integration. |
 | 18 | Production readiness | Production OAuth, privacy/retention/deletion, backups/restores, operator instructions, license/source offer and cost evidence. Pending. |
 | 19 | Pilot acceptance | Neodym/Triangle real calls pass booking, transfer and fallback journeys. Required before handover. |
 
-## Current work batch
+## Current US-only work batch
+
+1. Freeze and independently review the Retell-only/optional-LiveKit local candidate.
+2. Run unit, web, PostgreSQL migration/integration, type, lint, production-build, secret and Retell-only import gates.
+3. Reconcile migrations `0012`–`0014` against the deployed `0011` boundary. Do not apply them without a fresh production backup and explicit approval.
+4. Prepare the existing Vercel project and environment-variable inventory without uploading secrets or deploying.
+5. After deployment approval, establish one stable HTTPS origin and register provider callbacks.
+6. Configure a draft Retell agent and exercise text simulation. Treat a Retell web call as potentially billable until the account proves otherwise; do not run it under a strict zero-cost instruction.
+7. Stop before number purchase or real calls. Those remain Ali-controlled gates.
+
+The first end-to-end pilot must prove: US caller → Retell → signed DeskRoute employee/calendar function → confirmed booking or message, plus a telephone-only accepted warm transfer that bridges only after the employee says yes.
+
+Use [USA-only Retell deployment and acceptance gate](US_RETELL_DEPLOYMENT_GATE.md) for the exact environment inventory, migration controls, browser-call limits, and approval boundaries.
+
+## Historical work batches
 
 2026-09-10 follow-up: Center route loading, add past-booking deletion to the calendar agenda, protect deletion cache updates from stale reads and deduplicate email/calendar labels. Document [current agent capabilities and the staged context plan](AGENT_CONTEXT_AND_CAPABILITIES.md). Context starts with workspace-scoped editable business notes and a published preview; document imports and deeper analysis remain later work. Hosted operation must pass tests with all local terminals stopped.
 
@@ -48,7 +65,7 @@ A company receptionist identifies the caller's purpose and intended employee, ch
 
 2026-09-10: Notifications, calendar source colors, workspaces and browser handoff are implemented. Added a public in-app step-by-step tutorial at `/help`, linked from sign-in, onboarding, the dashboard and Workspaces. It explains current capabilities and limitations without creating external integrations.
 
-Next: apply migration `0008_curved_nebula`, configure Microsoft Entra and Slack, then live-test personal Outlook, Microsoft 365, mixed-provider conflicts, and a privacy-safe Slack alert. After that, accept browser handoff with a teammate and deploy stable staging with a separate voice worker. Teams presence and signed Slack transfer approval follow only after those basics pass.
+Historical 2026-09-10 next step: apply migration `0008_curved_nebula`, configure Microsoft Entra and Slack, then live-test personal Outlook, Microsoft 365, mixed-provider conflicts, and a privacy-safe Slack alert. The later Retell decision supersedes the separate-voice-worker instruction for the current pilot.
 
 ## Later only if required
 

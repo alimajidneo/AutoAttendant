@@ -130,6 +130,36 @@ pg_restore --list "$CALCOM_RUN_DIR/before-0012-through-0014.dump" > "$CALCOM_RUN
 
 A dump inventory is not a restore test. Resolve backup/restore failures before applying anything.
 
+### Current executable 0011-to-0014 rollout
+
+Generate the release artifacts only from the frozen, reviewed checkout. The generator has embedded reviewed journal metadata and SHA-256 values for every migration from 0000 through 0014; it refuses changed SQL bytes, a changed journal or a different boundary. It reads no credentials and opens no database connection.
+
+```bash
+node scripts/generate-0011-to-0014-rollout.mjs --output-dir "$CALCOM_RUN_DIR"
+cmp --silent "$CALCOM_RUN_DIR/migration-manifest.sha256" "$APPROVED_MIGRATION_MANIFEST"
+sha256sum --check "$APPROVED_MIGRATION_MANIFEST"
+(cd "$CALCOM_RUN_DIR" && sha256sum --check rollout-artifacts.sha256)
+psql -X --set=ON_ERROR_STOP=1 --file="$CALCOM_RUN_DIR/preflight-0011.sql" \
+  > "$CALCOM_RUN_DIR/preflight.log"
+```
+
+The generator checksum-binds the exact `_journal.json` bytes as well as every migration byte. `rollout-artifacts.sha256` binds the three generated executable SQL files. Run its check from `CALCOM_RUN_DIR` immediately before **each** SQL execution; any mismatch stops the rollout and requires regeneration from the frozen reviewed checkout. `preflight-0011.sql` requires exactly the reviewed ordered 0000–0011 ledger and verifies the critical inherited 0011 schema. The apply artifact takes a transaction-scoped advisory lock, sets lock and statement timeouts, rechecks that boundary, applies exactly 0012–0014, inserts their exact Drizzle ledger hashes/timestamps, and validates the final ledger, required tables, validated public constraints by owning public table, type and normalized definition (including composite tenant keys and delete behavior), indexes, defaults and deny-by-default RLS before committing.
+
+Only after the separate production approval, verified backup/restore evidence and write freeze:
+
+```bash
+(cd "$CALCOM_RUN_DIR" && sha256sum --check rollout-artifacts.sha256)
+psql -X --set=ON_ERROR_STOP=1 --file="$CALCOM_RUN_DIR/apply-0012-through-0014.sql" \
+  > "$CALCOM_RUN_DIR/apply-0012-through-0014.log"
+(cd "$CALCOM_RUN_DIR" && sha256sum --check rollout-artifacts.sha256)
+psql -X --set=ON_ERROR_STOP=1 --file="$CALCOM_RUN_DIR/postflight-0014.sql" \
+  > "$CALCOM_RUN_DIR/postflight-0014.log"
+```
+
+Do not edit a generated artifact or its manifest, manually insert ledger rows, skip preflight, or reuse artifacts after any source change. The scratch integration test executes this exact transaction from an actual 0011 database, rejects a same-name but structurally replaced inherited foreign key in preflight and postflight, and proves a forced final structural failure rolls back every 0012–0014 schema and ledger change.
+
+The catalog/RLS checks in the generated SQL are necessary but not sufficient: the behavioral deny test with an approved non-owner, non-superuser, non-`BYPASSRLS` role remains **mandatory** before reopening writes. It must prove populated-table `SELECT` returns no rows and a valid `INSERT` fails with SQLSTATE `42501` for each rollout table. Do not substitute a table-owner or catalog-only check.
+
 ### Historical exact-0012 rehearsal (not the candidate rollout)
 
 The following retained generator exists to regression-test the frozen historical 0012 boundary. It reads migration SQL/journal, never credentials or a database, and the integration suite rehearses it on scratch PostgreSQL. **It is not the current release apply artifact and must not be used to stop at 0012 in production.**

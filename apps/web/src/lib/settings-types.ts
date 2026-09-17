@@ -19,9 +19,11 @@ export interface AppSettings {
     services: Service[]
     businessHours: BusinessHours
     bookingPolicy: BookingPolicy
-    /** The owner's preference. Recording also needs storageConfigured. */
+    /** The owner's preference. Effective recording also needs recordingAvailable. */
     recordCalls: boolean
     storageConfigured: boolean
+    /** True only when the active voice path can use DeskRoute's LiveKit egress. */
+    recordingAvailable: boolean
     phoneNumber: string | null
     /** Which system holds the calendar, its id there, and its display name. */
     calendarProvider: CalendarProvider | null

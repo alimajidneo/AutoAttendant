@@ -447,7 +447,7 @@ Parameter schema:
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["message"],
+  "required": ["message", "caller_confirmed"],
   "properties": {
     "message": {
       "type": "string",
@@ -460,12 +460,16 @@ Parameter schema:
     "callerPhone": {
       "type": "string",
       "description": "Caller's stated callback number in E.164 format."
+    },
+    "caller_confirmed": {
+      "type": "boolean",
+      "description": "Set true only after reading the message and callback details back and receiving explicit caller confirmation."
     }
   }
 }
 ```
 
-Announce that the message was saved only when the response contains `saved: true`. Do not repeat the function after a timeout or uncertain result.
+Announce that the message was saved only when the response contains `saved: true`. If the response contains `status: confirmation_required`, read the details back, obtain explicit confirmation, and call once with `caller_confirmed: true`. Do not repeat the function after a timeout or uncertain result.
 
 ## 7. Build the main conversation flow
 
@@ -494,8 +498,8 @@ Use the following flow rather than allowing unrestricted tool selection.
    - Announce success only for `status: confirmed`.
 6. **Message path**
    - Collect a concise message, name, and callback number.
-   - Read them back.
-   - Call `save_message` once.
+   - Read them back and obtain explicit caller confirmation.
+   - Call `save_message` once with `caller_confirmed: true` only after that confirmation.
 7. **End call**
    - Summarize only confirmed outcomes.
    - Do not summarize an uncertain booking as successful.
@@ -584,7 +588,7 @@ HARD SAFETY RULES
 9. Set caller_confirmed=true only after an unambiguous yes.
 10. Call book_appointment only once. Never retry it after a timeout, unknown result, or reconciliation_required result.
 11. Say an appointment is confirmed only when book_appointment returns status=confirmed.
-12. Call save_message only once and announce it was saved only when saved=true.
+12. Read a message and callback details back, obtain explicit confirmation, then call save_message once with caller_confirmed=true; announce it was saved only when saved=true.
 13. If data is missing or uncertain, explain that you cannot safely confirm it and offer a message.
 14. Never request passwords, payment-card data, government identifiers, medical details, or API credentials.
 15. Keep spoken responses short and read dates, times, email addresses, and phone numbers back carefully.
@@ -666,6 +670,8 @@ Note: Retell documents that webhooks may still contain sensitive call data even 
 
 A number purchase or imported telephony connection can create cost and account obligations, so Ali must approve the option first.
 
+For the first pilot, the approved scope is **one Retell-managed US local number and US destinations only**. Pakistan/international transfer routes and custom SIP carriers are deferred. Do not enable international calling while this scope is active.
+
 ### Option A: Retell-managed number
 
 1. Open **Phone Numbers**.
@@ -680,7 +686,7 @@ A number purchase or imported telephony connection can create cost and account o
 
 Use an imported number or SIP trunk only after its provider, transfer behavior, caller ID behavior, encryption, and cost are reviewed. Do not change existing company telephony routes without a rollback plan.
 
-For the first pilot, prefer the simplest approved Retell-managed inbound number. Keep LiveKit available until Retell phone calls and transfers pass controlled acceptance.
+For the first pilot, prefer the simplest approved Retell-managed inbound number. Leave LiveKit unconfigured and `VITE_LIVEKIT_ENABLED` unset; it is not a fallback for the Retell-only production path.
 
 ## 14. Version and release the Retell agent
 
@@ -696,7 +702,9 @@ For the first pilot, prefer the simplest approved Retell-managed inbound number.
 
 ## 15. Acceptance checklist
 
-### 15.1 No-cost/no-write checks
+### 15.1 Pre-telephone checks
+
+These checks avoid number purchase and real telephone calls, but Retell text simulation or web-call usage may still be metered by the provider. Confirm the account shows zero cost/free allowance or obtain explicit spend approval before starting either. Calendar booking and message functions also create real application/provider records unless they are pointed at an isolated test environment.
 
 - [ ] Agent answers with the approved identity and does not claim to be human.
 - [ ] Knowledge-base answers match the approved source.

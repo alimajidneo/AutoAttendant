@@ -9,6 +9,7 @@ vi.mock("livekit-server-sdk", async importOriginal => {
   return { ...actual, RoomServiceClient: class { listParticipants = mocks.listParticipants } };
 });
 import { transfers } from "./route.js";
+import { env } from "@receptionist/core/env.js";
 const id = "11111111-1111-4111-8111-111111111111";
 const requestId = "22222222-2222-4222-8222-222222222222";
 const headers = { Authorization: "Bearer verified", "Content-Type": "application/json", "X-Workspace-Id": id };
@@ -51,5 +52,17 @@ describe("browser transfer tokens", () => {
     mocks.workspaceAccess.mockResolvedValue(null);
     expect((await respond(true)).status).toBe(403);
     expect(mocks.respondToTransfer).not.toHaveBeenCalled();
+  });
+  it("returns 503 without consuming an accepted request when LiveKit is unavailable", async () => {
+    const original = { LIVEKIT_URL: env.LIVEKIT_URL, LIVEKIT_API_KEY: env.LIVEKIT_API_KEY, LIVEKIT_API_SECRET: env.LIVEKIT_API_SECRET };
+    Object.assign(env, { LIVEKIT_URL: undefined, LIVEKIT_API_KEY: undefined, LIVEKIT_API_SECRET: undefined });
+    try {
+      const response = await respond(true);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: "LiveKit is not configured" });
+      expect(mocks.respondToTransfer).not.toHaveBeenCalled();
+    } finally {
+      Object.assign(env, original);
+    }
   });
 });

@@ -14,6 +14,24 @@ describe("database TLS configuration", () => {
   it("supports local disposable PostgreSQL without TLS", () => {
     expect(databaseConnection("postgres://user:secret@localhost:5433/test").ssl).toBe(false);
   });
+  it("rejects malformed URLs without retaining credentials in the error", () => {
+    const malformed = "postgresql://admin:super-secret@[";
+    let thrown: unknown;
+
+    try {
+      databaseConnection(malformed);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe("DATABASE_URL must be a valid PostgreSQL connection URI");
+    expect((thrown as Error & { cause?: unknown }).cause).toBeUndefined();
+    expect((thrown as Error & { input?: unknown }).input).toBeUndefined();
+    expect((thrown as Error).stack).not.toContain(malformed);
+    expect((thrown as Error).stack).not.toContain("super-secret");
+  });
+
   it("rejects an HTTPS project URL", () => {
     expect(() => databaseConnection("https://project.supabase.co")).toThrow("PostgreSQL connection URI");
   });

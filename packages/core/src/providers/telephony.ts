@@ -1,16 +1,22 @@
 import { AccessToken } from "livekit-server-sdk";
-import { env } from "../env.js";
+import { livekitConfig } from "../env.js";
 
-const LIVEKIT_HTTP = env.LIVEKIT_URL.replace("wss://", "https://").replace("ws://", "http://");
+function config() {
+  const livekit = livekitConfig();
+  if (!livekit) throw new Error("LiveKit is not configured");
+  return { ...livekit, httpUrl: livekit.url.replace("wss://", "https://").replace("ws://", "http://") };
+}
 
 async function makeSipAdminToken(): Promise<string> {
-  const at = new AccessToken(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
+  const { apiKey, apiSecret } = config();
+  const at = new AccessToken(apiKey, apiSecret);
   at.addSIPGrant({ admin: true });
   return await at.toJwt();
 }
 
 async function twirp(method: string, body: object): Promise<Record<string, unknown>> {
-  const res = await fetch(`${LIVEKIT_HTTP}/twirp/livekit.PhoneNumberService/${method}`, {
+  const { httpUrl } = config();
+  const res = await fetch(`${httpUrl}/twirp/livekit.PhoneNumberService/${method}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${await makeSipAdminToken()}`,

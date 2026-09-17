@@ -2,9 +2,9 @@
 
 Neodym's AI receptionist for USA customer teams. The receptionist answers business questions, checks selected Google and Microsoft calendars, books appointments, and sends follow-ups to the dashboard and an optional Slack channel.
 
-**Version 1.0.29 · Updated 2026-09-14**
+**Version 1.0.30 · Updated 2026-09-17**
 
-This repository is under active development. Browser voice calls and Google booking have been tested. Microsoft Calendar and selected-channel Slack alerts are implemented and await live account acceptance. The Retell boundary is locally implemented; real hosted provider/telephone acceptance remains. The Vercel website/API adapter is ready; hosted provider configuration and acceptance remain. Teams presence, two-person audio acceptance, telephone transfer, and managed LiveKit worker deployment remain pending.
+This repository is under active development. Google booking and the legacy LiveKit browser path have historical test evidence. Microsoft Calendar and selected-channel Slack alerts are implemented and await complete live acceptance. The current pilot is **Retell-only and USA-only**: its signed DeskRoute boundary is locally implemented, while hosted provider/telephone acceptance remains. The Vercel website/API adapter is ready but not deployed. LiveKit is optional and disabled for the current production path.
 
 - [Agent capabilities and context plan](docs/AGENT_CONTEXT_AND_CAPABILITIES.md)
 - [Slack and Microsoft integration plan](docs/INTEGRATION_PLAN.md)
@@ -14,6 +14,7 @@ This repository is under active development. Browser voice calls and Google book
 - [Notifications and calendar source colors](docs/NOTIFICATIONS_AND_CALENDAR_SOURCES.md)
 - [Workspaces, invitations and browser handoff](docs/WORKSPACES_AND_TRANSFERS.md)
 - [Phone integration sequence](docs/TELEPHONY_PLAN.md)
+- [USA-only Retell deployment and acceptance gate](docs/US_RETELL_DEPLOYMENT_GATE.md)
 - [Architecture](ARCHITECTURE.md) · [Decisions](docs/DECISIONS.md) · [Vercel feasibility](docs/VERCEL_FEASIBILITY.md)
 
 ## In-app tutorial
@@ -29,7 +30,7 @@ Microsoft Calendar and basic Slack alerts are available under **Settings → Con
 - One Slack workspace connection per DeskRoute workspace, with an owner-selected channel and opt-in alerts. Alert text excludes caller and calendar details.
 - Business hours, exceptions, timezone, booking notice/horizon, services and general appointments.
 - Configurable receptionist instructions, FAQ knowledge and caller intake questions.
-- Browser voice testing through LiveKit; bookings made during a test are real events in the selected provider calendar.
+- Optional legacy browser voice testing through LiveKit when explicitly configured. It is disabled for Retell-only deployments; bookings made through any connected live test can be real provider events.
 - Calendar month grid and daily agenda, including personal events from the owner's explicitly selected calendars.
 - Connected-account colors shared by every calendar from that account, with provider, account, and calendar names in the source legend.
 - Upcoming/ongoing bookings and Past appointments, classified by end time. Delete a past DeskRoute booking from either the daily agenda or Past appointments; its linked provider event and DeskRoute history are removed. Pending calendar reads are cancelled before updating every cached month.
@@ -37,7 +38,7 @@ Microsoft Calendar and basic Slack alerts are available under **Settings → Con
 - Calls, transcripts, summaries, optional recordings, questions awaiting answers and FAQ management.
 - Personal/team workspaces, a member dashboard with read-only call logs and appointment calendar, explicit email-bound invitations, owner/manager/member access and configurable teammate departments/availability.
 - Independent employees under **Settings → Employees**: manager editing, encrypted private transfer numbers, employee calendars/hours, Google/Microsoft account assignment, and direct or personal Cal.com booking policies. Locally implemented provider-backed fail-closed availability, signed Retell webhooks/functions, normalized calls, and direct booking/message fallback; see the [beginner-friendly Retell production setup](docs/ALI_RETELL_SETUP.md) and [implementation and verification limits](docs/RETELL_MVP_IMPLEMENTATION.md). Real telephone transfer and hosted acceptance remain unverified.
-- Browser handoff requests with recipient acceptance, manual inbox refresh and restricted LiveKit room tokens.
+- Optional legacy LiveKit browser handoff requests with recipient acceptance, manual inbox refresh and restricted room tokens; hidden when LiveKit is disabled.
 - Light/dark themes, profile details and loading indicators centered in the viewport or dashboard content area.
 
 On **2026-09-10**, Ali reported the two-Google-account test was successful. Detailed failure, revocation, cross-owner and simultaneous-booking acceptance are separate checks; a successful basic test does not establish production readiness.
@@ -68,7 +69,7 @@ Colors identify accounts, not appointment status. The legend remains present for
 
 ## Hosted operation
 
-Customers will use the deployed website without terminal commands. The repository can now deploy its Vite website and Hono API as one Vercel project; the persistent voice worker still needs a managed LiveKit deployment. This is not deployed yet. Follow the [step-by-step Vercel setup](docs/SETUP.md#10-deploy-the-website-and-api-to-vercel) and [running without local terminals](docs/VERCEL_FEASIBILITY.md#running-without-local-terminals).
+Customers will use the deployed website without terminal commands. The repository can deploy its Vite website and Hono API as one Vercel project. Retell hosts the conversation and telephone runtime and invokes DeskRoute's signed HTTPS routes, so the current pilot does not need a persistent voice-worker deployment. This is not deployed yet. Follow the [step-by-step Vercel setup](docs/SETUP.md#10-deploy-the-website-and-api-to-vercel), [Retell production setup](docs/ALI_RETELL_SETUP.md), and [running without local terminals](docs/VERCEL_FEASIBILITY.md#running-without-local-terminals).
 
 ## Run locally
 
@@ -110,10 +111,10 @@ Or use `pnpm dev` for all three. Do not start duplicate servers on the same port
 | Sign-in | Supabase Auth |
 | Calendar integrations | Google Calendar API + Microsoft Graph Calendar |
 | Team notifications | Slack selected-channel alerts; interactive transfer approval planned |
-| Voice worker | LiveKit Agents, configurable STT/LLM/TTS |
+| Voice runtime | Retell for the current US pilot; optional legacy LiveKit code remains disabled |
 | Recordings | Optional Cloudflare R2 |
-| Telephony | LiveKit SIP/phone-number integration; Mike's provider discovery and real-call acceptance pending |
-| Deployment target | Vercel website/API, separate persistent worker |
+| Telephony | Retell-managed US number for the first pilot; number purchase and real-call acceptance pending |
+| Deployment target | Vercel website/API + Retell hosted voice runtime; no DeskRoute persistent worker |
 
 Private records are scoped to the selected workspace and verified membership. Members can read the shared call-log summary and DeskRoute booking calendar; managers additionally access call transcripts/recordings and manage records/settings. Only the workspace owner manages calendar connections or views external personal event details. PostgreSQL RLS remains enabled, and Supabase's unused Data API stays disabled. Employee-owned availability sharing across companies remains pending.
 

@@ -19,6 +19,13 @@ it('checks owned live slots and books exactly once after reservation', async () 
  expect(m.getCalcomClient).toHaveBeenCalledWith('tenant', 'employee', 'connection'); expect(m.book).toHaveBeenCalledTimes(1);
  expect(m.reserveEmployeeAppointment.mock.invocationCallOrder[0]).toBeLessThan(m.book.mock.invocationCallOrder[0]);
 });
+it('propagates one aggregate deadline through Cal.com reads and the provider write', async () => {
+ const deadlineAt = Date.now() + 45_000;
+ expect(await bookEmployeeAppointment('tenant', input, undefined, deadlineAt)).toEqual({ status: 'confirmed', appointmentId: 'reservation' });
+ expect(m.eventTypes).toHaveBeenCalledWith(expect.any(AbortSignal));
+ expect(m.slots).toHaveBeenCalledWith(12, input.start, input.end, 'UTC', expect.any(AbortSignal));
+ expect(m.book).toHaveBeenCalledWith(expect.any(Object), expect.any(AbortSignal));
+});
 it('no contact is actionable without reservation', async () => { expect(await bookEmployeeAppointment('tenant', { ...input, callerEmail: undefined })).toMatchObject({ status: 'contact_required' }); expect(m.reserveEmployeeAppointment).not.toHaveBeenCalled(); });
 it('unowned connection fails closed', async () => { m.getCalcomClient.mockResolvedValue(null); expect(await checkEmployeeAvailability('tenant', input)).toEqual({ available: false, reason: 'provider_unknown' }); });
 it('requires the exact provider interval', async () => { m.slots.mockResolvedValue([{ start: input.start, end: '2026-09-14T10:30:00Z' }]); expect(await checkEmployeeAvailability('tenant', input)).toMatchObject({ available: false }); });

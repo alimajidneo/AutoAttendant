@@ -2,6 +2,7 @@ import { providerWriteError } from './provider-write-error.js';
 import type { CalendarAgendaEvent, CalendarOption } from "@receptionist/shared";
 
 const GOOGLE_CALENDAR_BASE = "https://www.googleapis.com/calendar/v3";
+const requestSignal = (signal?: AbortSignal) => signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000);
 
 export type BusyRange = { start: Date; end: Date };
 
@@ -15,14 +16,14 @@ export class CalendarScopeMissingError extends Error {
 
 /** Lists every visible calendar. Read-only calendars can block availability;
  * only writable ones may be selected as the booking destination. */
-export async function listCalendars(accessToken: string): Promise<Omit<CalendarOption, "connectionId" | "accountEmail" | "provider">[]> {
+export async function listCalendars(accessToken: string, signal?: AbortSignal): Promise<Omit<CalendarOption, "connectionId" | "accountEmail" | "provider">[]> {
   const calendars: Omit<CalendarOption, "connectionId" | "accountEmail" | "provider">[] = [];
   let pageToken: string | undefined;
   do {
     const params = new URLSearchParams({ maxResults: "250", fields: "nextPageToken,items(id,summary,timeZone,primary,accessRole)" });
     if (pageToken) params.set("pageToken", pageToken);
     const res = await fetch(`${GOOGLE_CALENDAR_BASE}/users/me/calendarList?${params}`, {
-      headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(10000),
+      headers: { Authorization: `Bearer ${accessToken}` }, signal: requestSignal(signal),
     });
     if (res.status === 401 || res.status === 403) throw new CalendarScopeMissingError();
     if (!res.ok) throw new Error(`[calendar] calendarList failed: ${res.status}`);
@@ -44,11 +45,12 @@ export async function fetchBusyRanges(
   accessToken: string,
   calendarId: string | readonly string[],
   timeMinIso: string,
-  timeMaxIso: string
+  timeMaxIso: string,
+  signal?: AbortSignal,
 ): Promise<BusyRange[]> {
   const res = await fetch(`${GOOGLE_CALENDAR_BASE}/freeBusy`, {
     method: "POST",
-    signal: AbortSignal.timeout(10000),
+    signal: requestSignal(signal),
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
@@ -100,13 +102,14 @@ export async function createCalendarEvent(
     endIso: string;
     timezone: string;
     description?: string;
-  }
+  },
+  signal?: AbortSignal,
 ): Promise<string> {
   const res = await fetch(
     `${GOOGLE_CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events`,
     {
       method: "POST",
-      signal: AbortSignal.timeout(10000),
+      signal: requestSignal(signal),
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",

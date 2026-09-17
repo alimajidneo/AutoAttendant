@@ -11,14 +11,14 @@ import {
 
 type EventInput = Parameters<typeof createCalendarEvent>[2];
 
-export const listProviderCalendars = (provider: CalendarProvider, token: string) =>
-  provider === "google" ? listCalendars(token) : listMicrosoftCalendars(token);
+export const listProviderCalendars = (provider: CalendarProvider, token: string, signal?: AbortSignal) =>
+  provider === "google" ? listCalendars(token, signal) : listMicrosoftCalendars(token, signal);
 
-export const fetchProviderBusyRanges = (provider: CalendarProvider, token: string, ids: string | readonly string[], min: string, max: string) =>
-  provider === "google" ? fetchBusyRanges(token, ids, min, max) : fetchMicrosoftBusyRanges(token, ids, min, max);
+export const fetchProviderBusyRanges = (provider: CalendarProvider, token: string, ids: string | readonly string[], min: string, max: string, signal?: AbortSignal) =>
+  provider === "google" ? fetchBusyRanges(token, ids, min, max, signal) : fetchMicrosoftBusyRanges(token, ids, min, max, signal);
 
-export const createProviderCalendarEvent = (provider: CalendarProvider, token: string, calendarId: string, event: EventInput) =>
-  provider === "google" ? createCalendarEvent(token, calendarId, event) : createMicrosoftCalendarEvent(token, calendarId, event);
+export const createProviderCalendarEvent = (provider: CalendarProvider, token: string, calendarId: string, event: EventInput, signal?: AbortSignal) =>
+  provider === "google" ? createCalendarEvent(token, calendarId, event, signal) : createMicrosoftCalendarEvent(token, calendarId, event, signal);
 
 export const deleteProviderCalendarEvent = (provider: CalendarProvider, token: string, calendarId: string, eventId: string) =>
   provider === "google" ? deleteCalendarEvent(token, calendarId, eventId) : deleteMicrosoftCalendarEvent(token, calendarId, eventId);

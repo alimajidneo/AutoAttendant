@@ -62,11 +62,11 @@ export class CalcomClient {
  private requireOAuthSetupWriteApproval() {
   if (!this.oauthSetupWritesApproved) throw new Error('Cal.com OAuth automatic provider writes are not approved');
  }
- private async request(path: string, version: string, body?: unknown, method = body === undefined ? 'GET' : 'POST'): Promise<unknown> {
+ private async request(path: string, version: string, body?: unknown, method = body === undefined ? 'GET' : 'POST', signal?: AbortSignal): Promise<unknown> {
   try {
    const response = await fetch(`${this.base.replace(/\/$/, '')}${path}`, { method, redirect: 'error',
     headers: { Authorization: `Bearer ${this.token}`, 'cal-api-version': version, 'Content-Type': 'application/json' },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(15000) });
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000) });
    if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
      await Promise.resolve(this.onUnauthorized?.()).catch(() => undefined);
@@ -85,8 +85,8 @@ export class CalcomClient {
   const value = z.object({ id: z.number().int().positive(), email: z.string().email().max(254), username: z.string().min(1).max(200) }).safeParse(await this.request('/me', '2024-06-14'));
   if (!value.success) throw unavailable(); return value.data;
  }
- async eventTypes() {
-  const value = z.array(calcomEventTypeSchema.passthrough()).max(1000).safeParse(await this.request('/event-types', '2024-06-14'));
+ async eventTypes(signal?: AbortSignal) {
+  const value = z.array(calcomEventTypeSchema.passthrough()).max(1000).safeParse(await this.request('/event-types', '2024-06-14', undefined, 'GET', signal));
   if (!value.success) throw unavailable();
   return value.data.flatMap(raw => {
    const parsed = schedulingSchema.safeParse(raw);
@@ -126,17 +126,17 @@ export class CalcomClient {
   this.requireOAuthSetupWriteApproval();
   await this.request(`/webhooks/${encodeURIComponent(z.string().min(1).max(200).parse(webhookId))}`, '2024-06-14', undefined, 'DELETE');
  }
- async slots(eventTypeId: number, start: string, end: string, timeZone: string) {
+ async slots(eventTypeId: number, start: string, end: string, timeZone: string, signal?: AbortSignal) {
   const query = new URLSearchParams({ eventTypeId: String(eventTypeId), start, end, timeZone, format: 'range' });
-  const parsed = z.record(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.array(range)).safeParse(await this.request(`/slots?${query}`, '2024-09-04'));
+  const parsed = z.record(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.array(range)).safeParse(await this.request(`/slots?${query}`, '2024-09-04', undefined, 'GET', signal));
   if (!parsed.success) throw unavailable(); return Object.values(parsed.data).flat();
  }
- async book(input: { start: string; eventTypeId: number; attendee: { name: string; timeZone: string; email?: string; phoneNumber?: string }; metadata: z.infer<typeof metadata> }) {
+ async book(input: { start: string; eventTypeId: number; attendee: { name: string; timeZone: string; email?: string; phoneNumber?: string }; metadata: z.infer<typeof metadata> }, signal?: AbortSignal) {
   const contact = calcomContact(input.attendee.email, input.attendee.phoneNumber);
   if (!contact) throw new Error('Valid caller contact required');
   const body = { start: new Date(input.start).toISOString(), eventTypeId: input.eventTypeId,
    attendee: { name: input.attendee.name, timeZone: input.attendee.timeZone, ...contact }, metadata: metadata.parse(input.metadata) };
-  const parsed = bookingSchema.safeParse(await this.request('/bookings', '2024-08-13', body));
+  const parsed = bookingSchema.safeParse(await this.request('/bookings', '2024-08-13', body, 'POST', signal));
   if (!parsed.success || Date.parse(parsed.data.start) !== Date.parse(body.start) || (parsed.data.eventType?.id ?? parsed.data.eventTypeId) !== body.eventTypeId) throw unavailable();
   return parsed.data;
  }

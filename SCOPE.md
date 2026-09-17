@@ -1,20 +1,20 @@
-> **Current scope (2026-09-11):** [Delivery roadmap](docs/ROADMAP.md) — Google multi-account calendars, company workspaces and a privacy-scoped member dashboard are implemented. Employee-owned calendar availability, live Microsoft acceptance and telephone routing remain.
+> **Current scope (2026-09-17):** [Delivery roadmap](docs/ROADMAP.md) — the immediate pilot is Retell-only with USA numbers and US transfer destinations. Pakistan/international routes, custom SIP, LiveKit deployment and number purchase are deferred.
 
 # Receptionist for USA customer handover
 
 Active implementation scope from the updated 2026-09-08 daily work plan, especially sections 2A and 2B. The user’s later customer-handover requirements below supersede personal-use language and the earlier Clerk decision.
 
-- Deliver a configurable receptionist for a customer in the USA. Browser voice is an early test milestone; reliable US telephone operation and hosted operation are required before handover. No developer-specific identity, calendar, timezone, or routing is embedded in the product.
-- Use Supabase for PostgreSQL, existing Drizzle repositories, Supabase Auth, and LiveKit Cloud Build. Run the worker locally during development and deploy it to LiveKit Cloud for hosted operation.
-- Target Vercel Pro for the eventual customer-facing web application and compatible API endpoints. Keep the persistent LiveKit voice worker outside Vercel.
-- Keep testing within available free allowances. No phone purchase, paid upgrade, or carrier traffic is needed for the first milestone. Model inference consumes credits even when transport has a free allowance.
+- Deliver a configurable receptionist for a customer in the USA. Retell text/web testing is a pre-telephone milestone; reliable US telephone operation and hosted operation are required before handover. No developer-specific identity, calendar, timezone, or routing is embedded in the product.
+- Use Supabase for PostgreSQL/Auth, the existing Drizzle repositories, and Retell for hosted conversation/telephony. LiveKit remains optional legacy code and is not deployed for this pilot.
+- Target Vercel Pro for the customer-facing web application and request-scoped HTTP API. Retell calls the signed DeskRoute routes; no persistent application worker is required.
+- Do not assume provider simulation or web calls are free. Under a zero-cost instruction, run only local mocked/disposable tests until the provider dashboard proves a free allowance or Ali approves spend.
 - Preserve the existing working UI and voice safeguards. Extend the existing application rather than replace its architecture.
 - Direct Google and Microsoft account connections, mixed-provider conflict checks, and selected-channel Slack alerts are implemented. Microsoft/Slack live acceptance and Slack transfer approval remain.
-- Decide telephone routing after checking the US customer's existing number, forwarding support, and costs. Twilio and Telnyx remain candidates for that later step.
+- Start with one Retell-managed US local number after Ali separately approves purchase. Twilio/Telnyx SIP and international routes are later options, not first-pilot dependencies.
 
 ## First milestone acceptance
 
-An authenticated owner can finish setup without buying a number, persist settings in Supabase, and reload those settings after restarting the API. A browser conversation can find and book an available meeting in a dedicated test calendar, with matching database and calendar records. Calendar failures must not be presented as successful bookings or cancellations.
+An authenticated owner can finish setup without buying a number, persist settings in Supabase, and reload those settings after restarting the API. A Retell draft can find and book an available meeting through signed DeskRoute functions in an isolated authorized environment, with matching database and calendar records. Calendar failures must not be presented as successful bookings or cancellations. Retell web calls may be metered and transfer itself requires a real telephone call.
 
 ## Current boundary
 

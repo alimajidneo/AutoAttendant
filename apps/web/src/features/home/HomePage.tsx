@@ -16,6 +16,7 @@ import { SetupChecklist, SetupBanner } from './SetupChecklist'
 import { setupItems } from './setup-items'
 import { useAuth } from '@/features/auth/useAuth'
 import { useAgentZone } from '@/hooks/useAgentZone'
+import { livekitBrowserControlsEnabled } from '@/lib/livekit'
 import { MemberHomePage } from '@/features/workspaces/MemberHomePage'
 
 function isPeriod(v: string | null): v is Period {
@@ -82,7 +83,7 @@ function ManagerHomePage() {
       <PageHeader
         className="mb-8"
         title={`${greeting}${name ? `, ${name}` : ''}`}
-        actions={<TestAgentControl />}
+        actions={livekitBrowserControlsEnabled ? <TestAgentControl /> : undefined}
         description={
           <>
             Here’s what {s.agent.name || 'your receptionist'} has handled for {s.business.name}.

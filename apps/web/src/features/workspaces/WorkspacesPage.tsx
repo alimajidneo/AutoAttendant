@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { apiClient, openWorkspace } from '@/lib/apiClient'
 import { useAuth } from '@/features/auth/useAuth'
 import { keys, fetchers } from '@/lib/queries'
+import { browserTransferUi } from '@/lib/livekit'
 import { TransferInbox } from './TransferInbox'
 
 type Workspace = { id: string; name: string; kind: 'personal' | 'team'; role: 'manager' | 'member'; ownerUserId: string; userId: string }
@@ -37,7 +38,7 @@ function MemberEditor({ member, workspace, employees, linkedEmployeeIds, refresh
     setBusy(true)
     try {
       await apiClient.patch(`/workspaces/${workspace.id}/members/${encodeURIComponent(member.userId)}`, {
-        displayName: name, department, available, ...(canChangeRole ? { role } : {}),
+        displayName: name, department, ...(browserTransferUi ? { available } : {}), ...(canChangeRole ? { role } : {}),
         ...(workspace.role === 'manager' ? { employeeId: employeeId || null } : {}),
       })
       refresh(); toast.success('Member settings saved')
@@ -63,10 +64,10 @@ function MemberEditor({ member, workspace, employees, linkedEmployeeIds, refresh
     </div>
     {canEdit ? <>
       <div className="grid gap-3 sm:grid-cols-2"><label htmlFor={`member-name-${member.userId}`} className="grid gap-1 text-sm">Name callers can ask for<Input id={`member-name-${member.userId}`} value={name} maxLength={80} onChange={e => setName(e.target.value)} /></label><label htmlFor={`member-department-${member.userId}`} className="grid gap-1 text-sm">Department<Input id={`member-department-${member.userId}`} value={department} maxLength={80} onChange={e => setDepartment(e.target.value)} /></label></div>
-      <label className="flex items-center gap-2 rounded-lg bg-sunk-1 p-3 text-sm font-medium"><input type="checkbox" checked={available} onChange={e => setAvailable(e.target.checked)} />Available for browser transfers</label>
+      {browserTransferUi && <label className="flex items-center gap-2 rounded-lg bg-sunk-1 p-3 text-sm font-medium"><input type="checkbox" checked={available} onChange={e => setAvailable(e.target.checked)} />{browserTransferUi.editorLabel}</label>}
       {workspace.role === 'manager' && <label className="grid gap-1 text-sm">Employee self-service link<select className="rounded-lg border border-border bg-card p-2" value={employeeId} onChange={e => setEmployeeId(e.target.value)}><option value="">Not linked</option>{employees.map(employee => <option key={employee.id} value={employee.id} disabled={employee.id !== member.employeeId && linkedEmployeeIds.includes(employee.id)}>{employee.displayName}</option>)}</select><span className="text-muted-foreground">This explicit link controls whose private Cal.com setup this member can access.</span></label>}
       <div className="flex flex-wrap items-center gap-3">{canChangeRole && <label className="flex items-center gap-2 text-sm">Role<select className="rounded-lg border border-border bg-card p-2" value={role} onChange={e => setRole(e.target.value as Member['role'])}><option value="member">Member</option><option value="manager">Manager</option></select></label>}<Button disabled={busy || !name.trim()} onClick={() => void save()}>Save</Button>{canChangeRole && <Button variant="ghost" disabled={busy} onClick={() => void remove()}>Remove member</Button>}</div>
-    </> : <p className="text-sm text-muted-foreground">{member.department || 'No department'} · {member.available ? 'Available for transfers' : 'Unavailable'}</p>}
+    </> : <p className="text-sm text-muted-foreground">{member.department || 'No department'}{browserTransferUi ? ` · ${member.available ? browserTransferUi.metricLabel : 'Unavailable'}` : ''}</p>}
   </div>
 }
 
@@ -99,9 +100,9 @@ function WorkspaceDetails({ workspace }: { workspace: Workspace }) {
     <section className={panel}><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">{workspace.name}</h2><p className="mt-1 text-sm text-muted-foreground">{workspace.kind === 'personal' ? 'Private workspace for your own receptionist.' : 'Shared receptionist. Members can read calls and appointments; managers control settings and records.'}</p></div><Button onClick={() => openWorkspace(workspace.id)}>Open dashboard<ArrowRight /></Button></div>
       <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"><ShieldCheck className="size-4 shrink-0" />Calendar connections and personal event details are visible only to the owner.</p>
     </section>
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className={`grid gap-3 ${browserTransferUi ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
       <article className={panel}><Users className="size-5 text-primary" /><p className="mt-3 text-sm text-muted-foreground">People</p><p className="mt-1 text-2xl font-bold">{team.length || '—'}</p></article>
-      <article className={panel}><CircleCheck className="size-5 text-primary" /><p className="mt-3 text-sm text-muted-foreground">Available for transfers</p><p className="mt-1 text-2xl font-bold">{available}</p></article>
+      {browserTransferUi && <article className={panel}><CircleCheck className="size-5 text-primary" /><p className="mt-3 text-sm text-muted-foreground">{browserTransferUi.metricLabel}</p><p className="mt-1 text-2xl font-bold">{available}</p></article>}
       <article className={panel}><CalendarDays className="size-5 text-primary" /><p className="mt-3 text-sm text-muted-foreground">Calendar accounts</p><p className="mt-1 text-2xl font-bold">{owner ? calendars.data?.connections.length ?? '—' : 'Private'}</p></article>
     </div>
     <section className={panel}><h2 className="mb-4 text-lg font-semibold">People & routing</h2>{members.isPending ? <p>Loading members…</p> : members.isError ? <p>Could not load members. <Button variant="ghost" onClick={refresh}>Retry</Button></p> : <div className="grid gap-3">{members.data.map(member => <MemberEditor key={`${member.userId}:${member.employeeId}:${member.displayName}:${member.department}:${member.available}:${member.role}`} member={member} workspace={workspace} employees={employees.data ?? []} linkedEmployeeIds={members.data.flatMap(item => item.employeeId ? [item.employeeId] : [])} refresh={refresh} />)}</div>}</section>
@@ -116,7 +117,7 @@ function WorkspaceDetails({ workspace }: { workspace: Workspace }) {
       {code && <div className="mt-4 rounded-xl bg-sunk-1 p-4"><label htmlFor="created-code" className="grid gap-2 text-sm">Invitation code — copy and share privately<Input id="created-code" readOnly value={code} onFocus={e => e.target.select()} /></label><p className="mt-2 text-sm text-muted-foreground">Your teammate signs in, opens Workspaces, and pastes this under Join a workspace.</p></div>}
       {invites.isError && <p className="mt-3 text-sm text-destructive">Could not load invitations.</p>}{invites.data?.map(item => <div key={item.id} className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm"><span>{item.email} · {item.role}</span><Button variant="ghost" disabled={busy} onClick={() => void revoke(item.id)}>Revoke</Button></div>)}
     </section>}
-    <TransferInbox />
+    {browserTransferUi && <TransferInbox />}
   </div>
 }
 

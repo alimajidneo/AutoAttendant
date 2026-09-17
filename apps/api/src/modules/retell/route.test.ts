@@ -32,7 +32,7 @@ beforeEach(() => {
   m.bookEmployeeAppointment.mockResolvedValue({ status: 'confirmed', appointmentId: id });
 });
 it('fails 401 before JSON parsing or any repository/provider work for every public route', async () => {
-  for (const path of ['webhook', ...['lookup-employee', 'check-availability', 'resolve-transfer', 'book-appointment'].map(x => `functions/${x}`)]) {
+  for (const path of ['webhook', ...['lookup-employee', 'check-availability', 'resolve-transfer', 'book-appointment', 'save-message'].map(x => `functions/${x}`)]) {
     expect((await signed(path, '{', 'bad')).status).toBe(401);
   }
   expect(m.resolveRetellWorkspace).not.toHaveBeenCalled(); expect(m.ingestRetellEvent).not.toHaveBeenCalled();
@@ -80,7 +80,28 @@ it('returns only eligible protected transfer destinations and does not place cal
 it('looks up employees and books with bounded disclosed fields', async () => {
   expect((await signed('functions/lookup-employee', { call, args: { name: 'Sam', department: 'Sales' } })).status).toBe(200);
   expect(m.lookupEmployees).toHaveBeenCalledWith('workspace', { name: 'Sam', department: 'Sales' });
-  expect(await (await signed('functions/book-appointment', { call, args: { ...range, callerName: 'Caller' } })).json()).toEqual({ status: 'confirmed', appointmentId: id });
+  expect(await (await signed('functions/book-appointment', { call, args: { ...range, callerName: 'Caller', caller_confirmed: true } })).json()).toEqual({ status: 'confirmed', appointmentId: id });
+});
+it('passes one request deadline safely below the Vercel function limit into booking', async () => {
+  const startedAt = Date.now();
+  await signed('functions/book-appointment', { call, args: { ...range, callerName: 'Caller', caller_confirmed: true } });
+  const deadlineAt = m.bookEmployeeAppointment.mock.calls[0]?.[3];
+  expect(deadlineAt).toEqual(expect.any(Number));
+  expect(deadlineAt - startedAt).toBeGreaterThanOrEqual(44_000);
+  expect(deadlineAt - startedAt).toBeLessThan(60_000);
+});
+it('returns a conservative result when workspace resolution consumes the whole booking request budget', async () => {
+  vi.useFakeTimers();
+  try {
+    m.resolveRetellWorkspace.mockImplementation(() => new Promise(() => undefined));
+    const response = signed('functions/book-appointment', { call, args: { ...range, callerName: 'Caller', caller_confirmed: true } });
+    await vi.advanceTimersByTimeAsync(45_001);
+    expect(await (await response).json()).toEqual({ status: 'unknown', reason: 'request_deadline_exceeded' });
+    expect(m.runRetellFunction).not.toHaveBeenCalled();
+    expect(m.bookEmployeeAppointment).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 it('requires manager auth for settings and returns only key readiness', async () => {
   expect((await app.request('/api/admin/retell')).status).toBe(401);
@@ -107,11 +128,15 @@ it.each(['outside_hours', 'provider_unknown', 'provider_busy'])('never decrypts 
 });
 it('validates save-message and delegates semantic identity to the transactional repository', async () => {
   m.saveRetellMessage.mockResolvedValue({ saved: true, messageId: id });
-  const payload = { call, args: { message: 'Please call back', callerPhone: '+14155550123' }, tool_call_id: 'message-1' };
+  const payload = { call, args: { message: 'Please call back', callerPhone: '+14155550123', caller_confirmed: true }, tool_call_id: 'message-1' };
   expect(await (await signed('functions/save-message', payload)).json()).toEqual({ saved: true, messageId: id });
-  expect(m.saveRetellMessage).toHaveBeenCalledWith('workspace', 'agent_a', 'call_a', payload.args, expect.stringMatching(/^[a-f0-9]{64}$/), 'message-1');
+  expect(m.saveRetellMessage).toHaveBeenCalledWith('workspace', 'agent_a', 'call_a', { message: 'Please call back', callerPhone: '+14155550123' }, expect.stringMatching(/^[a-f0-9]{64}$/), 'message-1');
   expect(m.runRetellFunction).not.toHaveBeenCalled();
   for (const args of [{ message: '' }, { message: 'x'.repeat(1001) }, { message: 'x', callerPhone: '123' }, { message: 'x', extra: true }]) expect((await signed('functions/save-message', { call, args })).status).toBe(400);
+});
+it.each([{ message: 'Please call back' }, { message: 'Please call back', caller_confirmed: false }])('does not save an unconfirmed message %j', async args => {
+  expect(await (await signed('functions/save-message', { call, args })).json()).toMatchObject({ saved: false, status: 'confirmation_required' });
+  expect(m.saveRetellMessage).not.toHaveBeenCalled();
 });
 it('allows disabled pending saves but rejects mismatched activation pairs without a write', async () => {
   m.saveRetellConnection.mockResolvedValue(true); env.RETELL_AGENT_ID = 'different';
@@ -145,7 +170,7 @@ it('passes Cal contact and explicit confirmation aliases without announcing non-
  m.bookEmployeeAppointment.mockResolvedValue({ status: 'contact_required', reason: 'Ask for valid contact' });
  const response = await signed('functions/book-appointment', { call, args: { ...range, callerName: 'Caller', caller_email: 'caller@example.test', caller_phone: '+14155550123', caller_confirmed: true } });
  expect(await response.json()).toMatchObject({ status: 'contact_required' });
- expect(m.bookEmployeeAppointment).toHaveBeenCalledWith('workspace', expect.objectContaining({ callerEmail: 'caller@example.test', callerPhone: '+14155550123', callerConfirmed: true }), 'invocation-key');
+ expect(m.bookEmployeeAppointment).toHaveBeenCalledWith('workspace', expect.objectContaining({ callerEmail: 'caller@example.test', callerPhone: '+14155550123', callerConfirmed: true }), 'invocation-key', expect.any(Number));
  expect(m.markRetellCallOutcome).not.toHaveBeenCalled();
 });
 
@@ -177,7 +202,7 @@ it('normalizes all semantic text to NFC before validation and hashes composed/de
  await signed('functions/lookup-employee', { call, args: { name: 'José'.normalize('NFD'), department: 'Résumé'.normalize('NFD') } });
  expect(m.lookupEmployees).toHaveBeenCalledWith('workspace', { name: 'José', department: 'Résumé' });
  m.saveRetellMessage.mockResolvedValue({ saved: true, messageId: id });
- await signed('functions/save-message', { call, args: { message: 'é'.repeat(1000).normalize('NFD'), callerName: 'José'.normalize('NFD') } });
+ await signed('functions/save-message', { call, args: { message: 'é'.repeat(1000).normalize('NFD'), callerName: 'José'.normalize('NFD'), caller_confirmed: true } });
  expect(m.saveRetellMessage).toHaveBeenCalledWith('workspace', 'agent_a', 'call_a', { message: 'é'.repeat(1000), callerName: 'José' }, expect.any(String), undefined);
 });
 it.each([{ tool_call_id: '' }, { tool_call_id: 'x'.repeat(201) }, { tool_call_id: 'a', invocation_id: 'b' }])('rejects invalid or conflicting invocation identity %j', async identity => {

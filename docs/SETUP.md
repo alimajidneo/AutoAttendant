@@ -1,4 +1,4 @@
-> **Deployment update (2026-09-11):** Version 1.0.28 adds the Vercel website/API entrypoint and routing. Follow section 10 to import the GitHub repository, add hosted environment values, and register the stable HTTPS callbacks. The persistent voice worker is deployed separately.
+> **Deployment update (2026-09-17):** The current USA pilot uses Retell for voice and telephony. Vercel hosts the website/API; no persistent DeskRoute voice worker is deployed. Leave `LIVEKIT_*` and `VITE_LIVEKIT_ENABLED` unset. Follow section 10 only after explicit deployment/migration approval; follow [the Retell production guide](ALI_RETELL_SETUP.md) for signed functions, webhooks and the later US number gate.
 
 > **Current work (2026-09-09):** Follow [ROADMAP.md](ROADMAP.md) for the agreed calendar-first scope and [CALENDAR_TESTING.md](CALENDAR_TESTING.md) for the multiple-account acceptance steps. Google connection setup now uses a short-lived HttpOnly browser cookie and PKCE; restart the API and voice worker after updating, then start a fresh connection from DeskRoute. No new credentials or database migration are required by this hardening batch.
 
@@ -45,7 +45,7 @@ The Google client secret is stored in Supabase, not this document. No billing ac
 
 The broad `calendar` scope was not saved. The narrower scope set above is configured and supports the current event listing, creation, and deletion behavior. Scope declaration alone does not authorize access to anyone's calendar.
 
-Remaining: deploy the web/API, move the voice worker to LiveKit Cloud, complete Google production OAuth readiness, and select and verify US telephone routing. Existing setup steps below are reference instructions; do not create duplicate OAuth clients or projects.
+Remaining: deploy the web/API, complete provider production OAuth readiness, configure the draft Retell agent, and later purchase/verify one US number. Existing LiveKit setup steps below are legacy-reference instructions; do not create a LiveKit project for the Retell-only pilot.
 
 ### Google accounts during testing and production
 
@@ -69,11 +69,11 @@ The deployment operator performs this work. Customers should only choose **Conti
 | --- | --- | --- |
 | Google OAuth and Calendar API | No current bill; Google billing is disabled on `deskroute-dev`. Standard Calendar API use under the published threshold has no additional charge. | Monitor Google's quota and pricing notices before launch. |
 | Supabase | Free plan: $0 while within its included database, active-user, storage, and bandwidth limits. Free projects can pause after inactivity and do not include production backup guarantees. | Pro currently starts at $25/month and includes daily backups and a Micro compute credit. |
-| LiveKit | Build plan is $0/month and currently includes $2.50 of inference credit. Voice tests consume that credit even when the invoice remains $0. | Ship currently starts at $50/month. Inference, agent sessions, telephony, recordings, and data transfer are metered. |
-| Vercel | Not deployed, therefore currently $0 for this project. | The intended Pro plan currently has a $20/month platform fee with $20 of usage credit for one deploying seat; excess usage is metered. |
-| Telephone carrier | Not connected, therefore currently $0. | A US number, inbound minutes, transfer call legs, SMS, recording, and taxes can add separate charges. Select the carrier after the VoIP discovery test. |
+| Retell | No DeskRoute browser or telephone call has been started. | Agent, knowledge-base and managed-US telephony minutes are metered. The configured GPT 5.6 Luna agent is `$0.076/min`; confirm all other current account rates before the first call. |
+| Vercel | The project exists but has no deployment or installed application environment values. | Confirm the account's included usage and spending controls before deployment; do not add a paid seat or add-on for the pilot. |
+| Telephone number | No number has been purchased or attached. | Use one Retell-managed US number after explicit approval; number rental, inbound minutes, transfer call legs, recording and taxes may be charged separately. |
 
-The current voice pipeline uses GPT-4.1 mini, AssemblyAI Universal-3.5 Pro Streaming, and Cartesia Sonic 3.5 through LiveKit Inference. At current published Build/Ship list prices, those components total roughly `$0.039/minute` of conversational inference before the small summary-model usage, media, recording, or telephone costs. Treat this as a planning estimate; the LiveKit usage dashboard is the billing record.
+The first USA pilot uses Retell-managed voice and telephony. DeskRoute supplies signed business tools and keeps all calendar credentials server-side. LiveKit remains optional and unconfigured; it is not part of the release cost path.
 
 ## Delivery requirements
 
@@ -88,7 +88,7 @@ This guide contains no invented credentials or proposed environment variables. R
 
 ### Latest code verification
 
-Latest automated result before the Vercel deployment adapter: 261 unit/API/voice tests and 44 disposable PostgreSQL integration tests pass. Typecheck, lint, and production build pass. The complete migration chain passed locally. Web tests remain 61 passing with the same five pre-existing design-contract failures. Live Microsoft and Slack acceptance remains. Real Google sign-in, two Google accounts, browser voice, and a Calendar booking were manually verified earlier.
+Use [US_RETELL_DEPLOYMENT_GATE.md](US_RETELL_DEPLOYMENT_GATE.md) for the current release evidence and blockers. Historical counts in older reports do not approve the current tree; the exact final tree must pass unit, web, PostgreSQL integration, typecheck, lint, build, bundled-API smoke, migration and secret gates before deployment.
 
 ## 1. Find and edit the environment files
 
@@ -269,9 +269,9 @@ For customer deployment, use customer-approved project credentials and HTTPS ori
 
 **Checkpoint:** after the migration and startup below, Google sign-in returns to DeskRoute onboarding. Calendar permissions are requested later under Settings → Connections; Google login alone does not connect Calendar.
 
-## 4. Create LiveKit and save the voice credentials
+## 4. Optional legacy LiveKit setup — skip for the Retell-only pilot
 
-The API currently requires LiveKit credentials even before the voice worker starts.
+The API no longer requires LiveKit credentials. For the current Retell-only deployment, leave `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, and `VITE_LIVEKIT_ENABLED` unset and continue to section 5. The steps below are retained only for deliberate legacy browser-handoff development and may consume provider credits.
 
 1. Open [LiveKit Cloud](https://cloud.livekit.io/) and create an account.
 2. Create a project named `deskroute-dev` on the free **Build** plan.
@@ -514,7 +514,7 @@ For production, add the deployed HTTPS Slack callback, update `PUBLIC_API_URL`, 
 
 Use GitHub integration for this deployment. Vercel will build the committed repository and automatically deploy later pushes to `main`. Use a Neodym-owned Vercel team for a durable staging or customer deployment. A personal Vercel account is acceptable for a temporary colleague test, but transfer the project to the intended business owner before customer handover.
 
-The repository already contains `vercel.json` and `api/index.ts`. Vercel hosts the Vite website and short Hono API requests. It does not host the persistent LiveKit voice worker.
+The repository already contains `vercel.json`, the checked `serverless/index.ts` source, and the thin `api/index.mjs` Vercel entry. `pnpm build` strictly typechecks the monorepo and bundles internal TypeScript workspace code into the ignored `.vercel-build/api.mjs` runtime artifact before Vercel traces the function. Vercel hosts the Vite website and short Hono API requests. Retell hosts the conversation/telephone runtime and calls the signed API routes.
 
 ### 10A. Import the GitHub repository
 
@@ -540,9 +540,6 @@ Add these variables to **Production**:
 | --- | --- |
 | `DATABASE_URL` | Supabase **Connect → Transaction pooler** URI on port 6543. Insert the real database password and URL-encode reserved password characters. |
 | `DATABASE_POOL_MAX` | Enter `1` for the Vercel function. |
-| `LIVEKIT_URL` | Copy the existing project URL from `apps/api/.env`. |
-| `LIVEKIT_API_KEY` | Copy the existing LiveKit API key from `apps/api/.env`. |
-| `LIVEKIT_API_SECRET` | Copy the existing LiveKit API secret from `apps/api/.env`. |
 | `SUPABASE_URL` | Copy the existing Supabase project URL from `apps/api/.env`. |
 | `SUPABASE_PUBLISHABLE_KEY` | Copy the existing Supabase publishable key from `apps/api/.env`. |
 | `VITE_SUPABASE_URL` | Use the same Supabase project URL. This value is intentionally browser-visible. |
@@ -550,6 +547,9 @@ Add these variables to **Production**:
 | `GOOGLE_CLIENT_ID` | Copy the existing Google OAuth web-client ID from `apps/api/.env`. |
 | `GOOGLE_CLIENT_SECRET` | Copy the current Google OAuth client secret from `apps/api/.env`. |
 | `TOKEN_ENCRYPTION_KEY` | Copy the existing 64-character key from `apps/api/.env`; changing it would make stored provider tokens unreadable. |
+| `RETELL_API_KEY` | Install the approved Retell webhook-signing key server-side only. |
+| `RETELL_AGENT_ID` | Exact approved draft/production-candidate Retell agent ID. |
+| `RETELL_WORKSPACE_ID` | Exact DeskRoute workspace UUID bound to that agent; this is not a Retell workspace ID. |
 
 Leave `VITE_API_URL` unset. Production uses same-origin `/api`, which avoids a separate API domain and routine browser preflight requests.
 
@@ -585,8 +585,8 @@ Complete these steps using the exact production URL copied from Vercel:
 3. Connect a Google test account, select its calendars, and verify events and availability.
 4. Create and delete a DeskRoute appointment and confirm the linked Google event follows it.
 5. Invite the colleague and have them accept in their own DeskRoute account. Verify they see member-safe calls and the shared DeskRoute calendar without owner-only external event details.
-6. For an immediate browser voice test, keep `pnpm dev:voice` running on the development computer with the same LiveKit and database configuration. The worker makes an outbound connection, so the colleague can use the hosted browser while it runs.
-7. Deploy `apps/voice` to LiveKit Cloud before testing without the development computer. The website/API deployment alone cannot answer a voice session.
+6. Configure the versioned Retell draft with the deployed signed custom-function and webhook URLs from [ALI_RETELL_SETUP.md](ALI_RETELL_SETUP.md).
+7. Run Retell text simulation or a web call only after confirming the account action is free or receiving explicit spend approval. A web call can test conversation/tool behavior but cannot test telephone transfer.
 
 Git pushes to `main` will create later production deployments automatically. Check Vercel's deployment logs after each push. Use a branch/preview only after its data and OAuth callback policy is defined.
 

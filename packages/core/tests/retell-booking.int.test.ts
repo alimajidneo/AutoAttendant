@@ -20,7 +20,7 @@ async function fixture() {
   const ref = { connectionId: c.id, calendarId: 'book' };
   await saveEmployeePolicy(a, e.id, { authority: 'direct', booking: ref, conflicts: [ref] });
   m.getCalendarCredential.mockResolvedValue({ provider: 'google', token: 'mock', connectionId: c.id });
-  return { a, input: { employeeId: e.id, start: '2026-09-14T10:00:00Z', end: '2026-09-14T11:00:00Z', callerName: 'Caller' } };
+  return { a, input: { employeeId: e.id, start: '2026-09-14T10:00:00Z', end: '2026-09-14T11:00:00Z', callerName: 'Caller', callerConfirmed: true } };
 }
 it('keeps ambiguous failures unconfirmed and blocks a repeated write to the same slot', async () => {
   const { a, input } = await fixture(); m.createProviderCalendarEvent.mockRejectedValue(new Error('MOCK PROVIDER ERROR'));

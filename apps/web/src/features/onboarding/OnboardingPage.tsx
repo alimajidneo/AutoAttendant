@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { IndustryPicker } from './IndustryPicker'
+import { livekitBrowserControlsEnabled } from '@/lib/livekit'
+import { onboardingIntro, onboardingVoiceNote } from './copy'
 
 /** Every zone the platform knows. The backend validates against the same list. */
 const TIMEZONES: string[] = Intl.supportedValuesOf('timeZone')
@@ -69,7 +71,7 @@ export default function OnboardingPage() {
             Set up your receptionist
           </h1>
           <p className="mt-1 text-md text-muted-foreground">
-            Set up your assistant, then try a conversation in your browser.
+            {onboardingIntro(livekitBrowserControlsEnabled)}
           </p>
         </div>
 
@@ -131,7 +133,7 @@ export default function OnboardingPage() {
             {submitting ? 'Setting up…' : 'Finish setup'}
           </Button>
           <span className="text-muted-foreground">
-            No phone number is purchased. Voice tests use your LiveKit credits.
+            {onboardingVoiceNote(livekitBrowserControlsEnabled)}
           </span>
         </div>
       </div>

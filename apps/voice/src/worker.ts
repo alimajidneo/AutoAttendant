@@ -8,7 +8,7 @@ import {
 } from "@livekit/agents";
 import { installBrowserHandoff } from "./session/browser-handoff.js";
 import { RoomServiceClient } from "livekit-server-sdk";
-import { env as coreEnv } from "@receptionist/core/env.js";
+import { livekitConfig } from "@receptionist/core/env.js";
 import { transferDirectory, requestBrowserTransfer, connectTransfer, endTransfer } from "@receptionist/core/repositories/transfers.js";
 import * as silero from "@livekit/agents-plugin-silero";
 import { fileURLToPath } from "node:url";
@@ -54,6 +54,8 @@ export default defineAgent({
   },
 
   entry: async (ctx: JobContext) => {
+    const livekit = livekitConfig();
+    if (!livekit) throw new Error("LiveKit is not configured");
     // Connect + wait for participant (SIP caller or browser test session)
     await ctx.connect();
     const roomName = ctx.room.name ?? "";
@@ -150,7 +152,7 @@ export default defineAgent({
       room: ctx.room,
       callerIdentity: participant.identity,
       authorize: (id, userId) => connectTransfer(agent.id, roomName, id, userId),
-      removeRecipient: identity => new RoomServiceClient(coreEnv.LIVEKIT_URL, coreEnv.LIVEKIT_API_KEY, coreEnv.LIVEKIT_API_SECRET)
+      removeRecipient: identity => new RoomServiceClient(livekit.url, livekit.apiKey, livekit.apiSecret)
         .removeParticipant(roomName, identity),
       shutdownAgent: () => { handedOff = true; session.shutdown({ drain: true }); },
       callerLeft: () => endTransfer(agent.id, roomName),

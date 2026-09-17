@@ -1,17 +1,21 @@
 {
   "name": "deskroute",
-  "version": "1.0.29",
+  "version": "1.0.30",
   "private": true,
   "packageManager": "pnpm@10.34.5",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "concurrently --names \"api,voice,web\" --prefix-colors \"cyan,yellow,magenta\" --kill-others \"pnpm -F api dev\" \"pnpm -F voice dev\" \"pnpm -F web dev\"",
     "dev:api": "pnpm -F api dev",
     "dev:voice": "pnpm -F voice dev",
     "dev:web": "pnpm -F web dev",
-    "build": "pnpm -F web build",
-    "typecheck": "pnpm -r typecheck && pnpm -F api exec tsc -p ../../api/tsconfig.json --noEmit",
+    "build": "pnpm typecheck && pnpm build:api && pnpm -F web build",
+    "build:api": "node scripts/build-vercel-api.mjs",
+    "smoke:vercel-api": "node scripts/smoke-vercel-api.mjs",
+    "typecheck": "pnpm -r typecheck && pnpm exec tsc -p tsconfig.json --noEmit",
     "lint": "pnpm -F web lint",
     "test": "vitest run --project unit",
     "test:int": "DATABASE_URL=postgresql://deskroute:deskroute@localhost:5433/deskroute_test pnpm -F @receptionist/core exec node tests/prepare-db.mjs && DATABASE_URL=postgresql://deskroute:deskroute@localhost:5433/deskroute_test pnpm -F @receptionist/core exec drizzle-kit migrate && vitest run --project int",
@@ -27,6 +31,7 @@
     "concurrently": "9.2.1",
     "dotenv-cli": "10.0.0",
     "drizzle-orm": "0.45.2",
+    "esbuild": "0.28.0",
     "typescript": "5.9.3",
     "vitest": "4.1.10"
   }

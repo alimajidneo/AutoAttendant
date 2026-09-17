@@ -24,7 +24,7 @@ it('groups and deduplicates selected calendars, checks once per connection and r
   expect(result).toEqual({ available: true, reason: 'available' });
   expect(m.getCalendarCredential).toHaveBeenCalledTimes(2);
   expect(m.fetchProviderBusyRanges).toHaveBeenCalledTimes(2);
-  expect(m.fetchProviderBusyRanges).toHaveBeenCalledWith('google', 'SECRET', ['private', 'book'], input.start, input.end);
+  expect(m.fetchProviderBusyRanges).toHaveBeenCalledWith('google', 'SECRET', ['private', 'book'], input.start, input.end, undefined);
   expect(JSON.stringify(result)).not.toMatch(/SECRET|private|token/);
 });
 it.each([
@@ -60,22 +60,48 @@ it('hands Cal.com authority back without claiming free or writing', async () => 
   expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller' })).toEqual({ status: 'use_calcom', eventType: 'sam/intro', bookingUrl: 'https://cal.com/sam/intro' });
   expect(m.getCalendarCredential).not.toHaveBeenCalled(); expect(m.reserveEmployeeAppointment).not.toHaveBeenCalled();
 });
+it('requires explicit caller confirmation before a direct Google or Microsoft write', async () => {
+  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller' })).toEqual({
+    status: 'confirmation_required',
+    reason: 'Ask the caller to explicitly confirm the employee, time, and contact details before booking.',
+  });
+  expect(m.reserveEmployeeAppointment).not.toHaveBeenCalled();
+  expect(m.createProviderCalendarEvent).not.toHaveBeenCalled();
+});
 it('rechecks availability, reserves before one write, and confirms only after provider success', async () => {
-  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller', callerPhone: '+14155550123', purpose: 'Private purpose' })).toEqual({ status: 'confirmed', appointmentId: 'reservation' });
+  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller', callerPhone: '+14155550123', callerConfirmed: true, purpose: 'Private purpose' })).toEqual({ status: 'confirmed', appointmentId: 'reservation' });
   expect(m.fetchProviderBusyRanges).toHaveBeenCalledTimes(2);
   expect(m.reserveEmployeeAppointment).toHaveBeenCalledWith('workspace', expect.objectContaining({ expectedEmployeeUpdatedAt: employee.updatedAt }), undefined);
   expect(m.reserveEmployeeAppointment.mock.invocationCallOrder[0]).toBeLessThan(m.createProviderCalendarEvent.mock.invocationCallOrder[0]!);
-  expect(m.createProviderCalendarEvent).toHaveBeenCalledExactlyOnceWith('google', 'SECRET', 'book', { summary: 'Appointment with Sam', startIso: input.start, endIso: input.end, timezone: 'UTC', description: 'Booked via DeskRoute' });
+  expect(m.createProviderCalendarEvent).toHaveBeenCalledExactlyOnceWith('google', 'SECRET', 'book', { summary: 'Appointment with Sam', startIso: input.start, endIso: input.end, timezone: 'UTC', description: 'Booked via DeskRoute' }, undefined);
   expect(m.finishEmployeeAppointment).toHaveBeenCalledWith('workspace', 'reservation', 'event', expect.any(Object));
 });
 it('does not write after losing the reservation race or report confirmation on provider failure', async () => {
   m.reserveEmployeeAppointment.mockResolvedValueOnce(null);
-  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller' })).toEqual({ status: 'unavailable' });
+  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller', callerConfirmed: true })).toEqual({ status: 'unavailable' });
   expect(m.createProviderCalendarEvent).not.toHaveBeenCalled();
   m.createProviderCalendarEvent.mockRejectedValue(new Error('SECRET'));
-  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller' })).toEqual({ status: 'unknown' });
+  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller', callerConfirmed: true })).toEqual({ status: 'unknown' });
   expect(m.createProviderCalendarEvent).toHaveBeenCalledTimes(1);
   expect(m.finishEmployeeAppointment).not.toHaveBeenCalled();
+});
+it('does not reserve or dispatch a provider write when inspection consumes the safe write budget', async () => {
+  vi.useFakeTimers();
+  try {
+    const startedAt = Date.now();
+    m.listProviderCalendars.mockImplementation(async () => {
+      vi.setSystemTime(startedAt + 31_000);
+      return [{ id: 'book', writable: true }, { id: 'private', writable: false }, { id: 'work', writable: true }];
+    });
+
+    expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller', callerConfirmed: true }, undefined, startedAt + 45_000)).toEqual({ status: 'unknown' });
+    expect(m.listProviderCalendars).toHaveBeenCalledWith('google', 'SECRET', expect.any(AbortSignal));
+    expect(m.fetchProviderBusyRanges).toHaveBeenCalledWith('google', 'SECRET', expect.any(Array), input.start, input.end, expect.any(AbortSignal));
+    expect(m.reserveEmployeeAppointment).not.toHaveBeenCalled();
+    expect(m.createProviderCalendarEvent).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('requires a still-assigned connection when obtaining credentials', async () => {
@@ -103,11 +129,11 @@ it('rejects more than ten connections before provider access', async () => {
 it('releases only definite provider rejection and holds ambiguous writes', async () => {
   const { ProviderWriteRejectedError } = await import('./provider-write-error.js');
   m.createProviderCalendarEvent.mockRejectedValueOnce(new ProviderWriteRejectedError());
-  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller' })).toEqual({ status: 'unknown' });
+  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller', callerConfirmed: true })).toEqual({ status: 'unknown' });
   expect(m.finishEmployeeAppointment).toHaveBeenCalledWith('workspace', 'reservation', null, expect.any(Object));
   m.finishEmployeeAppointment.mockClear();
   m.createProviderCalendarEvent.mockRejectedValueOnce(new Error('timeout'));
-  await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller' });
+  await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller', callerConfirmed: true });
   expect(m.finishEmployeeAppointment).not.toHaveBeenCalled();
 });
 
@@ -116,6 +142,6 @@ it.each(['transport', '5xx', 'empty', 'finalize-throw', 'finalize-null'])('marks
   if (failure === 'empty') m.createProviderCalendarEvent.mockResolvedValue(' ');
   if (failure === 'finalize-throw') m.finishEmployeeAppointment.mockRejectedValue(new Error('db unavailable'));
   if (failure === 'finalize-null') m.finishEmployeeAppointment.mockResolvedValue(null);
-  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller' })).toEqual({ status: 'unknown' });
+  expect(await bookEmployeeAppointment('workspace', { ...input, callerName: 'Caller', callerConfirmed: true })).toEqual({ status: 'unknown' });
   expect(m.markEmployeeAppointmentReconciliationRequired).toHaveBeenCalledExactlyOnceWith('workspace', 'reservation');
 });

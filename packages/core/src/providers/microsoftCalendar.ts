@@ -4,12 +4,13 @@ import type { BusyRange } from "./calendar.js";
 import { randomUUID } from "node:crypto";
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
+const requestSignal = (signal?: AbortSignal) => signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000);
 export class MicrosoftCalendarScopeMissingError extends Error {}
 
-async function graphJson<T>(accessToken: string, url: string): Promise<T> {
+async function graphJson<T>(accessToken: string, url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}`, Prefer: 'outlook.timezone="UTC"' },
-    signal: AbortSignal.timeout(10000),
+    signal: requestSignal(signal),
   });
   if (response.status === 401 || response.status === 403) throw new MicrosoftCalendarScopeMissingError();
   if (!response.ok) throw new Error(`[microsoft-calendar] request failed: ${response.status}`);
@@ -18,11 +19,12 @@ async function graphJson<T>(accessToken: string, url: string): Promise<T> {
 
 export async function listMicrosoftCalendars(
   accessToken: string,
+  signal?: AbortSignal,
 ): Promise<Omit<CalendarOption, "connectionId" | "accountEmail" | "provider">[]> {
   const calendars: Omit<CalendarOption, "connectionId" | "accountEmail" | "provider">[] = [];
   let url: string | undefined = `${GRAPH}/me/calendars?$select=id,name,isDefaultCalendar,canEdit&$top=100`;
   while (url) {
-    const data: { value?: Array<{ id?: string; name?: string; isDefaultCalendar?: boolean; canEdit?: boolean }>; "@odata.nextLink"?: string } = await graphJson(accessToken, url);
+    const data: { value?: Array<{ id?: string; name?: string; isDefaultCalendar?: boolean; canEdit?: boolean }>; "@odata.nextLink"?: string } = await graphJson(accessToken, url, signal);
     calendars.push(...(data.value ?? []).flatMap(item => item.id ? [{
       id: item.id,
       summary: item.name?.trim() || "Microsoft calendar",
@@ -49,6 +51,7 @@ async function listMicrosoftEvents(
   calendarId: string,
   timeMinIso: string,
   timeMaxIso: string,
+  signal?: AbortSignal,
 ) {
   const params = new URLSearchParams({
     startDateTime: timeMinIso,
@@ -59,7 +62,7 @@ async function listMicrosoftEvents(
   const events: GraphEvent[] = [];
   let url: string | undefined = `${GRAPH}/me/calendars/${encodeURIComponent(calendarId)}/calendarView?${params}`;
   while (url) {
-    const data: { value?: GraphEvent[]; "@odata.nextLink"?: string } = await graphJson(accessToken, url);
+    const data: { value?: GraphEvent[]; "@odata.nextLink"?: string } = await graphJson(accessToken, url, signal);
     if (!Array.isArray(data.value)) throw new Error("[microsoft-calendar] availability could not be verified");
     events.push(...data.value);
     url = data["@odata.nextLink"];
@@ -79,9 +82,10 @@ export async function fetchMicrosoftBusyRanges(
   calendarIds: string | readonly string[],
   timeMinIso: string,
   timeMaxIso: string,
+  signal?: AbortSignal,
 ): Promise<BusyRange[]> {
   const ids = Array.isArray(calendarIds) ? calendarIds : [calendarIds];
-  const groups = await Promise.all(ids.map(id => listMicrosoftEvents(accessToken, id, timeMinIso, timeMaxIso)));
+  const groups = await Promise.all(ids.map(id => listMicrosoftEvents(accessToken, id, timeMinIso, timeMaxIso, signal)));
   return groups.flatMap(events => events.flatMap(event => {
     if (event.isCancelled || event.showAs === "free") return [];
     const start = instant(event.start?.dateTime);
@@ -95,11 +99,12 @@ export async function createMicrosoftCalendarEvent(
   accessToken: string,
   calendarId: string,
   event: { summary: string; startIso: string; endIso: string; timezone: string; description?: string },
+  signal?: AbortSignal,
 ) {
   const response = await fetch(`${GRAPH}/me/calendars/${encodeURIComponent(calendarId)}/events`, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(10000),
+    signal: requestSignal(signal),
     body: JSON.stringify({
       subject: event.summary,
       body: { contentType: "text", content: event.description ?? "Booked via DeskRoute" },

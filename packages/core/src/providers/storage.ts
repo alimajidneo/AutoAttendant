@@ -1,7 +1,7 @@
 import { S3Client, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { EgressClient, EncodedFileOutput, EncodedFileType, S3Upload } from "livekit-server-sdk";
-import { env } from "../env.js";
+import { env, livekitConfig } from "../env.js";
 
 const R2_KEYS = [
   "R2_ACCOUNT_ID",
@@ -45,11 +45,9 @@ function getR2(): S3Client {
 }
 
 function getEgress(): EgressClient {
-  egressClient ??= new EgressClient(
-    env.LIVEKIT_URL,
-    env.LIVEKIT_API_KEY,
-    env.LIVEKIT_API_SECRET
-  );
+  const livekit = livekitConfig();
+  if (!livekit) throw new Error("LiveKit is not configured");
+  egressClient ??= new EgressClient(livekit.url, livekit.apiKey, livekit.apiSecret);
   return egressClient;
 }
 

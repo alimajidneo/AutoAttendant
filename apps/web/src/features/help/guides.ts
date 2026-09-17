@@ -3,9 +3,10 @@ export type Guide = {
   title: string
   audience: string
   summary: string
-  steps: { title: string; detail: string }[]
+  steps: { title: string; detail: string; livekitOnly?: boolean }[]
   outcome: string
-  notes: { title: string; detail: string }[]
+  notes: { title: string; detail: string; livekitOnly?: boolean }[]
+  livekitOnly?: boolean
 }
 
 export const guides: Guide[] = [
@@ -17,10 +18,10 @@ export const guides: Guide[] = [
       { title: 'Choose your workspace', detail: 'If an owner invited you, open Workspaces and join using their invitation code. Otherwise, complete onboarding for your receptionist. A personal workspace is for you; a team workspace lets you invite colleagues.' },
       { title: 'Describe the business', detail: 'Open Settings → Business. Enter the business name, description and timezone. Add services if you offer them, then save. General appointments can also be booked without a declared service.' },
       { title: 'Set hours and instructions', detail: 'In Settings → Hours, save the days and times you accept appointments. In Settings → Agent, save the greeting and caller questions. Add common questions and answers on Knowledge.' },
-      { title: 'Connect calendars and try a call', detail: 'Follow the calendars guide, then the Test your agent guide. Confirm the appointment appears in the intended provider calendar before using the receptionist with customers.' },
+      { title: 'Connect calendars and try a call', detail: 'Follow the calendars guide, then the Test your agent guide. Confirm the appointment appears in the intended provider calendar before using the receptionist with customers.', livekitOnly: true },
     ],
     outcome: 'Your business details, working hours and receptionist instructions are saved, and you are ready for a controlled browser test.',
-    notes: [{ title: 'I only see Workspaces', detail: 'Members use the workspace directory and transfer inbox. Owners and managers can open the business dashboard. Ask the owner to check your role if you need to manage the receptionist.' }],
+    notes: [{ title: 'I only see Workspaces', detail: 'Members use the workspace directory. Owners and managers can open the business dashboard. Ask the owner to check your role if you need to manage the receptionist.' }],
   },
   {
     id: 'workspaces', title: 'Workspaces and teammates', audience: 'Everyone',
@@ -29,7 +30,7 @@ export const guides: Guide[] = [
       { title: 'Open Workspaces', detail: 'Use Switch beside the business name at the top of the dashboard. Select an existing workspace or enter a name, type and timezone under Create a workspace.' },
       { title: 'Invite a teammate as the owner', detail: 'In a team workspace, enter the exact email your colleague will use to sign in and select Member or Manager. Create the invitation and copy its code. Share it privately with that colleague; DeskRoute does not email it for you.' },
       { title: 'Accept the invitation', detail: 'Your colleague signs in with the invited email, opens Workspaces, pastes the code under Join a workspace and chooses Join workspace. Codes expire after seven days and work once.' },
-      { title: 'Choose the right role', detail: 'A member can view the workspace dashboard, call-log summaries and DeskRoute booking calendar, edit their own routing profile, and receive transfers addressed to them. A manager can also configure the receptionist, open transcripts and recordings, and manage records. Only the owner manages invitations, roles and calendar connections.' },
+      { title: 'Choose the right role', detail: 'A member can view the workspace dashboard, call-log summaries and DeskRoute booking calendar, and edit their own routing profile. A manager can also configure the receptionist, open available call details and manage records. Only the owner manages invitations, roles and calendar connections.' },
       { title: 'Check the selected workspace', detail: 'Before changing settings or testing a call, check the business name. Switching workspaces reloads its data in that browser tab. A new workspace starts separately; your personal calendars are not automatically copied into it.' },
     ],
     outcome: 'Each teammate can use their own login to access the intended workspace.',
@@ -42,7 +43,7 @@ export const guides: Guide[] = [
       { title: 'Confirm the business timezone', detail: 'Open Settings → Business and check the timezone. Your browser may suggest an initial timezone, but you must confirm the business’s timezone. It does not automatically establish a caller’s timezone.' },
       { title: 'Set weekly hours', detail: 'Open Settings → Hours. Set opening and closing times for each working day and mark other days closed. Save your changes.' },
       { title: 'Review exceptions and booking limits', detail: 'Adjust date exceptions, minimum notice and how far ahead someone may book. A free calendar slot can still be unavailable if it falls outside these rules.' },
-      { title: 'Test a specific time', detail: 'Ask the test agent for a particular date and time, stating the timezone. Try both a free slot within hours and a slot blocked by a selected calendar event.' },
+      { title: 'Test a specific time', detail: 'Ask the test agent for a particular date and time, stating the timezone. Try both a free slot within hours and a slot blocked by a selected calendar event.', livekitOnly: true },
     ],
     outcome: 'The receptionist checks business hours and selected calendars together before offering a booking.',
     notes: [{ title: 'Why is 11 AM unavailable?', detail: 'Check the requested date and timezone, opening hours, minimum notice, appointment duration and busy events in every selected calendar. Asking for a specific time is a better test than only accepting the first suggested slots.' }],
@@ -55,10 +56,10 @@ export const guides: Guide[] = [
       { title: 'Choose booking questions', detail: 'Under Appointment intake, enter the details the receptionist should ask for in Questions to ask, one question per line. Ask only for details needed to arrange the appointment.' },
       { title: 'Add approved answers', detail: 'Open Knowledge and add questions with clear answers, such as your location, demo format or cancellation policy. Keep answers current and avoid including private internal information.' },
       { title: 'Review unanswered questions', detail: 'Open Questions to review items the receptionist could not answer. Respond and update your knowledge content where appropriate.' },
-      { title: 'Listen to a test', detail: 'Start a new browser test after saving. Ask a known question, an unknown question and a general appointment request. Check that the receptionist collects the intended details.' },
+      { title: 'Listen to a test', detail: 'Start a new browser test after saving. Ask a known question, an unknown question and a general appointment request. Check that the receptionist collects the intended details.', livekitOnly: true },
     ],
     outcome: 'The receptionist has approved business knowledge and a clear booking intake.',
-    notes: [{ title: 'Can it record or summarize calls?', detail: 'Normal calls support saved transcripts and a short summary based on the transcript. Audio recording is optional and needs configured storage. Browser tests skip saved call histories, summaries and audio recordings. The agent does not currently analyze uploaded audio files.' }, { title: 'How do I give it more context?', detail: 'Use Settings → Business for your description and Knowledge → Add FAQ for approved answers. A dedicated business context editor and reviewed document imports are planned; files on your computer are not automatically available to the agent.' }, { title: 'Where do I change the voice or model?', detail: 'The speech voice and model are currently configured by the installation administrator. Those controls are not yet available in Settings. Changing instructions does not change the underlying voice provider.' }],
+    notes: [{ title: 'Can it record or summarize calls?', detail: 'Normal calls support saved transcripts and a short summary based on the transcript. Audio recording is optional and needs configured storage. Browser tests skip saved call histories, summaries and audio recordings. The agent does not currently analyze uploaded audio files.', livekitOnly: true }, { title: 'How do I give it more context?', detail: 'Use Settings → Business for your description and Knowledge → Add FAQ for approved answers. A dedicated business context editor and reviewed document imports are planned; files on your computer are not automatically available to the agent.' }, { title: 'Where do I change the voice or model?', detail: 'The speech voice and model are currently configured by the installation administrator. Those controls are not yet available in Settings. Changing instructions does not change the underlying voice provider.' }],
   },
   {
     id: 'calendars', title: 'Connect calendars', audience: 'Workspace owner',
@@ -100,10 +101,11 @@ export const guides: Guide[] = [
       { title: 'Optional Slack alerts', detail: 'The workspace owner opens Settings → Connections → Slack, installs DeskRoute, invites it to one channel, selects that channel and enables specific alert types. Use Send test after saving.' },
     ],
     outcome: 'You can find recent items requiring attention without leaving the dashboard.',
-    notes: [{ title: 'What does Slack receive?', detail: 'Enabled Slack alerts contain a generic event type only. Caller names, phone numbers, appointment times, calendar titles, transcripts and recordings stay in DeskRoute. Email, SMS and browser push alerts are not implemented.' }],
+    notes: [{ title: 'What does Slack receive?', detail: 'Enabled Slack alerts contain a generic event type only. They do not include caller names, phone numbers, appointment times, calendar titles, transcripts or recordings. Email, SMS and browser push alerts are not implemented.' }],
   },
   {
     id: 'testing', title: 'Test your agent', audience: 'Owner or manager',
+    livekitOnly: true,
     summary: 'Make a browser voice call before connecting a real telephone number.',
     steps: [
       { title: 'Prepare a controlled test', detail: 'Check that you are in the correct workspace and choose a calendar where a test booking is acceptable. Browser tests can create real appointments, so choose a time you can remove afterward.' },
@@ -119,6 +121,7 @@ export const guides: Guide[] = [
   },
   {
     id: 'transfers', title: 'Test a teammate handoff', audience: 'Manager and receiving teammate',
+    livekitOnly: true,
     summary: 'Use two signed-in browser sessions to try a real audio handoff without a phone number.',
     steps: [
       { title: 'Prepare the recipient', detail: 'The receiving teammate opens the same team workspace. Under People & routing, they save the name callers can ask for, a department and Available for browser transfers. Keep that page open.' },
@@ -134,3 +137,26 @@ export const guides: Guide[] = [
     ],
   },
 ]
+
+export function guidesForCapabilities(livekitEnabled: boolean): Guide[] {
+  const visible = guides
+    .filter((guide) => livekitEnabled || !guide.livekitOnly)
+    .map((guide) => ({
+      ...guide,
+      steps: guide.steps.filter((step) => livekitEnabled || !step.livekitOnly),
+      notes: guide.notes.filter((note) => livekitEnabled || !note.livekitOnly),
+    }))
+
+  if (livekitEnabled) return visible
+  return visible.map((guide) => guide.id === 'start' ? {
+    ...guide,
+    summary: 'Start here to prepare a receptionist for your business.',
+    outcome: 'Your business details, working hours and receptionist instructions are saved.',
+  } : guide)
+}
+
+export function helpSearchHint(livekitEnabled: boolean): string {
+  return livekitEnabled
+    ? 'No matching guides. Try “calendar”, “invite” or “microphone”.'
+    : 'No matching guides. Try “calendar”, “invite” or “settings”.'
+}

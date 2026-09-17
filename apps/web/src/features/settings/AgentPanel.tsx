@@ -42,7 +42,9 @@ const cleanQuestions = (questions: string[]) =>
 export function AgentPanel({ settings }: { settings: AppSettings }) {
   const qc = useQueryClient()
   const [form, setForm] = useState<AgentProfile>(settings.agent)
-  const [recordCalls, setRecordCalls] = useState(settings.business.recordCalls)
+  const [recordCalls, setRecordCalls] = useState(
+    settings.business.recordCalls && settings.business.recordingAvailable,
+  )
 
   const changes = useMemo(() => {
     const out: string[] = []
@@ -59,7 +61,7 @@ export function AgentPanel({ settings }: { settings: AppSettings }) {
      not re-seed and discard an unsaved phrase. */
   const expectReseed = useServerSeed(settings, changes.length > 0, () => {
     setForm(settings.agent)
-    setRecordCalls(settings.business.recordCalls)
+    setRecordCalls(settings.business.recordCalls && settings.business.recordingAvailable)
   })
 
   const save = useMutation({
@@ -90,7 +92,7 @@ export function AgentPanel({ settings }: { settings: AppSettings }) {
 
   /* The same value the agent derives, so the dashboard cannot preview a wording
      a caller never hears. */
-  const recording = recordCalls && settings.business.storageConfigured
+  const recording = recordCalls && settings.business.recordingAvailable
   const disclosure = disclosureFor(recording).text
 
   return (
@@ -120,7 +122,9 @@ export function AgentPanel({ settings }: { settings: AppSettings }) {
         <Row
           title="Record calls"
           description={
-            settings.business.storageConfigured
+            !settings.business.recordingAvailable
+              ? 'Recording is unavailable for the active voice provider. Calls are not recorded.'
+              : settings.business.storageConfigured
               ? 'Keeps the audio, and changes what your agent says at the start of a call.'
               : 'Set the R2_* variables to store audio. Until then nothing is recorded.'
           }
@@ -131,7 +135,7 @@ export function AgentPanel({ settings }: { settings: AppSettings }) {
               setRecordCalls(next)
               saveRecording.mutate(next)
             }}
-            disabled={saveRecording.isPending}
+            disabled={saveRecording.isPending || !settings.business.recordingAvailable}
             aria-label="Record calls"
           />
         </Row>
