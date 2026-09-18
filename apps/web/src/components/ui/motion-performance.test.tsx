@@ -27,4 +27,5 @@ it('limits the composed sheet panel motion to transform and opacity', () => {
   expect(panel?.props.className).not.toContain('transition-all')
   expect(panel?.props.className).toContain('transition-[transform,opacity]')
   expect(panel?.props.className).toContain('will-change-[transform,opacity]')
+  expect(panel?.props.className).toContain('overflow-y-auto')
 })
