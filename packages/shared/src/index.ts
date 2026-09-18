@@ -147,7 +147,7 @@ export type CalendarPayload = {
   bookingConnectionId?: string;
 };
 
-export type CalendarSourceColor = "blue" | "violet" | "green" | "amber" | "pink" | "teal" | "orange" | "slate";
+export type CalendarSourceColor = "blue" | "violet" | "green" | "amber" | "pink" | "teal" | "orange" | "slate" | "red" | "cyan" | "lime" | "indigo";
 
 export type CalendarReference = {
   connectionId?: string;

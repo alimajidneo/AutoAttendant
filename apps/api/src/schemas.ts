@@ -148,7 +148,7 @@ export const phoneProvisionSchema = z.object({
   phoneNumber: z.string().min(1, "phoneNumber is required"),
 });
 
-const calendarSourceColor = z.enum(["blue", "violet", "green", "amber", "pink", "teal", "orange", "slate"]);
+const calendarSourceColor = z.enum(["blue", "violet", "green", "amber", "pink", "teal", "orange", "slate", "red", "cyan", "lime", "indigo"]);
 
 export const calendarSelectSchema = z.object({
   booking: z.object({ connectionId: z.string().uuid(), calendarId: z.string().min(1) }),

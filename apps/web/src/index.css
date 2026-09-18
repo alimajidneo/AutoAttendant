@@ -708,10 +708,17 @@
 .calendar-source-teal { --calendar-color: #087c84; }
 .calendar-source-orange { --calendar-color: #b8500a; }
 .calendar-source-slate { --calendar-color: #52657d; }
+.calendar-source-red { --calendar-color: var(--destructive); }
+.calendar-source-cyan { --calendar-color: #087f9b; }
+.calendar-source-lime { --calendar-color: #56820c; }
+.calendar-source-indigo { --calendar-color: #4e52c7; }
 .dark .calendar-source-pink { --calendar-color: #ff91c4; }
 .dark .calendar-source-teal { --calendar-color: #5cdbd4; }
 .dark .calendar-source-orange { --calendar-color: #ffb374; }
 .dark .calendar-source-slate { --calendar-color: #b4c8e0; }
+.dark .calendar-source-cyan { --calendar-color: #67d9ee; }
+.dark .calendar-source-lime { --calendar-color: #b7e36c; }
+.dark .calendar-source-indigo { --calendar-color: #aeb1ff; }
 .calendar-event-chip {
   color: var(--calendar-color);
   border-color: var(--calendar-color);

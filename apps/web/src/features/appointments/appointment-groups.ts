@@ -32,3 +32,19 @@ export function eventsForDays(events: CalendarAgendaEvent[], days: string[], zon
   for (const list of grouped.values()) list.sort((a, b) => a.start.localeCompare(b.start))
   return grouped
 }
+
+function addCalendarDays(dateIso: string, days: number) {
+  const [year, month, day] = dateIso.split('-').map(Number)
+  return new Date(Date.UTC(year!, month! - 1, day!) + days * 86_400_000).toISOString().slice(0, 10)
+}
+
+export function upcomingCalendarEvents(events: CalendarAgendaEvent[], now: number, requestedDays: number, zone?: string) {
+  const days = Math.min(7, Math.max(1, Math.trunc(requestedDays)))
+  const today = dayKey(new Date(now).toISOString(), zone)
+  const lastDayExclusive = addCalendarDays(today, days)
+  return [...new Map(events.map(item => [calendarEventKey(item), item])).values()]
+    .filter(item => item.allDay
+      ? item.end.slice(0, 10) > today && item.start.slice(0, 10) < lastDayExclusive
+      : Date.parse(item.end) > now && dayKey(item.start, zone) < lastDayExclusive)
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
+}

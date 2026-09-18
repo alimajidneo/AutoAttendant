@@ -18,7 +18,7 @@ import { appointmentStatusConfig } from '@/lib/status-config'
 import { apiClient } from '@/lib/apiClient'
 import { cn } from '@/lib/utils'
 import { calendarSourceClass, calendarSourceLabel } from './calendar-sources'
-import { appointmentCalendarEventKey, calendarEventKey, eventsForDays, splitAppointments } from './appointment-groups'
+import { appointmentCalendarEventKey, calendarEventKey, eventsForDays, splitAppointments, upcomingCalendarEvents } from './appointment-groups'
 import { AppointmentWriteStatus } from './AppointmentWriteStatus'
 import { removeAppointmentFromCache } from './appointment-cache'
 
@@ -57,6 +57,17 @@ function eventTime(event: CalendarAgendaEvent, zone?: string): string {
   return event.allDay ? 'All day' : formatTime(event.start, zone)
 }
 
+function eventTimeRange(event: CalendarAgendaEvent, zone?: string): string {
+  return event.allDay ? 'All day' : `${formatTime(event.start, zone)}–${formatTime(event.end, zone)}`
+}
+
+function eventDateTime(event: CalendarAgendaEvent, zone?: string): string {
+  const date = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', timeZone: event.allDay ? 'UTC' : zone,
+  }).format(new Date(event.allDay ? `${event.start.slice(0, 10)}T12:00:00Z` : event.start))
+  return `${date} · ${eventTimeRange(event, zone)}`
+}
+
 function appointmentDateTime(appointment: AppointmentItem, zone?: string): string {
   if (!appointment.startTime) return 'Time pending'
   const date = new Intl.DateTimeFormat('en-US', {
@@ -74,6 +85,7 @@ export default function AppointmentsPage() {
   const today = dayKey(new Date(now).toISOString(), zone)
   const [month, setMonth] = useState(() => today.slice(0, 7))
   const [selectedDay, setSelectedDay] = useState(today)
+  const [upcomingDays, setUpcomingDays] = useState(3)
   const [cancelling, setCancelling] = useState<AppointmentItem | null>(null)
   const [deleting, setDeleting] = useState<AppointmentItem | null>(null)
 
@@ -103,6 +115,18 @@ export default function AppointmentsPage() {
       .then((response) => response.data),
     retry: false,
   })
+  const upcomingQueryDay = new Date(now).toISOString().slice(0, 10)
+  const upcomingRange = useMemo(() => ({
+    timeMin: new Date(`${upcomingQueryDay}T00:00:00Z`).toISOString(),
+    timeMax: new Date(`${addDays(upcomingQueryDay, 8)}T00:00:00Z`).toISOString(),
+  }), [upcomingQueryDay])
+  const upcomingCalendarQuery = useQuery({
+    queryKey: ['appointments', 'calendar-upcoming', upcomingRange.timeMin, upcomingRange.timeMax],
+    queryFn: ({ signal }) => apiClient
+      .get<CalendarAgenda>('/admin/appointments/calendar', { params: upcomingRange, signal })
+      .then((response) => response.data),
+    retry: false,
+  })
 
   const appointments = useMemo(() => appointmentsQuery.data ?? [], [appointmentsQuery.data])
   const events = useMemo(() => calendarQuery.data?.events ?? [], [calendarQuery.data])
@@ -115,6 +139,15 @@ export default function AppointmentsPage() {
   )
   const eventsByDay = useMemo(() => eventsForDays(events, days, zone), [events, days, zone])
   const { upcoming, past } = useMemo(() => splitAppointments(appointments, now), [appointments, now])
+  const upcomingEvents = useMemo(
+    () => upcomingCalendarEvents(upcomingCalendarQuery.data?.events ?? [], now, upcomingDays, zone),
+    [now, upcomingCalendarQuery.data?.events, upcomingDays, zone],
+  )
+  const upcomingEventKeys = useMemo(() => new Set(upcomingEvents.map(calendarEventKey)), [upcomingEvents])
+  const pendingBookings = useMemo(
+    () => upcoming.filter(appointment => !upcomingEventKeys.has(appointmentCalendarEventKey(appointment))),
+    [upcoming, upcomingEventKeys],
+  )
   const selectedEvents = eventsByDay.get(selectedDay) ?? []
   const appointmentStats = [
     { label: 'Total appointments', value: appointments.length, icon: CalendarCheck2, tone: 'bg-primary-subtle text-accent-ink', line: 'bg-primary' },
@@ -133,9 +166,9 @@ export default function AppointmentsPage() {
     },
     onError: () => toast.error('Appointment sync failed. Check the calendar connection and try again.'),
     onSettled: async (result, error) => {
-      const agenda = await calendarQuery.refetch()
+      const [agenda, upcomingAgenda] = await Promise.all([calendarQuery.refetch(), upcomingCalendarQuery.refetch()])
       if (error) return
-      if (agenda.isError) { toast.error('Could not refresh calendar events. Check your calendar connections.'); return }
+      if (agenda.isError || upcomingAgenda.isError) { toast.error('Could not refresh calendar events. Check your calendar connections.'); return }
       const count = result?.cancelledIds.length ?? 0
       toast.success(count ? `${count} calendar ${count === 1 ? 'change' : 'changes'} found` : 'Calendar is up to date')
     },
@@ -147,7 +180,7 @@ export default function AppointmentsPage() {
       queryClient.setQueryData<AppointmentItem[]>(keys.appointments, (current = []) =>
         current.map((item) => item.id === id ? { ...item, status: 'cancelled' } : item),
       )
-      await calendarQuery.refetch()
+      await Promise.all([calendarQuery.refetch(), upcomingCalendarQuery.refetch()])
       await queryClient.invalidateQueries({ queryKey: keys.metricsAll })
       void queryClient.invalidateQueries({ queryKey: keys.notifications })
       toast.success('Appointment cancelled')
@@ -177,8 +210,8 @@ export default function AppointmentsPage() {
   }
 
   async function refreshMemberView() {
-    const [bookingResult, calendarResult] = await Promise.all([appointmentsQuery.refetch(), calendarQuery.refetch()])
-    if (bookingResult.isError || calendarResult.isError) toast.error('Could not refresh workspace appointments.')
+    const [bookingResult, calendarResult, upcomingResult] = await Promise.all([appointmentsQuery.refetch(), calendarQuery.refetch(), upcomingCalendarQuery.refetch()])
+    if (bookingResult.isError || calendarResult.isError || upcomingResult.isError) toast.error('Could not refresh workspace appointments.')
     else toast.success('Workspace appointments are up to date')
   }
 
@@ -331,7 +364,7 @@ export default function AppointmentsPage() {
                       )} />
                       <div className="min-w-0">
                         <p className="truncate font-medium text-foreground">{event.title}</p>
-                        <p className="text-sm text-muted-foreground">{eventTime(event, zone)}{appointment ? ' · DeskRoute booking' : ''}</p>
+                        <p className="text-sm text-muted-foreground">{eventTimeRange(event, zone)}{appointment ? ' · DeskRoute booking' : ''}</p>
                         {source && <p className="mt-1 break-words text-sm text-muted-foreground">{calendarSourceLabel(source)}</p>}
                       </div>
                       {appointment?.providerWriteState ? <AppointmentWriteStatus id={appointment.id} state={appointment.providerWriteState} calcom={appointment.externalCalendarId?.startsWith('calcom:')} updatedAt={appointment.updatedAt} canManage={!memberOnly} /> : !memberOnly && appointment && appointment.endTime && Date.parse(appointment.endTime) <= now ? (
@@ -359,58 +392,75 @@ export default function AppointmentsPage() {
         <aside className="h-fit rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5" data-ground="card">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="font-semibold text-foreground">Upcoming appointments</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Upcoming and ongoing receptionist bookings.</p>
+              <h2 className="font-semibold text-foreground">Upcoming events</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Events from your selected calendars.</p>
             </div>
             <CalendarDays className="size-5 text-primary" />
           </div>
 
-          <div className="mt-4 divide-y divide-border">
-            {appointmentsQuery.isLoading ? (
+          <label className="mt-4 flex items-center justify-between gap-3 text-sm font-medium text-foreground">
+            <span>Show next</span>
+            <select
+              aria-label="Upcoming event range"
+              value={upcomingDays}
+              onChange={event => setUpcomingDays(Number(event.target.value))}
+              className="rounded-lg border border-input bg-control px-2 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {Array.from({ length: 7 }, (_, index) => index + 1).map(value => (
+                <option key={value} value={value}>{value} {value === 1 ? 'day' : 'days'}</option>
+              ))}
+            </select>
+          </label>
+
+          <div className="mt-3 max-h-[32rem] divide-y divide-border overflow-y-auto pr-1">
+            {upcomingCalendarQuery.isLoading ? (
               Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="my-2 h-16" />)
-            ) : appointmentsQuery.isError ? (
-              <p className="py-3 text-sm text-destructive">Appointments could not be loaded. Try refreshing.</p>
-            ) : upcoming.length === 0 ? (
-              <div className="py-8 text-center">
-                <CalendarDays className="mx-auto size-8 text-muted-foreground/60" />
-                <p className="mt-2 text-sm text-muted-foreground">No upcoming appointments.</p>
-              </div>
-            ) : upcoming.map((appointment) => (
-              <div key={appointment.id} className="group py-3 first:pt-0">
+            ) : upcomingCalendarQuery.isError ? (
+              <p className="py-3 text-sm text-destructive">Calendar events could not be loaded. Try refreshing.</p>
+            ) : upcomingEvents.length === 0 ? (
+              <p className="py-4 text-sm text-muted-foreground">No events in the next {upcomingDays} {upcomingDays === 1 ? 'day' : 'days'}.</p>
+            ) : upcomingEvents.map((event) => {
+              const source = sourceByCalendar.get(event.calendarId)
+              const appointment = appointmentByEventId.get(calendarEventKey(event))
+              return <div key={calendarEventKey(event)} className="py-3 first:pt-0">
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Clock3 className="size-4" />
-                  </div>
+                  <span className={cn('calendar-source-dot mt-1 h-10 w-1 shrink-0 rounded-full', calendarSourceClass(source?.color ?? source?.colorIndex ?? 0))} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-foreground">{appointment.service}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{appointmentDateTime(appointment, zone)}</p>
-                    <div className="mt-1.5 flex min-w-0 items-center gap-2">
-                      <StatusBadge value={appointment.status} config={appointmentStatusConfig} />
-                      <span className="truncate text-xs text-muted-foreground">
-                        {appointment.callerName ?? (appointment.callerPhone ? formatPhone(appointment.callerPhone) : 'Name not given')}
-                      </span>
-                    </div>
-                    {(appointment.bookingDetails ?? []).length > 0 && (
-                      <dl className="mt-2 space-y-1 rounded-lg bg-muted/60 p-2 text-xs">
-                        {appointment.bookingDetails.map((detail) => (
-                          <div key={detail.question}>
-                            <dt className="font-semibold text-foreground">{detail.question}</dt>
-                            <dd className="text-muted-foreground">{detail.answer}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    )}
+                    <p className="break-words font-medium text-foreground">{event.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{eventDateTime(event, zone)}</p>
+                    {source && <p className="mt-1 break-words text-sm text-muted-foreground">{calendarSourceLabel(source)}</p>}
+                    {appointment && <p className="mt-1 text-sm font-medium text-accent-ink">DeskRoute booking · {appointment.callerName ?? (appointment.callerPhone ? formatPhone(appointment.callerPhone) : 'Name not given')}</p>}
                   </div>
-                  {appointment.providerWriteState ? <AppointmentWriteStatus id={appointment.id} state={appointment.providerWriteState} calcom={appointment.externalCalendarId?.startsWith('calcom:')} updatedAt={appointment.updatedAt} canManage={!memberOnly} /> : !memberOnly && <Button
-                    variant="destructive"
-                    size="sm"
-                    aria-label={`Cancel ${appointment.service} appointment`}
-                    title="Cancel appointment"
-                    disabled={refresh.isPending || cancel.isPending} onClick={() => setCancelling(appointment)}
-                  ><Trash2 /> Cancel</Button>}
                 </div>
               </div>
-            ))}
+            })}
+            {pendingBookings.length > 0 && <section className="pt-3" aria-label="Pending DeskRoute bookings">
+              <h3 className="pb-2 text-sm font-semibold text-foreground">Pending DeskRoute bookings</h3>
+              {pendingBookings.map(appointment => (
+                <div key={appointment.id} className="py-3 first:pt-0">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Clock3 className="size-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words font-medium text-foreground">{appointment.service}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{appointmentDateTime(appointment, zone)}</p>
+                      <div className="mt-1.5 flex min-w-0 items-center gap-2">
+                        <StatusBadge value={appointment.status} config={appointmentStatusConfig} />
+                        <span className="truncate text-sm text-muted-foreground">{appointment.callerName ?? (appointment.callerPhone ? formatPhone(appointment.callerPhone) : 'Name not given')}</span>
+                      </div>
+                    </div>
+                    {appointment.providerWriteState ? <AppointmentWriteStatus id={appointment.id} state={appointment.providerWriteState} calcom={appointment.externalCalendarId?.startsWith('calcom:')} updatedAt={appointment.updatedAt} canManage={!memberOnly} /> : !memberOnly && <Button
+                      variant="destructive"
+                      size="sm"
+                      aria-label={`Cancel ${appointment.service} appointment`}
+                      title="Cancel appointment"
+                      disabled={refresh.isPending || cancel.isPending} onClick={() => setCancelling(appointment)}
+                    ><Trash2 /> Cancel</Button>}
+                  </div>
+                </div>
+              ))}
+            </section>}
           </div>
         </aside>
       </div>

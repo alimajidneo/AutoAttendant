@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AppointmentItem, CalendarAgendaEvent } from '@receptionist/shared'
-import { eventsForDays, splitAppointments } from './appointment-groups'
+import { eventsForDays, splitAppointments, upcomingCalendarEvents } from './appointment-groups'
 
 const appointment = (overrides: Partial<AppointmentItem>): AppointmentItem => ({
   id: 'appointment', callerPhone: null, callerName: null, service: 'Meeting',
@@ -54,5 +54,30 @@ describe('calendar day display', () => {
     const first = event()
     const second = event({ calendarId: 'calendar-b' })
     expect(eventsForDays([first, second, first], days, 'UTC').get('2026-09-09')).toEqual([first, second])
+  })
+})
+
+describe('upcoming calendar events', () => {
+  it('includes ongoing events and events within the selected range, sorted by start', () => {
+    const now = Date.parse('2026-09-09T10:00:00Z')
+    const ongoing = event({ id: 'ongoing', start: '2026-09-09T09:30:00Z', end: '2026-09-09T10:30:00Z' })
+    const tomorrow = event({ id: 'tomorrow', start: '2026-09-10T08:00:00Z', end: '2026-09-10T09:00:00Z' })
+    const later = event({ id: 'later', start: '2026-09-13T08:00:00Z', end: '2026-09-13T09:00:00Z' })
+    const ended = event({ id: 'ended', start: '2026-09-09T08:00:00Z', end: '2026-09-09T09:00:00Z' })
+
+    expect(upcomingCalendarEvents([tomorrow, later, ended, ongoing], now, 2, 'UTC')).toEqual([ongoing, tomorrow])
+    expect(upcomingCalendarEvents([later], now, 7, 'UTC')).toEqual([later])
+  })
+
+  it('caps the selectable range at seven days', () => {
+    const now = Date.parse('2026-09-09T10:00:00Z')
+    const tooLate = event({ start: '2026-09-17T09:59:59Z', end: '2026-09-17T10:59:59Z' })
+    expect(upcomingCalendarEvents([tooLate], now, 99, 'UTC')).toEqual([])
+  })
+
+  it('uses local calendar days for all-day event boundaries', () => {
+    const allDay = event({ allDay: true, start: '2026-09-10', end: '2026-09-11' })
+    expect(upcomingCalendarEvents([allDay], Date.parse('2026-09-11T03:30:00Z'), 1, 'America/New_York')).toEqual([allDay])
+    expect(upcomingCalendarEvents([allDay], Date.parse('2026-09-10T19:30:00Z'), 1, 'Asia/Karachi')).toEqual([])
   })
 })
