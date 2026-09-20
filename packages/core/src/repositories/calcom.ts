@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { getTableColumns, and, eq, sql, ne, or, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { appointments, calcomConnections, calcomOauthStates, calcomWebhookReceipts, employees, workspaceMembers, workspaces } from '../db/schema.js';
+import { appointments, calendarConnections, calcomConnections, calcomOauthStates, calcomWebhookReceipts, employees, workspaceMembers, workspaces } from '../db/schema.js';
 import { env } from '../env.js';
 import { encryptToken, decryptToken } from '../providers/token-encryption.js';
 import { CalcomClient, deriveCalcomWebhookSecret, refreshCalcomOAuthTokens, type CalcomAccount, type CalcomEventType, type CalcomOAuthTokens, type CalcomWebhook } from '../providers/calcom.js';
@@ -176,14 +176,23 @@ export async function getLinkedEmployee(agentId: string, userId: string, employe
 }
 
 export async function getEmployeeCalcomSelf(agentId: string, userId: string) {
- const [employee] = await db.select({ id: employees.id, displayName: employees.displayName, calendarPolicy: employees.calendarPolicy })
-  .from(workspaceMembers).innerJoin(employees, and(eq(employees.agentId, workspaceMembers.agentId), eq(employees.id, workspaceMembers.employeeId)))
-  .where(and(eq(workspaceMembers.agentId, agentId), eq(workspaceMembers.userId, userId))).limit(1);
- if (!employee) return null;
- const [connection] = await db.select().from(calcomConnections).where(scope(agentId, employee.id)).limit(1);
- const policy = employee.calendarPolicy.authority === 'calcom' ? employee.calendarPolicy : null;
- return { id: employee.id, displayName: employee.displayName,
-  connection: connection ? { ...calcomConnectionView(connection), eventTypeTitle: policy?.eventTypeTitle ?? null } : null };
+ return db.transaction(async tx => {
+  await tx.select({ id: workspaces.agentId }).from(workspaces).where(eq(workspaces.agentId, agentId)).for('share');
+  const [employee] = await tx.select({ id: employees.id, displayName: employees.displayName, calendarPolicy: employees.calendarPolicy })
+   .from(workspaceMembers).innerJoin(employees, and(eq(employees.agentId, workspaceMembers.agentId), eq(employees.id, workspaceMembers.employeeId)))
+   .where(and(eq(workspaceMembers.agentId, agentId), eq(workspaceMembers.userId, userId))).limit(1);
+  if (!employee) return null;
+  const [connection, directConnections] = await Promise.all([
+   tx.select().from(calcomConnections).where(scope(agentId, employee.id)).limit(1).then(rows => rows[0] ?? null),
+   tx.select({ id: calendarConnections.id, employeeId: calendarConnections.employeeId, provider: calendarConnections.provider,
+    accountEmail: calendarConnections.accountEmail, accountName: calendarConnections.accountName })
+    .from(calendarConnections).where(and(eq(calendarConnections.agentId, agentId), eq(calendarConnections.employeeId, employee.id)))
+    .orderBy(calendarConnections.createdAt, calendarConnections.id),
+  ]);
+  const policy = employee.calendarPolicy.authority === 'calcom' ? employee.calendarPolicy : null;
+  return { id: employee.id, displayName: employee.displayName, directConnections,
+   connection: connection ? { ...calcomConnectionView(connection), eventTypeTitle: policy?.eventTypeTitle ?? null } : null };
+ });
 }
 
 export type CalcomOAuthStartingState = Pick<typeof calcomOauthStates.$inferSelect, 'intent' | 'startingConnectionId' | 'startingProviderUserId' | 'startingLifecycleGeneration'>;

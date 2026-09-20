@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../src/db/client.js";
-import { workspaceInvites, workspaceMembers, transferRequests } from "../src/db/schema.js";
+import { calendarConnections, workspaceInvites, workspaceMembers, transferRequests, workspaces } from "../src/db/schema.js";
 import { createAgent } from "../src/repositories/agents.js";
 import { createWorkspace, listWorkspaces, workspaceAccess, createInvite, acceptInvite, updateMember, removeMember, revokeInvite } from "../src/repositories/workspaces.js";
 import { requestBrowserTransfer, respondToTransfer, transferInbox, connectTransfer } from "../src/repositories/transfers.js";
 import { listNotifications, markNotificationsRead } from "../src/repositories/notifications.js";
 import { makeAppointment } from "./factories.js";
 import { createEmployee } from "../src/repositories/employees.js";
-import { getLinkedEmployee } from "../src/repositories/calcom.js";
+import { getEmployeeCalcomSelf, getLinkedEmployee } from "../src/repositories/calcom.js";
 
 async function team() {
   const workspace = (await createWorkspace("owner", "owner@example.test", "Team", "America/New_York", "team"))!;
@@ -71,6 +71,32 @@ describe("workspace boundaries", () => {
     expect(await getLinkedEmployee(workspace.id, "member", second.id)).toMatchObject({ id: second.id });
     expect(await updateMember(workspace.id, "owner", "member", { employeeId: null })).toBe(true);
     expect(await getLinkedEmployee(workspace.id, "member", second.id)).toBeNull();
+  });
+  it("serializes member calendar reads behind unlinking and exposes no former employee account", async () => {
+    const workspace = await team();
+    const employee = await createEmployee(workspace.id, { displayName: "Sam", timezone: "UTC" });
+    expect(await updateMember(workspace.id, "owner", "member", { employeeId: employee.id })).toBe(true);
+    await db.insert(calendarConnections).values({ agentId: workspace.id, employeeId: employee.id, provider: "google",
+      providerAccountId: "google-member", accountEmail: "private@example.test", accountName: "Private",
+      encryptedRefreshToken: "ciphertext", encryptionOwner: "owner" });
+
+    let releaseLock!: () => void;
+    let lockAcquired!: () => void;
+    const release = new Promise<void>(resolve => { releaseLock = resolve });
+    const acquired = new Promise<void>(resolve => { lockAcquired = resolve });
+    const blocker = db.transaction(async tx => {
+      await tx.select({ id: workspaces.agentId }).from(workspaces).where(eq(workspaces.agentId, workspace.id)).for("update");
+      lockAcquired();
+      await release;
+    });
+    await acquired;
+    const unlink = updateMember(workspace.id, "owner", "member", { employeeId: null });
+    await new Promise(resolve => setImmediate(resolve));
+    const read = getEmployeeCalcomSelf(workspace.id, "member");
+    releaseLock();
+    await blocker;
+    expect(await unlink).toBe(true);
+    expect(await read).toBeNull();
   });
   it("keeps notification reads separate for managers", async () => {
     const workspace = await team();

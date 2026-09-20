@@ -37,7 +37,8 @@ export const keys = {
 
 export const fetchers = {
   employeeSelf: () => apiClient.get<{ configured: boolean; employee: { id: string; displayName: string } | null;
-    connection: { id: string; authKind: 'api_key' | 'oauth'; accountEmail: string; status: 'active' | 'setup_required' | 'reconnect_required' | 'disconnecting'; ready: boolean; eventTypeTitle: string | null } | null }>('/admin/employee').then(r => r.data),
+    connection: { id: string; authKind: 'api_key' | 'oauth'; accountEmail: string; status: 'active' | 'setup_required' | 'reconnect_required' | 'disconnecting'; ready: boolean; eventTypeTitle: string | null } | null;
+    directCalendars: { providers: { google: boolean; microsoft: boolean }; connections: Array<{ id: string; provider: 'google' | 'microsoft'; accountEmail: string; accountName: string | null }> } }>('/admin/employee').then(r => r.data),
   notifications: () => apiClient.get<NotificationItem[]>('/admin/notifications').then(r => r.data),
   metrics: (period: Period) =>
     apiClient.get<DashboardMetrics>(`/admin/metrics?period=${period}`).then((r) => r.data),

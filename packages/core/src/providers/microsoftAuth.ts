@@ -66,10 +66,12 @@ export async function connectMicrosoftCalendarAccount(
   agentId: string,
   refreshToken: string,
   account: { id: string; email: string; name: string | null },
+  employeeId?: string,
+  memberUserId?: string,
 ) {
   const id = randomUUID();
   return saveCalendarConnection({
-    id, agentId, provider: "microsoft", providerAccountId: account.id,
+    id, agentId, employeeId, memberUserId, provider: "microsoft", providerAccountId: account.id,
     accountEmail: account.email, accountName: account.name, encryptionOwner: id,
     encryptedRefreshToken: encryptToken(refreshToken, id, env.TOKEN_ENCRYPTION_KEY!),
   });

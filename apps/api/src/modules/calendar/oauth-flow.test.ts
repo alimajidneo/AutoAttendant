@@ -4,8 +4,9 @@ import type { AppEnv } from "../../types.js";
 
 const mocks = vi.hoisted(() => ({
   exchangeGoogleAuthorizationCode: vi.fn(), connectGoogleCalendarAccount: vi.fn(),
-  googleConnectionConfigured: vi.fn(() => true), getCalendarConnectionTokens: vi.fn(),
-  listCalendars: vi.fn(), updateAgent: vi.fn(), getAgentById: vi.fn(), deleteCalendarConnection: vi.fn(),
+  googleConnectionConfigured: vi.fn(() => true),
+  getCalendarConnectionTokens: vi.fn(), listCalendars: vi.fn(), updateAgent: vi.fn(), getAgentById: vi.fn(), deleteCalendarConnection: vi.fn(),
+  getLinkedEmployee: vi.fn(),
 }));
 vi.mock("@receptionist/core/providers/googleAuth.js", () => mocks);
 vi.mock("@receptionist/core/providers/microsoftAuth.js", () => ({ microsoftConnectionConfigured: vi.fn(() => false) }));
@@ -14,13 +15,14 @@ vi.mock("@receptionist/core/providers/calendarAccess.js", () => ({ getAllCalenda
 vi.mock("@receptionist/core/providers/calendarProvider.js", () => ({ listProviderCalendars: (_provider: string, token: string) => mocks.listCalendars(token) }));
 vi.mock("@receptionist/core/repositories/agents.js", () => mocks);
 vi.mock("@receptionist/core/repositories/calendar-connections.js", () => mocks);
+vi.mock("@receptionist/core/repositories/calcom.js", () => ({ getLinkedEmployee: mocks.getLinkedEmployee }));
 vi.mock("@receptionist/core/providers/calendar.js", () => ({ ...mocks, CalendarScopeMissingError: class extends Error {} }));
 vi.mock("@receptionist/core/env.js", () => ({ env: { GOOGLE_CLIENT_ID: "client", TOKEN_ENCRYPTION_KEY: "34".repeat(32) } }));
 vi.mock("../../env.js", () => ({ env: { DASHBOARD_ORIGINS: ["https://deskroute.example"], PUBLIC_API_URL: "https://deskroute.example" } }));
 
 import { calendar } from "./route.js";
 import { calendarOAuthCallback } from "./oauth-callback.js";
-import { OAUTH_COOKIE, oauthChallenge } from "./oauth-state.js";
+import { createOAuthState, OAUTH_COOKIE, oauthChallenge } from "./oauth-state.js";
 import { CalendarScopeMissingError } from "@receptionist/core/providers/calendar.js";
 
 const owner = "11111111-1111-4111-8111-111111111111";
@@ -68,6 +70,35 @@ describe("browser-bound Google connection", () => {
     expect(result.headers.get("set-cookie")).toContain("Max-Age=0");
     expect(mocks.exchangeGoogleAuthorizationCode).toHaveBeenCalledWith("authorization-code", "https://deskroute.example/api/calendar/oauth/callback", verifier);
     expect(mocks.connectGoogleCalendarAccount).toHaveBeenCalledWith(owner, "private", { sub: "google-owner" });
+  });
+
+  it("binds a member authorization to the employee link throughout the callback", async () => {
+    const verifier = "a".repeat(43);
+    const userId = "member-user";
+    const state = createOAuthState(owner, verifier, { employeeId: connectionA, userId });
+    mocks.getLinkedEmployee.mockResolvedValue({ id: connectionA, memberUserId: userId });
+    let result = await callback(state, `${OAUTH_COOKIE}=${verifier}`);
+    expect(result.headers.get("location")).toContain("/employee?");
+    expect(mocks.getLinkedEmployee).toHaveBeenCalledWith(owner, userId, connectionA);
+    expect(mocks.connectGoogleCalendarAccount).toHaveBeenCalledWith(owner, "private", { sub: "google-owner" }, connectionA, userId);
+
+    vi.clearAllMocks();
+    mocks.getLinkedEmployee.mockResolvedValue(null);
+    result = await callback(state, `${OAUTH_COOKIE}=${verifier}`);
+    expect(result.headers.get("location")).toContain("calendar=error");
+    expect(mocks.exchangeGoogleAuthorizationCode).not.toHaveBeenCalled();
+    expect(mocks.connectGoogleCalendarAccount).not.toHaveBeenCalled();
+  });
+
+  it("returns a cancelled member authorization to employee self service", async () => {
+    const verifier = "a".repeat(43);
+    const state = createOAuthState(owner, verifier, { employeeId: connectionA, userId: "member-user" });
+    const result = await app.request(`/api/calendar/oauth/callback?${new URLSearchParams({ state, error: "access_denied" })}`, {
+      headers: { Cookie: `${OAUTH_COOKIE}=${verifier}` },
+    });
+    expect(result.headers.get("location")).toContain("/employee?");
+    expect(result.headers.get("location")).toContain("calendar=error");
+    expect(mocks.exchangeGoogleAuthorizationCode).not.toHaveBeenCalled();
   });
 
   it("rejects a copied authorization link opened in another browser", async () => {

@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   calcomOAuthConfigured: vi.fn(() => true),
 }));
 vi.mock("@receptionist/core/repositories/calcom.js", () => mocks);
+vi.mock("@receptionist/core/providers/googleAuth.js", () => ({ googleConnectionConfigured: () => true }));
+vi.mock("@receptionist/core/providers/microsoftAuth.js", () => ({ microsoftConnectionConfigured: () => true }));
 vi.mock("@receptionist/core/providers/calcom.js", async importOriginal => ({
   ...await importOriginal<typeof import("@receptionist/core/providers/calcom.js")>(),
   exchangeCalcomAuthorizationCode: mocks.exchangeCalcomAuthorizationCode,

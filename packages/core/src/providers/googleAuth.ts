@@ -70,11 +70,13 @@ export async function connectGoogleCalendarAccount(
   agentId: string,
   refreshToken: string,
   account: GoogleAccount,
+  employeeId?: string,
+  memberUserId?: string,
 ) {
   const id = randomUUID();
   const owner = id;
   return saveCalendarConnection({
-    id, agentId, provider: "google", providerAccountId: account.sub, accountEmail: account.email,
+    id, agentId, employeeId, memberUserId, provider: "google", providerAccountId: account.sub, accountEmail: account.email,
     accountName: account.name, encryptionOwner: owner,
     encryptedRefreshToken: encryptToken(refreshToken, owner, env.TOKEN_ENCRYPTION_KEY!),
   });

@@ -8,12 +8,32 @@ vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: mocks.data, i
 
 import EmployeeSelfPage from "./EmployeeSelfPage";
 
-it("shows only self-service OAuth controls and no manual Cal.com fields", () => {
-  mocks.data = { configured: true, employee: { id: "employee", displayName: "Thomas" }, connection: null };
+it("offers linked members self-service Google, Microsoft, and Cal.com connections", () => {
+  mocks.data = {
+    configured: true,
+    employee: { id: "employee", displayName: "Thomas" },
+    connection: null,
+    directCalendars: { providers: { google: true, microsoft: true }, connections: [] },
+  };
   const html = renderToStaticMarkup(<EmployeeSelfPage />);
-  expect(html).toContain("Thomas");
-  expect(html).toContain("Connect Cal.com");
+  for (const text of ["Thomas", "Connect Google", "Connect Microsoft", "Connect Cal.com"]) expect(html).toContain(text);
   for (const forbidden of ["API key", "event type ID", "webhook", "client secret"]) expect(html).not.toContain(forbidden);
+});
+
+it("shows only the linked member's connected direct-calendar accounts", () => {
+  mocks.data = {
+    configured: false,
+    employee: { id: "employee", displayName: "Thomas" },
+    connection: null,
+    directCalendars: {
+      providers: { google: true, microsoft: true },
+      connections: [{ id: "own", provider: "google", accountEmail: "thomas@example.test", accountName: "Thomas" }],
+    },
+  };
+  const html = renderToStaticMarkup(<EmployeeSelfPage />);
+  expect(html).toContain("thomas@example.test");
+  expect(html).toContain("A manager chooses which connected calendars control bookings and conflicts");
+  expect(html).not.toContain("other@example.test");
 });
 
 it("shows readiness and clear unconfigured or unlinked states without credentials", () => {
