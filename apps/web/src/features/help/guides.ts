@@ -15,7 +15,7 @@ export const guides: Guide[] = [
     summary: 'Start here to prepare a receptionist for your business, then make a browser call.',
     steps: [
       { title: 'Sign in', detail: 'Choose Continue with Google. Use an account you control for work. Signing in identifies you in DeskRoute; connecting calendars is a separate step.' },
-      { title: 'Choose your workspace', detail: 'If an owner invited you, open Workspaces and join using their invitation code. Otherwise, complete onboarding for your receptionist. A personal workspace is for you; a team workspace lets you invite colleagues.' },
+      { title: 'Join or create your company', detail: 'Employees open Company workspace and enter the one-time code shared privately by the owner. The owner completes onboarding once for the company receptionist. DeskRoute does not email invitation codes.' },
       { title: 'Describe the business', detail: 'Open Settings → Business. Enter the business name, description and timezone. Add services if you offer them, then save. General appointments can also be booked without a declared service.' },
       { title: 'Set hours and instructions', detail: 'In Settings → Hours, save the days and times you accept appointments. In Settings → Agent, save the greeting and caller questions. Add common questions and answers on Knowledge.' },
       { title: 'Connect calendars and try a call', detail: 'Follow the calendars guide, then the Test your agent guide. Confirm the appointment appears in the intended provider calendar before using the receptionist with customers.', livekitOnly: true },
@@ -27,7 +27,7 @@ export const guides: Guide[] = [
     id: 'workspaces', title: 'Workspaces and teammates', audience: 'Everyone',
     summary: 'Keep businesses separate and give teammates only the access they need.',
     steps: [
-      { title: 'Open Workspaces', detail: 'Use Switch beside the business name at the top of the dashboard. Select an existing workspace or enter a name, type and timezone under Create a workspace.' },
+      { title: 'Open the company workspace', detail: 'Use the company name at the top of the dashboard. New owners create the company receptionist during onboarding; existing private workspaces can be converted in place by their owner.' },
       { title: 'Invite a teammate as the owner', detail: 'In a team workspace, enter the exact email your colleague will use to sign in and select Member or Manager. Create the invitation and copy its code. Share it privately with that colleague; DeskRoute does not email it for you.' },
       { title: 'Accept the invitation', detail: 'Your colleague signs in with the invited email, opens Workspaces, pastes the code under Join a workspace and chooses Join workspace. Codes expire after seven days and work once.' },
       { title: 'Choose the right role', detail: 'A member can view the workspace dashboard, call-log summaries and DeskRoute booking calendar, and edit their own routing profile. A manager can also configure the receptionist, open available call details and manage records. Only the owner manages invitations, roles and calendar connections.' },

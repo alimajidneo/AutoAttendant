@@ -78,6 +78,7 @@ export default function SignInPage() {
           <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
             New customers can create their DeskRoute account through the same secure Google sign-in.
           </p>
+          <Link to="/workspaces" onClick={() => sessionStorage.setItem('deskroute.afterSignIn', '/workspaces')} className="mt-4 block text-center text-sm font-semibold text-primary">Employee with an invitation code? Join your company</Link>
           <Link to="/help" className="mt-4 block text-center text-sm font-semibold text-primary">New here? Read the setup tutorial</Link>
           {error && <p role="alert" className="mt-4 rounded-lg bg-destructive-subtle px-3 py-2 text-sm text-destructive">Could not open Google sign-in. Please try again.</p>}
         </section>

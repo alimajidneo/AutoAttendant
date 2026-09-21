@@ -13,7 +13,9 @@ async function finishSignIn() {
   if (params.has('error') || !code) throw new Error('Google sign-in was not completed. Please try again.')
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
   if (error || !data.session) throw new Error('This sign-in link has expired. Please sign in again.')
-  return '/'
+  const destination = sessionStorage.getItem('deskroute.afterSignIn')
+  sessionStorage.removeItem('deskroute.afterSignIn')
+  return destination === '/workspaces' ? destination : '/'
 }
 
 export default function SSOCallbackPage() {

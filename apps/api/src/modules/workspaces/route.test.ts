@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ getUser: vi.fn(), listWorkspaces: vi.fn(), createWorkspace: vi.fn(),
   workspaceAccess: vi.fn(), listMembers: vi.fn(), updateMember: vi.fn(), removeMember: vi.fn(),
-  createInvite: vi.fn(), acceptInvite: vi.fn(), listInvites: vi.fn(), revokeInvite: vi.fn(), saveVerifiedMemberEmail: vi.fn() }));
+  createInvite: vi.fn(), acceptInvite: vi.fn(), listInvites: vi.fn(), revokeInvite: vi.fn(),
+  convertPersonalWorkspaceToTeam: vi.fn(), saveVerifiedMemberEmail: vi.fn() }));
 vi.mock("@receptionist/core/providers/supabase.js", () => ({ supabase: { auth: { getUser: mocks.getUser } } }));
 vi.mock("@receptionist/core/repositories/workspaces.js", () => mocks);
 import { workspaces } from "./route.js";
@@ -57,5 +58,17 @@ describe("workspace HTTP authorization", () => {
     expect((await post("/", { name: "Company", kind: "team", timezone: "not-a-zone" })).status).toBe(400);
     expect(mocks.updateMember).not.toHaveBeenCalled();
     expect(mocks.createWorkspace).not.toHaveBeenCalled();
+  });
+  it("creates team workspaces only while preserving legacy personal records", async () => {
+    expect((await post("/", { name: "Company", kind: "personal", timezone: "UTC" })).status).toBe(400);
+    expect(mocks.createWorkspace).not.toHaveBeenCalled();
+    mocks.createWorkspace.mockResolvedValue({ id });
+    expect((await post("/", { name: "Company", kind: "team", timezone: "UTC" })).status).toBe(201);
+    expect(mocks.createWorkspace).toHaveBeenCalledWith("member", "member@example.test", "Company", "UTC", "team");
+  });
+  it("lets a legacy personal owner explicitly convert without copying data", async () => {
+    mocks.convertPersonalWorkspaceToTeam.mockResolvedValue(true);
+    expect((await post(`/${id}/convert-to-team`, {})).status).toBe(200);
+    expect(mocks.convertPersonalWorkspaceToTeam).toHaveBeenCalledWith(id, "member");
   });
 });

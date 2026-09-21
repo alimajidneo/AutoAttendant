@@ -57,12 +57,24 @@ export default function EmployeeSelfPage() {
   if (query.isError || !query.data) return <PageContainer><p>Could not load employee setup. <Button variant="ghost" onClick={() => void query.refetch()}>Retry</Button></p></PageContainer>
   const { configured, employee, connection, directCalendars = { providers: { google: false, microsoft: false }, connections: [] } } = query.data
   return <PageContainer size="form">
-    <PageHeader title="My employee setup" description="Connect your own calendar accounts without sharing credentials with a manager." />
+    <PageHeader title="My employee setup" description="Your company workspace, profile, and private calendar connections." />
     {!employee ? <section className="rounded-2xl border border-border bg-card p-5 shadow-low">
       <h2 className="font-semibold">Your account is not linked to an employee</h2>
-      <p className="mt-2 text-sm text-muted-foreground">Ask a workspace manager to explicitly link your dashboard member to your employee record.</p>
+      <p className="mt-2 text-sm text-muted-foreground">You joined the company, but a manager must link your account to the correct employee record before you can connect a calendar.</p>
+      <a className="mt-4 inline-block font-semibold text-primary hover:underline" href="/workspaces">View company members</a>
     </section> : <section className="grid gap-4 rounded-2xl border border-border bg-card p-5 shadow-low">
-      <div><p className="text-sm text-muted-foreground">Employee</p><h2 className="text-lg font-semibold">{employee.displayName}</h2></div>
+      <div><p className="text-sm text-muted-foreground">Employee</p><h2 className="text-lg font-semibold">{employee.displayName}</h2><p className="text-sm text-muted-foreground">{employee.department || 'Department not set'}</p></div>
+      <div className="rounded-xl bg-sunk-1 p-4 text-sm">
+        <h3 className="font-semibold">Setup checklist</h3>
+        <ol className="mt-2 grid gap-2">
+          <li>✓ Joined company and linked to an employee record</li>
+          <li>{directCalendars.connections.length || connection ? '✓' : '○'} Connect a calendar account you own</li>
+          <li>{employee.bookingConfigured ? '✓ Booking destination configured' : '○ Manager must approve a booking destination'}</li>
+        </ol>
+        <p className="mt-3 font-medium">{employee.bookingConfigured ? 'Calendar setup configured' : 'Needs setup'}</p>
+        <p className="mt-1 text-muted-foreground">Calendar setup does not by itself enable telephone routing or prove a live provider booking.</p>
+        <a href="/workspaces" className="mt-2 inline-block font-semibold text-primary hover:underline">Review your workspace profile</a>
+      </div>
       <div className="grid gap-3 border-t border-border/60 pt-4">
         <div><h3 className="font-semibold">Google and Microsoft calendars</h3><p className="text-sm text-muted-foreground">Connect only accounts you own. A manager chooses which connected calendars control bookings and conflicts.</p></div>
         {directCalendars.connections.map(item => <div key={item.id} className="rounded-xl bg-sunk-1 p-3">

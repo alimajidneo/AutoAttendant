@@ -8,7 +8,7 @@ const role = z.enum(["manager", "member"]);
 const memberPatch = z.object({ displayName: z.string().trim().min(1).max(80).optional(),
   department: z.string().trim().max(80).optional(), available: z.boolean().optional(), role: role.optional(),
   employeeId: z.string().uuid().nullable().optional() }).strict();
-const creation = z.object({ name: z.string().trim().min(1).max(100), kind: z.enum(["personal", "team"]),
+const creation = z.object({ name: z.string().trim().min(1).max(100), kind: z.literal("team"),
   timezone: z.string().refine(value => { try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; } }) }).strict();
 
 export const workspaces = new Hono<AppEnv>()
@@ -39,6 +39,10 @@ export const workspaces = new Hono<AppEnv>()
     const id = c.req.param("id");
     if (!z.string().uuid().safeParse(id).success || !await repo.workspaceAccess(id!, c.get("authUser").id)) return c.json({ error: "Workspace access denied" }, 403);
     await next();
+  })
+  .post("/:id/convert-to-team", async c => {
+    const converted = await repo.convertPersonalWorkspaceToTeam(c.req.param("id"), c.get("authUser").id);
+    return converted ? c.json({ converted: true }) : c.json({ error: "Only the owner can convert an owner-only personal workspace" }, 409);
   })
   .get("/:id/members", async c => {
     const user = c.get("authUser");

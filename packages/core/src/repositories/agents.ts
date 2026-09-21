@@ -100,7 +100,7 @@ export async function createAgent(input: {
   return db.transaction(async tx => {
     const { authEmail, ...agentInput } = input;
     const [agent] = await tx.insert(agents).values(agentInput).returning(agentFields);
-    await tx.insert(workspaces).values({ agentId: agent!.id, ownerUserId: input.authUserId, kind: "personal" });
+    await tx.insert(workspaces).values({ agentId: agent!.id, ownerUserId: input.authUserId, kind: "team" });
     await tx.insert(workspaceMembers).values({ agentId: agent!.id, userId: input.authUserId,
       email: authEmail?.toLowerCase() ?? "", role: "manager" });
     return agent!;

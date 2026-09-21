@@ -34,6 +34,18 @@ export async function createWorkspace(userId: string, email: string, name: strin
   });
 }
 
+/** Reuse the original receptionist and its data when an owner starts inviting a team. */
+export async function convertPersonalWorkspaceToTeam(agentId: string, actor: string) {
+  return db.transaction(async tx => {
+    const [workspace] = await tx.select().from(workspaces).where(eq(workspaces.agentId, agentId)).for("update");
+    if (!workspace || workspace.ownerUserId !== actor || workspace.kind !== "personal") return false;
+    const memberRows = await tx.select({ userId: members.userId }).from(members).where(eq(members.agentId, agentId));
+    if (memberRows.length !== 1 || memberRows[0]?.userId !== actor) return false;
+    await tx.update(workspaces).set({ kind: "team" }).where(eq(workspaces.agentId, agentId));
+    return true;
+  });
+}
+
 export async function listMembers(agentId: string) {
   return db.select().from(members).where(eq(members.agentId, agentId)).orderBy(members.displayName, members.userId);
 }

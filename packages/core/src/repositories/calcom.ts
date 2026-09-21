@@ -178,7 +178,8 @@ export async function getLinkedEmployee(agentId: string, userId: string, employe
 export async function getEmployeeCalcomSelf(agentId: string, userId: string) {
  return db.transaction(async tx => {
   await tx.select({ id: workspaces.agentId }).from(workspaces).where(eq(workspaces.agentId, agentId)).for('share');
-  const [employee] = await tx.select({ id: employees.id, displayName: employees.displayName, calendarPolicy: employees.calendarPolicy })
+  const [employee] = await tx.select({ id: employees.id, displayName: employees.displayName, department: employees.department,
+   calendarPolicy: employees.calendarPolicy })
    .from(workspaceMembers).innerJoin(employees, and(eq(employees.agentId, workspaceMembers.agentId), eq(employees.id, workspaceMembers.employeeId)))
    .where(and(eq(workspaceMembers.agentId, agentId), eq(workspaceMembers.userId, userId))).limit(1);
   if (!employee) return null;
@@ -190,7 +191,12 @@ export async function getEmployeeCalcomSelf(agentId: string, userId: string) {
     .orderBy(calendarConnections.createdAt, calendarConnections.id),
   ]);
   const policy = employee.calendarPolicy.authority === 'calcom' ? employee.calendarPolicy : null;
-  return { id: employee.id, displayName: employee.displayName, directConnections,
+  const bookingConnectionId = employee.calendarPolicy.authority === 'direct' ? employee.calendarPolicy.booking?.connectionId : null;
+  return { id: employee.id, displayName: employee.displayName, department: employee.department,
+   bookingConfigured: employee.calendarPolicy.authority === 'direct'
+    ? !!bookingConnectionId && directConnections.some(item => item.id === bookingConnectionId)
+    : !!connection && calcomConnectionView(connection).ready && employee.calendarPolicy.connectionId === connection.id,
+   directConnections,
    connection: connection ? { ...calcomConnectionView(connection), eventTypeTitle: policy?.eventTypeTitle ?? null } : null };
  });
 }

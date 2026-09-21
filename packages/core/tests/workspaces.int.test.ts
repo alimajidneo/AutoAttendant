@@ -3,7 +3,8 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "../src/db/client.js";
 import { calendarConnections, workspaceInvites, workspaceMembers, transferRequests, workspaces } from "../src/db/schema.js";
 import { createAgent } from "../src/repositories/agents.js";
-import { createWorkspace, listWorkspaces, workspaceAccess, createInvite, acceptInvite, updateMember, removeMember, revokeInvite } from "../src/repositories/workspaces.js";
+import { createWorkspace, listWorkspaces, workspaceAccess, createInvite, acceptInvite, updateMember, removeMember, revokeInvite,
+  convertPersonalWorkspaceToTeam } from "../src/repositories/workspaces.js";
 import { requestBrowserTransfer, respondToTransfer, transferInbox, connectTransfer } from "../src/repositories/transfers.js";
 import { listNotifications, markNotificationsRead } from "../src/repositories/notifications.js";
 import { makeAppointment } from "./factories.js";
@@ -17,13 +18,22 @@ async function team() {
   return workspace;
 }
 describe("workspace boundaries", () => {
-  it("preserves personal onboarding and isolates a new shared workspace", async () => {
-    const personal = await createAgent({ authUserId: "owner", businessName: "Personal", industry: "", timezone: "UTC" });
+  it("creates a team at onboarding and keeps workspaces isolated", async () => {
+    const initial = await createAgent({ authUserId: "owner", businessName: "Company", industry: "", timezone: "UTC" });
     const shared = await team();
-    expect((await listWorkspaces("owner")).map(x => x.id)).toEqual([personal.id, shared.id]);
+    expect((await listWorkspaces("owner")).map(x => x.id)).toEqual([initial.id, shared.id]);
     expect((await listWorkspaces("member")).map(x => x.id)).toEqual([shared.id]);
-    expect(await workspaceAccess(personal.id, "member")).toBeNull();
-    expect(await createInvite(personal.id, "owner", "new@example.test", "member")).toBeNull();
+    expect((await workspaceAccess(initial.id, "owner"))?.kind).toBe("team");
+    expect(await workspaceAccess(initial.id, "member")).toBeNull();
+  });
+  it("converts only an owner-only legacy personal workspace in place", async () => {
+    const legacy = (await createWorkspace("owner", "owner@example.test", "Existing", "UTC", "personal"))!;
+    expect(await convertPersonalWorkspaceToTeam(legacy.id, "stranger")).toBe(false);
+    expect(await createInvite(legacy.id, "owner", "new@example.test", "member")).toBeNull();
+    expect(await convertPersonalWorkspaceToTeam(legacy.id, "owner")).toBe(true);
+    expect((await workspaceAccess(legacy.id, "owner"))?.kind).toBe("team");
+    expect(await convertPersonalWorkspaceToTeam(legacy.id, "owner")).toBe(false);
+    expect(await createInvite(legacy.id, "owner", "new@example.test", "member")).not.toBeNull();
   });
   it("binds a single-use invitation to its email and stores only its hash", async () => {
     const workspace = (await createWorkspace("owner", "owner@example.test", "Team", "UTC", "team"))!;

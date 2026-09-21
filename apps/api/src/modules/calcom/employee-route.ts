@@ -81,7 +81,8 @@ export const employeeCalcom = new Hono<AppEnv>()
   .get('/', async c => {
     const row = await repo.getEmployeeCalcomSelf(c.get('agentId'), c.get('authUser').id);
     const directConnections = row?.directConnections ?? [];
-    return c.json({ configured: serverConfigured(), employee: row ? { id: row.id, displayName: row.displayName } : null,
+    return c.json({ configured: serverConfigured(), employee: row ? { id: row.id, displayName: row.displayName,
+      department: row.department, bookingConfigured: row.bookingConfigured } : null,
       connection: publicConnection(row?.connection ?? null),
       directCalendars: {
         providers: { google: googleConnectionConfigured(), microsoft: microsoftConnectionConfigured() },

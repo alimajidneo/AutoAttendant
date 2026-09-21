@@ -37,14 +37,16 @@ it("shows only the linked member's connected direct-calendar accounts", () => {
 });
 
 it("shows readiness and clear unconfigured or unlinked states without credentials", () => {
-  mocks.data = { configured: true, employee: { id: "employee", displayName: "Thomas" }, connection: { ready: true, status: "active", accountEmail: "thomas@example.test", eventTypeTitle: "DeskRoute appointment", encryptedCredential: "PRIVATE" } };
+  mocks.data = { configured: true, employee: { id: "employee", displayName: "Thomas", bookingConfigured: true }, connection: { ready: true, status: "active", accountEmail: "thomas@example.test", eventTypeTitle: "DeskRoute appointment", encryptedCredential: "PRIVATE" } };
   let html = renderToStaticMarkup(<EmployeeSelfPage />);
   expect(html).toContain("Ready");
+  expect(html).toContain("Calendar setup configured");
   expect(html).toContain("thomas@example.test");
   expect(html).not.toContain("PRIVATE");
   mocks.data = { configured: false, employee: { id: "employee", displayName: "Thomas" }, connection: null };
   html = renderToStaticMarkup(<EmployeeSelfPage />);
   expect(html).toContain("not configured");
+  expect(html).toContain("Manager must approve a booking destination");
   mocks.data = { configured: true, employee: null, connection: null };
   expect(renderToStaticMarkup(<EmployeeSelfPage />)).toContain("not linked");
 });
