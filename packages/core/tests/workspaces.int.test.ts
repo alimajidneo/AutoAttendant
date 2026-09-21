@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../src/db/client.js";
-import { calendarConnections, workspaceInvites, workspaceMembers, transferRequests, workspaces } from "../src/db/schema.js";
+import { calendarConnections, calls, phoneNumbers, retellConnections, workspaceInvites, workspaceMembers, transferRequests, workspaces } from "../src/db/schema.js";
 import { createAgent } from "../src/repositories/agents.js";
 import { createWorkspace, listWorkspaces, workspaceAccess, createInvite, acceptInvite, updateMember, removeMember, revokeInvite,
-  convertPersonalWorkspaceToTeam } from "../src/repositories/workspaces.js";
+  convertPersonalWorkspaceToTeam, deleteWorkspace } from "../src/repositories/workspaces.js";
 import { requestBrowserTransfer, respondToTransfer, transferInbox, connectTransfer } from "../src/repositories/transfers.js";
 import { listNotifications, markNotificationsRead } from "../src/repositories/notifications.js";
 import { makeAppointment } from "./factories.js";
@@ -34,6 +34,30 @@ describe("workspace boundaries", () => {
     expect((await workspaceAccess(legacy.id, "owner"))?.kind).toBe("team");
     expect(await convertPersonalWorkspaceToTeam(legacy.id, "owner")).toBe(false);
     expect(await createInvite(legacy.id, "owner", "new@example.test", "member")).not.toBeNull();
+  });
+  it("deletes personal and team workspaces only for their owner after exact confirmation", async () => {
+    for (const kind of ["personal", "team"] as const) {
+      const workspace = (await createWorkspace("owner", "owner@example.test", "Company", "UTC", kind))!;
+      if (kind === "team") {
+        const invite = (await createInvite(workspace.id, "owner", "member@example.test", "member"))!;
+        await acceptInvite("member", "member@example.test", invite.code);
+      }
+      expect(await deleteWorkspace(workspace.id, "member", "Company")).toBe("forbidden");
+      expect(await deleteWorkspace(workspace.id, "owner", "Wrong name")).toBe("name-mismatch");
+      await db.insert(phoneNumbers).values({ agentId: workspace.id, e164: kind === "personal" ? "+15550001111" : "+15550002222" });
+      expect(await deleteWorkspace(workspace.id, "owner", "Company")).toBe("Disconnect and release phone numbers first");
+      await db.delete(phoneNumbers).where(eq(phoneNumbers.agentId, workspace.id));
+      await db.insert(calls).values({ agentId: workspace.id, roomName: `recording-${kind}`, recordingKey: `recording-${kind}` });
+      expect(await deleteWorkspace(workspace.id, "owner", "Company")).toBe("Stored call recordings require cleanup before deletion");
+      await db.delete(calls).where(eq(calls.agentId, workspace.id));
+      await db.insert(retellConnections).values({ agentId: workspace.id, retellAgentId: `retell-${kind}`, enabled: true });
+      expect(await deleteWorkspace(workspace.id, "owner", "Company")).toBe("Disable Retell in Settings first");
+      await db.update(retellConnections).set({ enabled: false }).where(eq(retellConnections.agentId, workspace.id));
+      expect(await deleteWorkspace(workspace.id, "owner", "Company")).toBe("deleted");
+      expect(await workspaceAccess(workspace.id, "owner")).toBeNull();
+      expect(await workspaceAccess(workspace.id, "member")).toBeNull();
+      expect(await db.select().from(workspaceInvites).where(eq(workspaceInvites.agentId, workspace.id))).toEqual([]);
+    }
   });
   it("binds a single-use invitation to its email and stores only its hash", async () => {
     const workspace = (await createWorkspace("owner", "owner@example.test", "Team", "UTC", "team"))!;

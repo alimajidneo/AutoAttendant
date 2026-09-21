@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ getUser: vi.fn(), listWorkspaces: vi.fn(), createWorkspace: vi.fn(),
   workspaceAccess: vi.fn(), listMembers: vi.fn(), updateMember: vi.fn(), removeMember: vi.fn(),
   createInvite: vi.fn(), acceptInvite: vi.fn(), listInvites: vi.fn(), revokeInvite: vi.fn(),
-  convertPersonalWorkspaceToTeam: vi.fn(), saveVerifiedMemberEmail: vi.fn() }));
+  convertPersonalWorkspaceToTeam: vi.fn(), deleteWorkspace: vi.fn(), saveVerifiedMemberEmail: vi.fn() }));
 vi.mock("@receptionist/core/providers/supabase.js", () => ({ supabase: { auth: { getUser: mocks.getUser } } }));
 vi.mock("@receptionist/core/repositories/workspaces.js", () => mocks);
 import { workspaces } from "./route.js";
@@ -70,5 +70,18 @@ describe("workspace HTTP authorization", () => {
     mocks.convertPersonalWorkspaceToTeam.mockResolvedValue(true);
     expect((await post(`/${id}/convert-to-team`, {})).status).toBe(200);
     expect(mocks.convertPersonalWorkspaceToTeam).toHaveBeenCalledWith(id, "member");
+  });
+  it("requires a matching name and owner permission to delete either workspace kind", async () => {
+    expect((await workspaces.request(`/${id}`, { method: "DELETE", headers })).status).toBe(400);
+    expect(mocks.deleteWorkspace).not.toHaveBeenCalled();
+    mocks.deleteWorkspace.mockResolvedValue("forbidden");
+    expect((await post(`/${id}`, { confirmName: "Company" }, "DELETE")).status).toBe(403);
+    mocks.deleteWorkspace.mockResolvedValue("name-mismatch");
+    expect((await post(`/${id}`, { confirmName: "Company" }, "DELETE")).status).toBe(400);
+    mocks.deleteWorkspace.mockResolvedValue("Disconnect and release phone numbers first");
+    expect((await post(`/${id}`, { confirmName: "Company" }, "DELETE")).status).toBe(409);
+    mocks.deleteWorkspace.mockResolvedValue("deleted");
+    expect((await post(`/${id}`, { confirmName: "Company" }, "DELETE")).status).toBe(200);
+    expect(mocks.deleteWorkspace).toHaveBeenCalledWith(id, "member", "Company");
   });
 });

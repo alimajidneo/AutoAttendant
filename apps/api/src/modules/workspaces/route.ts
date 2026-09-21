@@ -35,6 +35,17 @@ export const workspaces = new Hono<AppEnv>()
     const result = await repo.acceptInvite(user.id, user.email, parsed.data.code);
     return result ? c.json(result) : c.json({ error: "Invitation expired, used, revoked, or addressed to another email" }, 409);
   })
+  .delete("/:id", async c => {
+    const id = c.req.param("id");
+    if (!z.string().uuid().safeParse(id).success) return c.json({ error: "Invalid workspace" }, 400);
+    const parsed = z.object({ confirmName: z.string().min(1) }).strict().safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: "Type the workspace name to confirm deletion" }, 400);
+    const result = await repo.deleteWorkspace(id, c.get("authUser").id, parsed.data.confirmName);
+    if (result === "forbidden") return c.json({ error: "Only the workspace owner can delete it" }, 403);
+    if (result === "name-mismatch") return c.json({ error: "Workspace name did not match" }, 400);
+    if (result !== "deleted") return c.json({ error: result }, 409);
+    return c.json({ deleted: true });
+  })
   .use("/:id/*", async (c, next) => {
     const id = c.req.param("id");
     if (!z.string().uuid().safeParse(id).success || !await repo.workspaceAccess(id!, c.get("authUser").id)) return c.json({ error: "Workspace access denied" }, 403);

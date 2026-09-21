@@ -24,7 +24,7 @@ export const onboarding = new Hono<AppEnv>()
     if (!auth?.id) return c.json({ error: "Unauthorized" }, 401);
     const workspaces = await listWorkspaces(auth.id);
     const selected = c.req.header("X-Workspace-Id");
-    const current = selected ? workspaces.find(item => item.id === selected) : workspaces[0];
+    const current = workspaces.find(item => item.id === selected) ?? workspaces[0];
     return c.json({ onboarded: !!current, role: current?.role, workspaceOwner: current?.ownerUserId === auth.id,
       workspaceId: current?.id, timezone: current?.timezone, hasWorkspaces: workspaces.length > 0 });
   })

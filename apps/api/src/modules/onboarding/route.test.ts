@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   replaceServices: vi.fn(),
   purchasePhoneNumber: vi.fn(),
   releasePhoneNumber: vi.fn(),
+  listWorkspaces: vi.fn(),
 }));
 
 vi.mock("@receptionist/core/providers/supabase.js", () => ({
@@ -16,6 +17,7 @@ vi.mock("@receptionist/core/providers/supabase.js", () => ({
 }));
 vi.mock("@receptionist/core/repositories/agents.js", () => mocks);
 vi.mock("@receptionist/core/repositories/services.js", () => mocks);
+vi.mock("@receptionist/core/repositories/workspaces.js", () => mocks);
 vi.mock("@receptionist/core/providers/telephony.js", () => ({
   ...mocks,
   searchPhoneNumbers: vi.fn(),
@@ -41,6 +43,13 @@ beforeEach(() => {
 });
 
 describe("browser-first onboarding", () => {
+  it("falls back to a remaining workspace when a saved selection was deleted", async () => {
+    mocks.listWorkspaces.mockResolvedValue([{ id: "remaining", role: "manager", ownerUserId: "owner-test", timezone: "UTC" }]);
+    const response = await app.request("/onboarding/session", {
+      headers: { Authorization: "Bearer test-session", "X-Workspace-Id": "deleted" },
+    });
+    expect(await response.json()).toMatchObject({ onboarded: true, workspaceId: "remaining", hasWorkspaces: true });
+  });
   it("creates an authenticated attendant without contacting the phone provider", async () => {
     const response = await submit(profile);
     expect(response.status).toBe(200);

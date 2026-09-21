@@ -49,9 +49,9 @@ export const telephony = new Hono<AppEnv>()
     if (!agent) return c.json({ error: "Agent not found" }, 404);
 
     for (const number of await listPhoneNumbers(agentId)) {
-      await releasePhoneNumber(number.e164).catch((e: unknown) =>
-        console.error("[telephony] release failed:", e)
-      );
+      // Keep the local number if the provider could not release it; hiding it
+      // would make workspace deletion possible while billing might continue.
+      await releasePhoneNumber(number.e164);
       await removePhoneNumber(agentId, number.e164);
     }
 

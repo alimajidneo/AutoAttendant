@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Building2, UserRound, Users, ArrowRight, ShieldCheck, Home, Mail, CalendarDays, CircleCheck } from 'lucide-react'
+import { Building2, UserRound, Users, ArrowRight, ShieldCheck, Home, Mail, CalendarDays, CircleCheck, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -72,7 +72,7 @@ function MemberEditor({ member, workspace, employees, linkedEmployeeIds, refresh
   </div>
 }
 
-function WorkspaceDetails({ workspace }: { workspace: Workspace }) {
+function WorkspaceDetails({ workspace, alternatives }: { workspace: Workspace; alternatives: Workspace[] }) {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
@@ -103,6 +103,19 @@ function WorkspaceDetails({ workspace }: { workspace: Workspace }) {
       window.location.reload()
     } catch (error) { toast.error(message(error)); setBusy(false) }
   }
+  async function removeWorkspace() {
+    const confirmName = window.prompt(`Permanently delete "${workspace.name}"? This removes its members, invitations, calls, appointments, and settings. This cannot be undone. Type the exact workspace name to confirm:`)
+    if (confirmName === null) return
+    if (confirmName !== workspace.name) { toast.error('Workspace name did not match'); return }
+    setBusy(true)
+    try {
+      await apiClient.delete(`/workspaces/${workspace.id}`, { data: { confirmName } })
+      const next = alternatives[0]
+      if (next) sessionStorage.setItem('deskroute.workspace', next.id)
+      else sessionStorage.removeItem('deskroute.workspace')
+      window.location.assign('/workspaces')
+    } catch (error) { toast.error(message(error)); setBusy(false) }
+  }
   const team = members.data ?? []
   const available = team.filter(member => member.available).length
   return <div className="grid gap-5">
@@ -128,15 +141,23 @@ function WorkspaceDetails({ workspace }: { workspace: Workspace }) {
       {code && <div className="mt-4 rounded-xl bg-sunk-1 p-4"><label htmlFor="created-code" className="grid gap-2 text-sm">Invitation code — copy and share privately<Input id="created-code" readOnly value={code} onFocus={e => e.target.select()} /></label><p className="mt-2 text-sm text-muted-foreground">Your teammate signs in, opens Workspaces, and pastes this under Join a workspace.</p></div>}
       {invites.isError && <p className="mt-3 text-sm text-destructive">Could not load invitations.</p>}{invites.data?.map(item => <div key={item.id} className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm"><span>{item.email} · {item.role}</span><Button variant="ghost" disabled={busy} onClick={() => void revoke(item.id)}>Revoke</Button></div>)}
     </section>}
+    {owner && <section className={panel}><h2 className="text-lg font-semibold">Delete workspace</h2><p className="mt-2 text-sm text-muted-foreground">Permanently removes this {workspace.kind} workspace and its DeskRoute data for every member. Disconnect phone numbers and external integrations first. Workspaces with stored call recordings cannot yet be deleted safely.</p><Button className="mt-4" variant="outline" disabled={busy} onClick={() => void removeWorkspace()}><Trash2 />Delete workspace</Button></section>}
     {browserTransferUi && <TransferInbox />}
   </div>
 }
 
 export default function WorkspacesPage() {
   const { user, signOut } = useAuth()
-  const query = useQuery({ queryKey: ['workspaces'], queryFn: () => apiClient.get<Workspace[]>('/workspaces').then(r => r.data) })
+  const query = useQuery({ queryKey: ['workspaces'], queryFn: () => apiClient.get<Workspace[]>('/workspaces').then(r => {
+    const selected = sessionStorage.getItem('deskroute.workspace')
+    if (selected && !r.data.some(item => item.id === selected)) {
+      if (r.data[0]) sessionStorage.setItem('deskroute.workspace', r.data[0].id)
+      else sessionStorage.removeItem('deskroute.workspace')
+    }
+    return r.data
+  }) })
   const selected = sessionStorage.getItem('deskroute.workspace')
-  const workspace = query.data?.find(item => item.id === selected) ?? (!selected ? query.data?.[0] : undefined)
+  const workspace = query.data?.find(item => item.id === selected) ?? query.data?.[0]
   const [name, setName] = useState('')
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [code, setCode] = useState('')
@@ -149,7 +170,7 @@ export default function WorkspacesPage() {
   return <main className="min-h-screen bg-stage text-foreground"><header className="border-b border-border bg-card"><div className="mx-auto flex max-w-page items-center justify-between gap-3 px-5 py-4"><Link to="/" className="text-xl font-bold text-primary">DeskRoute</Link><div className="flex items-center gap-2"><Button variant="ghost" render={<Link to="/" />}><Home />Home</Button><Link to="/help?guide=workspaces" className="hidden text-sm font-semibold text-primary sm:block">Help & tutorial</Link><span className="hidden text-sm md:block">{user?.email}</span><Button variant="ghost" onClick={() => void signOut()}>Sign out</Button></div></div></header>
     <div className="mx-auto grid max-w-page gap-6 px-5 py-8"><div><h1 className="text-2xl font-bold">Company workspace</h1><p className="mt-2 text-muted-foreground">One receptionist and a shared team directory, with private calendar permissions for each employee.</p></div>
       {query.isPending ? <p>Loading workspaces…</p> : query.isError ? <p>Could not load workspaces. <Button onClick={() => void query.refetch()}>Retry</Button></p> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{query.data.map(item => <button key={item.id} disabled={item.id === workspace?.id} onClick={() => openWorkspace(item.id, '/workspaces')} className={`flex items-center gap-3 rounded-2xl border p-4 text-left ${item.id === workspace?.id ? 'border-primary bg-primary/10' : 'border-border bg-card hover:bg-sunk-1'}`}>{item.kind === 'team' ? <Building2 className="text-primary" /> : <UserRound className="text-primary" />}<span><span className="block font-semibold">{item.name}</span><span className="text-sm text-muted-foreground">{item.role} · {item.id === workspace?.id ? 'Selected' : 'Switch workspace'}</span></span></button>)}</div>}
-      {workspace && <WorkspaceDetails key={workspace.id} workspace={workspace} />}
+      {workspace && <WorkspaceDetails key={workspace.id} workspace={workspace} alternatives={query.data?.filter(item => item.id !== workspace.id) ?? []} />}
       <div className="grid gap-5 md:grid-cols-2">{query.data?.length === 0 && <section className={panel}><h2 className="flex items-center gap-2 text-lg font-semibold"><Building2 className="text-primary" />Create company workspace</h2><form className="mt-4 grid gap-3" onSubmit={e => { e.preventDefault(); void submit(false) }}><label htmlFor="workspace-name" className="grid gap-1 text-sm">Company name<Input id="workspace-name" required maxLength={100} value={name} onChange={e => setName(e.target.value)} /></label><label htmlFor="workspace-timezone" className="grid gap-1 text-sm">Timezone<Input id="workspace-timezone" required value={timezone} onChange={e => setTimezone(e.target.value)} /></label><Button type="submit" disabled={busy}>Create company</Button></form></section>}
       <section className={panel}><h2 className="flex items-center gap-2 text-lg font-semibold"><Users className="text-primary" />Join your company</h2><p className="mt-3 text-sm text-muted-foreground">Sign in with the Google account the owner invited, then enter the code they shared privately. DeskRoute does not email invitations.</p><form className="mt-4 grid gap-3" onSubmit={e => { e.preventDefault(); void submit(true) }}><label htmlFor="join-code" className="grid gap-1 text-sm">Invitation code<Input id="join-code" required value={code} autoComplete="off" onChange={e => setCode(e.target.value)} /></label><Button type="submit" disabled={busy}>Join company</Button></form></section></div>
     </div>

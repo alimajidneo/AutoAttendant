@@ -6,7 +6,6 @@ type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean }
 
 const callbackWorkspace = new URLSearchParams(window.location.search).get('workspace')
 if (callbackWorkspace && /^[0-9a-f-]{36}$/i.test(callbackWorkspace)) sessionStorage.setItem('deskroute.workspace', callbackWorkspace)
-const workspaceId = sessionStorage.getItem('deskroute.workspace')
 
 export function openWorkspace(id: string, path = '/') {
   sessionStorage.setItem('deskroute.workspace', id)
@@ -24,6 +23,7 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use(async (config) => {
+  const workspaceId = sessionStorage.getItem('deskroute.workspace')
   if (workspaceId) config.headers["X-Workspace-Id"] = workspaceId
   if (_getToken) {
     const token = await _getToken()

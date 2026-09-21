@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { agents, employees, workspaces, workspaceMembers as members, workspaceInvites as invites } from "../db/schema.js";
+import { agents, calls, calendarConnections, calcomConnections, employees, phoneNumbers, retellConnections,
+  slackConnections, workspaces, workspaceMembers as members, workspaceInvites as invites } from "../db/schema.js";
 
 export async function listWorkspaces(userId: string) {
   return db.select({ id: workspaces.agentId, name: agents.businessName, kind: workspaces.kind,
@@ -43,6 +44,35 @@ export async function convertPersonalWorkspaceToTeam(agentId: string, actor: str
     if (memberRows.length !== 1 || memberRows[0]?.userId !== actor) return false;
     await tx.update(workspaces).set({ kind: "team" }).where(eq(workspaces.agentId, agentId));
     return true;
+  });
+}
+
+/** Never cascade away an external subscription, credential, or stored recording. */
+export async function deleteWorkspace(agentId: string, actor: string, confirmedName: string) {
+  return db.transaction(async tx => {
+    const [row] = await tx.select({ ownerUserId: workspaces.ownerUserId, name: agents.businessName })
+      .from(workspaces).innerJoin(agents, eq(agents.id, workspaces.agentId))
+      .where(eq(workspaces.agentId, agentId)).for("update");
+    if (!row || row.ownerUserId !== actor) return "forbidden" as const;
+    if (row.name !== confirmedName) return "name-mismatch" as const;
+    const guards = [
+      [phoneNumbers, "Disconnect and release phone numbers first"],
+      [calendarConnections, "Disconnect calendar accounts first"],
+      [calcomConnections, "Disconnect Cal.com accounts first"],
+      [slackConnections, "Disconnect Slack first"],
+    ] as const;
+    for (const [table, reason] of guards) {
+      const [found] = await tx.select({ agentId: table.agentId }).from(table).where(eq(table.agentId, agentId)).limit(1);
+      if (found) return reason;
+    }
+    const [activeRetell] = await tx.select({ agentId: retellConnections.agentId }).from(retellConnections)
+      .where(and(eq(retellConnections.agentId, agentId), eq(retellConnections.enabled, true))).limit(1);
+    if (activeRetell) return "Disable Retell in Settings first" as const;
+    const [recording] = await tx.select({ id: calls.id }).from(calls)
+      .where(and(eq(calls.agentId, agentId), sql`${calls.recordingKey} IS NOT NULL`)).limit(1);
+    if (recording) return "Stored call recordings require cleanup before deletion" as const;
+    await tx.delete(agents).where(eq(agents.id, agentId));
+    return "deleted" as const;
   });
 }
 

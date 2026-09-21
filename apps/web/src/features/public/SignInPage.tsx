@@ -19,6 +19,14 @@ export default function SignInPage() {
   const [error, setError] = useState(false)
   const [busy, setBusy] = useState(false)
   const { theme, setTheme } = useTheme()
+  async function startSignIn(joinCompany = false) {
+    setBusy(true)
+    setError(false)
+    if (joinCompany) sessionStorage.setItem('deskroute.afterSignIn', '/workspaces')
+    else sessionStorage.removeItem('deskroute.afterSignIn')
+    try { await signInWithGoogle() }
+    catch { sessionStorage.removeItem('deskroute.afterSignIn'); setError(true); setBusy(false) }
+  }
   if (isSignedIn) return <Navigate to="/" replace />
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#f7f8fc] text-foreground dark:bg-[#080b18]">
@@ -65,11 +73,7 @@ export default function SignInPage() {
             size="lg"
             className="mt-8 h-12 w-full border-border bg-control text-base shadow-low"
             disabled={busy}
-            onClick={async () => {
-              setBusy(true)
-              setError(false)
-              try { await signInWithGoogle() } catch { setError(true); setBusy(false) }
-            }}
+            onClick={() => void startSignIn()}
           >
             <span className="grid size-6 place-items-center rounded-full bg-white text-sm font-bold text-[#4285f4] shadow-sm">G</span>
             {busy ? 'Opening Google…' : 'Continue with Google'}
@@ -78,7 +82,7 @@ export default function SignInPage() {
           <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
             New customers can create their DeskRoute account through the same secure Google sign-in.
           </p>
-          <Link to="/workspaces" onClick={() => sessionStorage.setItem('deskroute.afterSignIn', '/workspaces')} className="mt-4 block text-center text-sm font-semibold text-primary">Employee with an invitation code? Join your company</Link>
+          <button type="button" disabled={busy} onClick={() => void startSignIn(true)} className="mt-4 block w-full text-center text-sm font-semibold text-primary disabled:opacity-50">Employee with an invitation code? Join your company</button>
           <Link to="/help" className="mt-4 block text-center text-sm font-semibold text-primary">New here? Read the setup tutorial</Link>
           {error && <p role="alert" className="mt-4 rounded-lg bg-destructive-subtle px-3 py-2 text-sm text-destructive">Could not open Google sign-in. Please try again.</p>}
         </section>

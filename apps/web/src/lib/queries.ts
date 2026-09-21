@@ -60,7 +60,11 @@ export const fetchers = {
     apiClient.get<{ url: string }>(`/admin/calls/${id}/recording`).then((r) => r.data),
 
   session: () =>
-    apiClient.get<{ onboarded: boolean; role?: "manager" | "member"; workspaceOwner: boolean; workspaceId?: string; timezone?: string; hasWorkspaces: boolean }>('/onboarding/session').then((r) => r.data),
+    apiClient.get<{ onboarded: boolean; role?: "manager" | "member"; workspaceOwner: boolean; workspaceId?: string; timezone?: string; hasWorkspaces: boolean }>('/onboarding/session').then((r) => {
+      if (r.data.workspaceId && sessionStorage.getItem('deskroute.workspace') !== r.data.workspaceId) sessionStorage.setItem('deskroute.workspace', r.data.workspaceId)
+      if (!r.data.workspaceId) sessionStorage.removeItem('deskroute.workspace')
+      return r.data
+    }),
   settings: () =>
     apiClient.get<AppSettings>('/admin/settings').then((r) => r.data),
 
