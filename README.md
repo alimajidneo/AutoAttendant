@@ -54,6 +54,27 @@ The feed shows the latest **50 records from the last 30 days**. It loads with th
 
 Read receipts are stored in PostgreSQL behind the authenticated API. The read request identifies the version displayed, so a cancellation arriving during the request remains unread. Notification text is derived from the original records rather than copied into a second event log. See [behavior, privacy and limitations](docs/NOTIFICATIONS_AND_CALENDAR_SOURCES.md).
 
+## Cal.com integration plan
+
+Cal.com is the scheduling authority for employees who choose the Cal.com route. One employee connects the three Google and two Microsoft calendars in their Cal.com account, selects all five for conflict checking, and chooses one writable destination calendar for new bookings. DeskRoute asks Cal.com for slots and creates bookings through its API; Cal.com handles the provider calendar connections. This is a combined booking schedule, not a copy of all external event details in the DeskRoute agenda.
+
+The implementation is organized in four small parts so calendar providers or booking rules can change independently:
+
+1. **Connect:** Link a workspace member to an employee, then connect that employee's Cal.com account from **My employee setup**. Hosted OAuth is the preferred path. The owner-only API-key flow remains available for an existing account while OAuth approval is pending.
+2. **Configure:** In Cal.com, confirm all five conflict calendars and one booking destination. Cal.com readiness proves that a destination exists; it does not prove that all five conflicts are selected. The employee checks those five settings in Cal.com. Hosted OAuth setup creates one 30-minute personal event type per employee for the first release; the manager-owned API-key path can select another supported fixed-duration event type.
+3. **Book:** DeskRoute and Retell request slots, confirm the caller's contact and exact time, reserve locally, and submit one Cal.com booking. Only a confirmed provider result is announced as booked. Signed webhooks and authenticated reconciliation handle later changes or uncertain writes.
+4. **Accept and expand:** Test conflicts on every Google/Microsoft calendar, destination writes, cancellation, simultaneous calls, revoked access, timezones and daylight saving time. After those checks, expand event types, rescheduling and an embedded Cal.com booking UI as needed. Keep direct Google/Microsoft scheduling as an explicit alternate authority per employee.
+
+To activate this in a hosted environment, the operator must:
+
+1. Apply the reviewed 0012–0014 database migration chain using the runbook in [Cal.com integration](docs/CALCOM_INTEGRATION.md).
+2. For the first live pilot, keep hosted OAuth disabled and use the workspace owner's legacy Cal.com API-key form for one consenting employee. The owner enters the key inside DeskRoute, then selects a compatible fixed-duration event type. Configure `TOKEN_ENCRYPTION_KEY`, `CALCOM_WEBHOOK_SECRET`, `CRON_SECRET`, and `PUBLIC_API_URL` as server secrets. Do not put the API key in server environment variables, chat, or source control. Later, register and obtain approval for a hosted Cal.com OAuth client with the exact `PUBLIC_API_URL/api/calcom/oauth/callback` redirect, configure `CALCOM_OAUTH_CLIENT_ID` and `CALCOM_OAUTH_CLIENT_SECRET`, and enable `CALCOM_OAUTH_WRITE_APPROVED` only after approval of the automatic event-type and webhook writes.
+3. Deploy the public API and webhook endpoint, connect the employee, and run the live five-calendar acceptance checks before enabling telephone booking.
+
+DeskRoute does not request Google Calendar scopes when an employee uses only Cal.com scheduling. The user still grants Google/Microsoft access to Cal.com. DeskRoute's separate Google sign-in, if retained, has its own identity authorization. Do not remove direct-provider code or its credentials until every employee using it has migrated.
+
+The [detailed Cal.com contract](docs/CALCOM_INTEGRATION.md) covers API versions, credentials, webhooks, recovery and migration checks. On 2026-09-23, Ali's Org `deskroute-dev` database passed the 0011 preflight, applied migrations 0012–0014 transactionally, and passed the 0014 postflight. The Cal.com release is deployed at [deskroute-retell.vercel.app](https://deskroute-retell.vercel.app), with its frontend configured for `kpwrmksedtcncrnltdro`; the live API health and authentication-boundary checks passed. Live Cal.com account and five-calendar booking acceptance remain pending.
+
 ## Calendar account and calendar selection
 
 1. Sign in to the DeskRoute account that owns the receptionist.
@@ -70,7 +91,7 @@ Colors identify accounts, not appointment status. The legend remains present for
 
 ## Hosted operation
 
-Customers will use the deployed website without terminal commands. The repository can deploy its Vite website and Hono API as one Vercel project. Retell hosts the conversation and telephone runtime and invokes DeskRoute's signed HTTPS routes, so the current pilot does not need a persistent voice-worker deployment. This is not deployed yet. Follow the [step-by-step Vercel setup](docs/SETUP.md#10-deploy-the-website-and-api-to-vercel), [Retell production setup](docs/ALI_RETELL_SETUP.md), and [running without local terminals](docs/VERCEL_FEASIBILITY.md#running-without-local-terminals).
+Customers use the deployed website without terminal commands. The repository deploys its Vite website and Hono API as one Vercel project. Retell hosts the conversation and telephone runtime and invokes DeskRoute's signed HTTPS routes, so the current pilot does not need a persistent voice-worker deployment. The Cal.com release is deployed to the existing DeskRoute site; provider and voice acceptance remain to be performed. Follow the [step-by-step Vercel setup](docs/SETUP.md#10-deploy-the-website-and-api-to-vercel), [Retell production setup](docs/ALI_RETELL_SETUP.md), and [running without local terminals](docs/VERCEL_FEASIBILITY.md#running-without-local-terminals).
 
 ## Run locally
 
@@ -183,4 +204,4 @@ Other API modules cover onboarding, settings, calls, questions, knowledge, servi
 
 Retell Phase B is implemented locally: signed webhooks/functions, employee calendar booking and minimal settings/call outcomes. See [implementation and verification limits](docs/RETELL_MVP_IMPLEMENTATION.md) and [Ali’s account checklist](docs/ALI_RETELL_SETUP.md). Real-provider and transfer acceptance remain unverified.
 
-Employee-specific Cal.com API v2 connections, member-linked hosted OAuth self-service, dedicated event/webhook setup, slot checks, booking and reconciliation are documented in [Cal.com integration](docs/CALCOM_INTEGRATION.md). Migrations 0012–0014 are additive and remain unapplied beyond the production 0011 boundary; this implementation has not been live-validated, and production OAuth writes stay disabled until Cal.com approves them during client review.
+Employee-specific Cal.com API v2 connections, member-linked hosted OAuth self-service, dedicated event/webhook setup, slot checks, booking and reconciliation are documented in [Cal.com integration](docs/CALCOM_INTEGRATION.md). Migrations 0012–0014 and the web/API release are deployed for Ali's Org `deskroute-dev`; live provider and voice checks remain pending. Production OAuth writes stay disabled until Cal.com approves them during client review.

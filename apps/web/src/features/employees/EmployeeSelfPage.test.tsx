@@ -16,7 +16,9 @@ it("offers linked members self-service Google, Microsoft, and Cal.com connection
     directCalendars: { providers: { google: true, microsoft: true }, connections: [] },
   };
   const html = renderToStaticMarkup(<EmployeeSelfPage />);
-  for (const text of ["Thomas", "Connect Google", "Connect Microsoft", "Connect Cal.com"]) expect(html).toContain(text);
+  for (const text of ["Thomas", "Connect Google", "Connect Microsoft", "Connect Cal.com", "Select all five", "Open Cal.com calendar settings"]) expect(html).toContain(text);
+  expect(html.indexOf("Cal.com · one booking schedule")).toBeGreaterThan(-1);
+  expect(html).toContain("Direct Google and Microsoft connections");
   for (const forbidden of ["API key", "event type ID", "webhook", "client secret"]) expect(html).not.toContain(forbidden);
 });
 
@@ -32,7 +34,7 @@ it("shows only the linked member's connected direct-calendar accounts", () => {
   };
   const html = renderToStaticMarkup(<EmployeeSelfPage />);
   expect(html).toContain("thomas@example.test");
-  expect(html).toContain("A manager chooses which connected calendars control bookings and conflicts");
+  expect(html).toContain("Use direct connections when your manager chooses that calendar authority");
   expect(html).not.toContain("other@example.test");
 });
 
@@ -49,4 +51,16 @@ it("shows readiness and clear unconfigured or unlinked states without credential
   expect(html).toContain("Manager must approve a booking destination");
   mocks.data = { configured: true, employee: null, connection: null };
   expect(renderToStaticMarkup(<EmployeeSelfPage />)).toContain("not linked");
+});
+
+it("shows a ready manager-owned Cal.com connection when hosted OAuth is unavailable", () => {
+  mocks.data = {
+    configured: false,
+    employee: { id: "employee", displayName: "Thomas", bookingConfigured: true },
+    connection: { authKind: "api_key", ready: true, accountEmail: "thomas@example.test" },
+  };
+  const html = renderToStaticMarkup(<EmployeeSelfPage />);
+  expect(html).toContain("Ready for DeskRoute bookings");
+  expect(html).toContain("thomas@example.test");
+  expect(html).not.toContain("Cal.com employee OAuth is not configured");
 });

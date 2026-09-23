@@ -19,12 +19,22 @@ export default function EmployeeSelfPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const result = params.get('calendar')
-    if (!result) return
-    const provider = params.get('provider') === 'microsoft' ? 'Microsoft' : 'Google'
-    if (result === 'connected') toast.success(`${provider} account connected`)
-    else toast.error(params.get('message') ?? `${provider} account could not be connected`)
-    params.delete('calendar'); params.delete('provider'); params.delete('message')
-    window.history.replaceState(null, '', `${window.location.pathname}?${params}`)
+    const calcomResult = params.get('calcom')
+    if (!result && !calcomResult) return
+    if (calcomResult) {
+      if (calcomResult === 'connected') toast.success('Cal.com connected')
+      else if (calcomResult === 'setup_required') toast.message('Choose a destination calendar in Cal.com, then retry setup.')
+      else toast.error(params.get('message') ?? 'Cal.com could not be connected')
+      params.delete('calcom'); params.delete('workspace')
+    } else {
+      const provider = params.get('provider') === 'microsoft' ? 'Microsoft' : 'Google'
+      if (result === 'connected') toast.success(`${provider} account connected`)
+      else toast.error(params.get('message') ?? `${provider} account could not be connected`)
+      params.delete('calendar'); params.delete('provider')
+    }
+    params.delete('message')
+    const search = params.toString()
+    window.history.replaceState(null, '', `${window.location.pathname}${search ? `?${search}` : ''}`)
     void query.refetch()
   }, [query])
   async function connectDirect(provider: 'google' | 'microsoft') {
@@ -75,8 +85,9 @@ export default function EmployeeSelfPage() {
         <p className="mt-1 text-muted-foreground">Calendar setup does not by itself enable telephone routing or prove a live provider booking.</p>
         <a href="/workspaces" className="mt-2 inline-block font-semibold text-primary hover:underline">Review your workspace profile</a>
       </div>
-      <div className="grid gap-3 border-t border-border/60 pt-4">
-        <div><h3 className="font-semibold">Google and Microsoft calendars</h3><p className="text-sm text-muted-foreground">Connect only accounts you own. A manager chooses which connected calendars control bookings and conflicts.</p></div>
+      <details className="order-last grid gap-3 border-t border-border/60 pt-4">
+        <summary className="cursor-pointer font-semibold">Direct Google and Microsoft connections</summary>
+        <p className="text-sm text-muted-foreground">Use direct connections when your manager chooses that calendar authority. These use DeskRoute provider authorization.</p>
         {directCalendars.connections.map(item => <div key={item.id} className="rounded-xl bg-sunk-1 p-3">
           <p className="font-medium">{item.accountEmail}</p>
           <p className="text-sm text-muted-foreground">{item.provider === 'google' ? 'Google' : 'Microsoft'} connected</p>
@@ -86,13 +97,16 @@ export default function EmployeeSelfPage() {
           <Button variant="outline" disabled={busy || !directCalendars.providers.microsoft} onClick={() => void connectDirect('microsoft')}><CalendarCheck />Connect Microsoft</Button>
         </div>
         {!directCalendars.providers.google && !directCalendars.providers.microsoft && <p className="text-sm text-muted-foreground">Google and Microsoft Calendar connections are not configured on this server.</p>}
-      </div>
-      <div className="grid gap-3 border-t border-border/60 pt-4"><h3 className="font-semibold">Cal.com</h3>
-      {!configured ? <p className="rounded-xl bg-warning-subtle p-3 text-sm">Cal.com employee OAuth is not configured on this server. Ask the operator to add the approved hosted OAuth client settings.</p>
-      : !connection ? <div className="grid gap-3"><p className="text-sm text-muted-foreground">Authorize the hosted Cal.com client. Cal.com currently shows READ_PROFILE and READ_BOOKING consent scopes; production automatic setup still requires Cal.com confirmation during client review.</p><Button disabled={busy} onClick={() => void connect()}><CalendarCheck />Connect Cal.com</Button></div>
-      : connection.authKind === 'api_key' ? <div className="grid gap-3"><div className="rounded-xl bg-sunk-1 p-4"><p className="font-semibold">Legacy manager connection</p><p className="mt-1 text-sm text-muted-foreground">{connection.accountEmail}</p></div><p className="text-sm text-muted-foreground">A workspace owner configured the legacy API-key flow. You can replace it by authorizing your own hosted OAuth connection.</p><Button disabled={busy} onClick={() => void connect()}><CalendarCheck />Connect Cal.com with OAuth</Button></div>
+      </details>
+      <div className="grid gap-3 border-t border-border/60 pt-4"><h3 className="font-semibold">Cal.com · one booking schedule</h3>
+      <p className="text-sm text-muted-foreground">Connect your three Google and two Microsoft calendars inside Cal.com. Select all five to block busy times, then choose one writable destination for new bookings. DeskRoute checks Cal.com slots for this employee. A ready connection does not verify that all five conflict calendars were selected.</p>
+      <ol className="grid gap-1 text-sm text-muted-foreground"><li>1. Connect and select all five calendars in Cal.com.</li><li>2. Choose the booking destination in Cal.com.</li><li>3. Connect Cal.com below and confirm it is ready.</li></ol>
+      <a className="text-sm font-semibold text-primary hover:underline" href="https://app.cal.com/settings/my-account/calendars" target="_blank" rel="noopener noreferrer">Open Cal.com calendar settings</a>
+      {connection?.authKind === 'api_key' ? <div className="grid gap-3"><div className="rounded-xl bg-sunk-1 p-4"><p className="font-semibold">{connection.ready && employee.bookingConfigured ? 'Ready for DeskRoute bookings' : 'Legacy manager connection'}</p><p className="mt-1 text-sm text-muted-foreground">{connection.accountEmail}</p></div><p className="text-sm text-muted-foreground">A workspace owner configured this Cal.com connection. The owner manages its event type and booking policy.</p>{configured && <Button disabled={busy} onClick={() => void connect()}><CalendarCheck />Connect Cal.com with OAuth</Button>}</div>
+      : !configured ? <p className="rounded-xl bg-warning-subtle p-3 text-sm">Cal.com employee OAuth is not configured on this server. Ask the operator to add the approved hosted OAuth client settings.</p>
+      : !connection ? <div className="grid gap-3"><p className="text-sm text-muted-foreground">Authorize DeskRoute in Cal.com to use your booking schedule.</p><Button disabled={busy} onClick={() => void connect()}><CalendarCheck />Connect Cal.com</Button></div>
       : <div className="grid gap-3">
-        <div className="rounded-xl bg-sunk-1 p-4"><p className="font-semibold">{connection.ready ? 'Ready' : connection.status === 'reconnect_required' ? 'Reconnect required' : 'Setup required'}</p><p className="mt-1 text-sm text-muted-foreground">{connection.accountEmail}{connection.eventTypeTitle ? ` · ${connection.eventTypeTitle}` : ''}</p></div>
+        <div className="rounded-xl bg-sunk-1 p-4"><p className="font-semibold">{connection.ready ? employee.bookingConfigured ? 'Ready for DeskRoute bookings' : 'Cal.com ready; manager setup pending' : connection.status === 'reconnect_required' ? 'Reconnect required' : 'Setup required'}</p><p className="mt-1 text-sm text-muted-foreground">{connection.accountEmail}{connection.eventTypeTitle ? ` · ${connection.eventTypeTitle}` : ''}</p></div>
         {!connection.ready && <p className="text-sm text-muted-foreground">Connect or select your work calendar in Cal.com, then Retry setup. DeskRoute will not mark this connection ready without one confirmed booking destination.</p>}
         <div className="flex flex-wrap gap-2">
           {!connection.ready && <Button disabled={busy} onClick={() => void reconcile()}><RefreshCw />Retry setup</Button>}
